@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zählspiel</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&family=Open+Sans:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="big-key-hint"></div>
+    <div style="display:none">
+      <span id="score"></span>
+      <span id="level"></span>
+    </div>
+    
+    <!-- Startscreen -->
+    <div class="startscreen" id="startscreen">
+        <canvas id="trail-canvas"></canvas>
+        <div class="startscreen-content">
+            <img src="images/play_button.png" alt="Spiel starten" class="startscreen-play-btn" />
+        </div>
+        <video class="startscreen-video" src="video/Comic_Julian_holding_emojis.mp4" loop autoplay muted playsinline></video>
+    </div>
+
+    <!-- Hauptspiel (anfangs versteckt) -->
+    <div class="game-container" id="game-container" style="display: none;">
+        <button id="close-btn" class="close-button" title="Schließen" aria-label="Schließen">✕</button>
+        <div class="level-label">Level</div>
+        <div class="level-indicator" id="level-indicator"></div>
+        <div class="objects-display" id="objects-display">
+            <!-- Objekte werden hier angezeigt -->
+        </div>
+        <div class="number-buttons" id="numbers-container">
+            <button class="number-btn" data-number="1">1</button>
+            <button class="number-btn" data-number="2">2</button>
+            <button class="number-btn" data-number="3">3</button>
+            <button class="number-btn" data-number="4">4</button>
+            <button class="number-btn" data-number="5">5</button>
+            <button class="number-btn" data-number="6">6</button>
+            <button class="number-btn" data-number="7">7</button>
+            <button class="number-btn" data-number="8">8</button>
+            <button class="number-btn" data-number="9">9</button>
+        </div>
+        <div class="controls controls-bottom-left">
+            <button id="prev-track" class="game-button small" title="Vorheriger Track" aria-label="Vorheriger Track">⏮️</button>
+            <button id="music-toggle" class="game-button small" title="Musik Pause/Weiter (M)" aria-label="Musik Pause/Weiter (M)">⏸️</button>
+            <button id="next-track" class="game-button small" title="Nächster Track" aria-label="Nächster Track">⏭️</button>
+            <button id="tracklist-toggle" class="game-button small" title="Musik-Auswahl" aria-label="Musik-Auswahl">🎵</button>
+            <button id="numbers-toggle" class="game-button small" title="Zahlenfeld an/aus (N)" aria-label="Zahlenfeld an/aus (N)">🔢</button>
+        </div>
+    </div>
+    <div class="celebration" id="celebration">
+        <div class="celebration-content">
+            <!-- Die Zahl wird dynamisch per JS als .celebration-number eingefügt -->
+            <button id="next-level-btn" class="game-button" title="Weiter" aria-label="Weiter">➡️</button>
+        </div>
+    </div>
+    <div class="success-screen" id="success-screen">
+        <div class="success-number" id="success-number"></div>
+    </div>
+    <div class="tracklist-overlay" id="tracklist-overlay">
+      <div class="tracklist-content" id="tracklist-content">
+        <div class="tracklist-title">Musik auswählen</div>
+        <ul class="tracklist-list" id="tracklist-list"></ul>
+        <button class="tracklist-close" id="tracklist-close" title="Schließen" aria-label="Schließen">✕</button>
+      </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html> 
