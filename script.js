@@ -1606,6 +1606,7 @@ class PuzzleManager {
             'images/puzzle-images/puzzle_animals_4.jpg'
         ];
         this.isExpanded = false;
+        this._isCelebrating = false;
         this.init();
     }
 
@@ -1754,12 +1755,18 @@ class PuzzleManager {
     }
 
     revealNextPiece() {
-        if (this.revealedPieces >= 9) {
-            // Puzzle komplett! Feier auslösen, dann nächstes starten
+        // Während einer Puzzle-Feier keine neuen Teile aufdecken
+        if (this._isCelebrating) return;
+
+        // Prüfe ob das letzte (9.) Teil gerade aufgedeckt wird
+        if (this.revealedPieces === 8) {
+            // Letztes Teil aufdecken, dann Feier starten
+            this.revealedPieces = 9;
+            this.updateDisplay(); // Alle 9 Teile sichtbar
             this._celebratePuzzleComplete();
-            this.currentPuzzle++;
-            this.revealedPieces = 0;
+            return; // Nicht weiter — Feier übernimmt den Rest
         }
+
         // Alle Puzzles durchgespielt → beim letzten bleiben oder loopen
         if (this.currentPuzzle >= this.puzzleImages.length) {
             this.currentPuzzle = 0; // Von vorne beginnen
@@ -1849,20 +1856,34 @@ class PuzzleManager {
     _celebratePuzzleComplete() {
         const container = document.getElementById('puzzle-container');
         if (!container) return;
-        // Puzzle kurz vergrößern und golden leuchten
+        this._isCelebrating = true;
+
+        // Puzzle vergrößern und golden leuchten
+        container.classList.add('expanded');
         container.style.transition = 'all 0.5s cubic-bezier(.4,1.3,.6,1)';
-        container.style.transform = 'scale(1.3)';
         container.style.boxShadow = '0 0 40px #FFD166, 0 0 80px #FFD16688';
         container.style.zIndex = '10000';
+
         // TTS Nachricht
         if (window.countObjectsGameInstance && window.countObjectsGameInstance.tts) {
             window.countObjectsGameInstance.tts.speak('Super, du hast das Puzzle geschafft!');
         }
-        // Zurücksetzen nach 2.5 Sekunden
+
+        // Nach 3.5 Sekunden: Feier beenden, nächstes Puzzle vorbereiten
         setTimeout(() => {
-            container.style.transform = '';
+            container.classList.remove('expanded');
             container.style.boxShadow = '';
             container.style.zIndex = '';
-        }, 2500);
+            container.style.transition = '';
+
+            // Nächstes Puzzle
+            this.currentPuzzle++;
+            if (this.currentPuzzle >= this.puzzleImages.length) {
+                this.currentPuzzle = 0;
+            }
+            this.revealedPieces = 0;
+            this.updateDisplay();
+            this._isCelebrating = false;
+        }, 3500);
     }
 } 
