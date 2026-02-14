@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@700&family=Open+Sans:wght@700&display=swap');
 * {
     margin: 0;
     padding: 0;
@@ -758,7 +757,7 @@ body {
 }
 
 @keyframes flashWrong {
-  0% { background: rgba(255,0,0,0.5); }
+  0% { background: rgba(255,111,145,0.25); }
   100% { background: #fff; }
 }
 
@@ -816,7 +815,7 @@ body {
 #big-key-hint span {
   font-size: 18vw;
   font-weight: 900;
-  color: rgba(255,0,0,0.5);
+  color: rgba(255,111,145,0.45);
   text-shadow: 0 8px 32px #fff, 0 2px 8px #23294644;
   line-height: 1;
   user-select: none;

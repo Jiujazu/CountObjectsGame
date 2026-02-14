@@ -181,21 +181,17 @@ class GameLogic {
      */
     async createNewChallenge() {
         const category = this.game.objectCategories[Math.floor(Math.random() * this.game.objectCategories.length)];
+        // Schrittweise Schwierigkeitskurve: 1-3 → 1-4 → 1-5 → ... → 1-9
+        const level = this.game.state.level;
         let maxObjects;
-        if (this.game.state.level <= 10) {
-            maxObjects = 4;
-        } else if (this.game.state.level <= 20) {
-            maxObjects = 7;
-        } else if (this.game.state.level <= 30) {
-            maxObjects = 9;
-        } else {
-            maxObjects = 9;
-        }
+        if (level <= 5)       maxObjects = 3;
+        else if (level <= 10) maxObjects = 4;
+        else if (level <= 15) maxObjects = 5;
+        else if (level <= 20) maxObjects = 6;
+        else if (level <= 25) maxObjects = 7;
+        else if (level <= 30) maxObjects = 8;
+        else                  maxObjects = 9;
         this.game.state.correctAnswer = Math.floor(Math.random() * maxObjects) + 1;
-        // Für Level 31+: Nur Zahlen 5-9 verwenden
-        if (this.game.state.level > 30) {
-            this.game.state.correctAnswer = Math.floor(Math.random() * 5) + 5; // 5-9
-        }
         this.game.state.currentObjects = [];
         for (let i = 0; i < this.game.state.correctAnswer; i++) {
             this.game.state.currentObjects.push(category.emoji);
@@ -256,10 +252,10 @@ class GameLogic {
             this.game.playSound('wrong');
             await this.game.speakWrong(number);
             this.game.shakeObjects();
-            // Cooldown nach falscher Antwort (1.5 Sekunden)
+            // Kurzer Cooldown nach falscher Antwort
             setTimeout(() => {
                 this.game.state.isProcessing = false;
-            }, 1500);
+            }, 500);
         }
     }
     /**
@@ -451,7 +447,7 @@ class CountingGame {
         const ids = [
             {id: 'next-level-btn', fn: async () => await this.logic.nextLevel()},
             {id: 'music-toggle', fn: () => this.toggleMusic()},
-            {id: 'tracklist-toggle', fn: () => this.toggleTracklist()},
+            {id: 'tracklist-toggle', fn: () => this.music.showOverlay()},
             {id: 'close-btn', fn: () => this.closeGame()},
             {id: 'numbers-toggle', fn: () => this.toggleNumbers()},
             {id: 'prev-track', fn: () => this.music.prevTrack()},
@@ -521,7 +517,7 @@ class CountingGame {
             return;
         }
         // Zahlentasten: Input-Lock beachten
-        if (key >= '0' && key <= '9') {
+        if (key >= '1' && key <= '9') {
             if (this.state.isProcessing) return;
             await this.logic.handleNumberClick(parseInt(key));
             if (parseInt(key) !== this.state.correctAnswer) {
@@ -660,7 +656,7 @@ class CountingGame {
                 this.playSuccessMelody();
                 break;
             case 'wrong':
-                this.playTone(200, 0.3, 'sawtooth');
+                this.playWrongSound();
                 break;
         }
     }
@@ -681,6 +677,21 @@ class CountingGame {
         
         oscillator.start(ctx.currentTime);
         oscillator.stop(ctx.currentTime + duration);
+    }
+
+    playWrongSound() {
+        const ctx = this.getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 440;
+        osc.frequency.linearRampToValueAtTime(280, ctx.currentTime + 0.35);
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.35);
     }
 
     playSuccessMelody() {
@@ -707,6 +718,47 @@ class CountingGame {
     }
 
     closeGame() {
+        // Bestätigung nur wenn Fortschritt vorhanden
+        if (this.state.level > 1) {
+            this._showCloseConfirmation();
+            return;
+        }
+        this._doCloseGame();
+    }
+
+    _showCloseConfirmation() {
+        // Overlay erstellen
+        const overlay = document.createElement('div');
+        overlay.id = 'close-confirm-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        const dialog = document.createElement('div');
+        dialog.style.cssText = 'background:#fff;border-radius:24px;padding:32px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.2);max-width:320px;';
+        dialog.innerHTML = `
+            <div style="font-size:2.5rem;margin-bottom:16px;">🛑</div>
+            <div style="font-size:1.2rem;font-weight:700;color:#232946;margin-bottom:24px;">Spiel wirklich beenden?</div>
+            <div style="display:flex;gap:16px;justify-content:center;">
+                <button id="close-confirm-yes" style="background:#FF6F91;color:#fff;border:none;border-radius:14px;padding:12px 28px;font-size:1.1rem;font-weight:700;cursor:pointer;">Ja</button>
+                <button id="close-confirm-no" style="background:#6AD1E3;color:#fff;border:none;border-radius:14px;padding:12px 28px;font-size:1.1rem;font-weight:700;cursor:pointer;">Nein</button>
+            </div>
+        `;
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        const cleanup = () => {
+            overlay.remove();
+            document.removeEventListener('keydown', keyHandler);
+        };
+        const keyHandler = (e) => {
+            if (e.key === 'Escape') { cleanup(); }
+            if (e.key === 'Enter') { cleanup(); this._doCloseGame(); }
+        };
+        document.addEventListener('keydown', keyHandler);
+        document.getElementById('close-confirm-yes').addEventListener('click', () => { cleanup(); this._doCloseGame(); });
+        document.getElementById('close-confirm-no').addEventListener('click', cleanup);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+    }
+
+    _doCloseGame() {
         // Stoppe Hintergrundmusik
         this.music.stopBackgroundMusic();
 
@@ -882,15 +934,6 @@ class CountingGame {
 // Spiel starten wenn DOM geladen ist
 document.addEventListener('DOMContentLoaded', () => {
     window.countObjectsGameInstance = new CountingGame();
-    // Noten-Icon Overlay-Handler
-    const noteBtn = document.getElementById('tracklist-toggle');
-    if (noteBtn) {
-        noteBtn.addEventListener('click', function(e) {
-            if (window.countObjectsGameInstance && window.countObjectsGameInstance.music) {
-                window.countObjectsGameInstance.music.showOverlay();
-            }
-        });
-    }
 });
 
 // Touch-Events für mobile Geräte
