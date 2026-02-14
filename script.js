@@ -143,6 +143,22 @@ class UIManager {
             indicator.textContent = this.game.state.level;
         }
     }
+    // Aktualisiert die Stern-Anzeige (1 Stern pro 5 Level)
+    updateStars() {
+        const container = document.getElementById('star-progress');
+        if (!container) return;
+        const level = this.game.state.level;
+        const earnedStars = Math.floor((level - 1) / 5);
+        const totalStars = 7; // max 35 Level → 7 Sterne
+        container.innerHTML = '';
+        for (let i = 0; i < totalStars; i++) {
+            const star = document.createElement('span');
+            star.className = 'star' + (i < earnedStars ? ' earned' : '');
+            star.textContent = '⭐';
+            container.appendChild(star);
+        }
+    }
+
     // Zeigt einen großen Tastatur-Hinweis im UI
     showBigKeyHint(key) {
         const hint = document.getElementById('big-key-hint');
@@ -181,22 +197,25 @@ class GameLogic {
      */
     async createNewChallenge() {
         const category = this.game.objectCategories[Math.floor(Math.random() * this.game.objectCategories.length)];
-        // Schrittweise Schwierigkeitskurve: 1-3 → 1-4 → 1-5 → ... → 1-9
-        const level = this.game.state.level;
+        // Schwierigkeitskurve: Eltern-Override oder schrittweise Steigerung
         let maxObjects;
-        if (level <= 5)       maxObjects = 3;
-        else if (level <= 10) maxObjects = 4;
-        else if (level <= 15) maxObjects = 5;
-        else if (level <= 20) maxObjects = 6;
-        else if (level <= 25) maxObjects = 7;
-        else if (level <= 30) maxObjects = 8;
-        else                  maxObjects = 9;
+        if (this.game.state.maxObjectsOverride) {
+            maxObjects = this.game.state.maxObjectsOverride;
+        } else {
+            const level = this.game.state.level;
+            if (level <= 5)       maxObjects = 3;
+            else if (level <= 10) maxObjects = 4;
+            else if (level <= 15) maxObjects = 5;
+            else if (level <= 20) maxObjects = 6;
+            else if (level <= 25) maxObjects = 7;
+            else if (level <= 30) maxObjects = 8;
+            else                  maxObjects = 9;
+        }
         this.game.state.correctAnswer = Math.floor(Math.random() * maxObjects) + 1;
         this.game.state.currentObjects = [];
         for (let i = 0; i < this.game.state.correctAnswer; i++) {
             this.game.state.currentObjects.push(category.emoji);
         }
-        this.game.state.currentSet = Math.ceil(this.game.state.level / 3);
         this.game.displayObjects();
         await this.game.speakInstruction();
     }
@@ -210,6 +229,7 @@ class GameLogic {
         this.game.state.isProcessing = true;
 
         if (number === this.game.state.correctAnswer) {
+            this.game.state.wrongStreak = 0;
             this.game.state.score += this.game.state.level * 10;
             this.game.playSound('success');
             await this.game.speakSuccess();
@@ -249,9 +269,17 @@ class GameLogic {
                 }
             }, 1000);
         } else {
+            this.game.state.wrongStreak++;
             this.game.playSound('wrong');
             await this.game.speakWrong(number);
             this.game.shakeObjects();
+            // Nach 3 Fehlversuchen: Hinweis geben
+            if (this.game.state.wrongStreak >= 3) {
+                this.game.state.wrongStreak = 0;
+                setTimeout(() => {
+                    this.game._showHint();
+                }, 600);
+            }
             // Kurzer Cooldown nach falscher Antwort
             setTimeout(() => {
                 this.game.state.isProcessing = false;
@@ -263,10 +291,11 @@ class GameLogic {
      */
     async nextLevel() {
         this.game.state.level++;
-        this.game.state.currentSet = Math.ceil(this.game.state.level / 3);
+        this.game.state.wrongStreak = 0;
         await this.createNewChallenge();
         this.game.ui.updateDisplay();
         this.game.ui.updateLevelIndicator();
+        this.game.ui.updateStars();
         // Input erst freigeben, nachdem die neue Challenge geladen ist
         this.game.state.isProcessing = false;
     }
@@ -280,9 +309,10 @@ class CountingGame {
             level: 1,              // Aktuelles Level
             currentObjects: [],    // Aktuelle Objekte (Emojis)
             correctAnswer: 0,      // Richtige Antwort für das aktuelle Rätsel
-            currentSet: 1,         // Aktuelles Set (1-3 Level pro Set)
             numbersVisible: false, // Ist das Zahlenfeld sichtbar?
             isProcessing: false,   // Sperrt Input während Antwort-Verarbeitung
+            wrongStreak: 0,        // Fehlversuche in Folge für aktuelles Level
+            maxObjectsOverride: 0, // Eltern-Override für max. Objekte (0 = automatisch)
         };
         this.soundEnabled = true;
         this.speechEnabled = true;
@@ -368,68 +398,152 @@ class CountingGame {
         console.log('Startscreen wird angezeigt');
     }
 
+    _playStartSound() {
+        try {
+            const ctx = this.getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = 740;
+            gain.gain.value = 0.18;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.frequency.linearRampToValueAtTime(1100, ctx.currentTime + 0.18);
+            gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
+            osc.stop(ctx.currentTime + 0.22);
+        } catch(e) {}
+    }
+
+    _triggerStartTransition() {
+        this._playStartSound();
+        document.removeEventListener('keydown', this._startKeyHandler);
+        const btn = document.querySelector('.startscreen-play-btn');
+        btn.classList.add('clicked');
+        const startscreen = document.getElementById('startscreen');
+        startscreen.classList.add('hide');
+        setTimeout(() => {
+            this.startGame();
+            btn.classList.remove('clicked');
+            startscreen.classList.remove('hide');
+        }, 600);
+    }
+
     bindEvents() {
         // Play-Button
-        document.querySelector('.startscreen-play-btn').addEventListener('click', (e) => {
-            const btn = e.currentTarget;
-            // Soundeffekt abspielen
-            try {
-                const ctx = this.getAudioContext();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.value = 740;
-                gain.gain.value = 0.18;
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start();
-                osc.frequency.linearRampToValueAtTime(1100, ctx.currentTime + 0.18);
-                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
-                osc.stop(ctx.currentTime + 0.22);
-            } catch(e) {}
-            // Start-Keyboard-Listener entfernen
-            document.removeEventListener('keydown', this._startKeyHandler);
-            btn.classList.add('clicked');
-            const startscreen = document.getElementById('startscreen');
-            startscreen.classList.add('hide');
-            setTimeout(() => {
-                this.startGame();
-                btn.classList.remove('clicked');
-                startscreen.classList.remove('hide');
-            }, 600);
+        document.querySelector('.startscreen-play-btn').addEventListener('click', () => {
+            this._triggerStartTransition();
         });
         // Start per Tastatur (Leertaste oder Enter)
         this._startKeyHandler = (e) => {
             const startscreen = document.getElementById('startscreen');
             if (startscreen.style.display !== 'none' && (e.key === ' ' || e.key === 'Enter')) {
                 e.preventDefault();
-                document.removeEventListener('keydown', this._startKeyHandler);
-                const btn = document.querySelector('.startscreen-play-btn');
-                // Soundeffekt abspielen
-                try {
-                    const ctx = this.getAudioContext();
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'triangle';
-                    osc.frequency.value = 740;
-                    gain.gain.value = 0.18;
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start();
-                    osc.frequency.linearRampToValueAtTime(1100, ctx.currentTime + 0.18);
-                    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
-                    osc.stop(ctx.currentTime + 0.22);
-                } catch(e) {}
-                btn.classList.add('clicked');
-                startscreen.classList.add('hide');
-                setTimeout(() => {
-                    this.startGame();
-                    btn.classList.remove('clicked');
-                    startscreen.classList.remove('hide');
-                }, 600);
+                this._triggerStartTransition();
             }
         };
         document.addEventListener('keydown', this._startKeyHandler);
+    }
+
+    _initParentMenu() {
+        const indicator = document.getElementById('level-indicator');
+        if (!indicator) return;
+        let pressTimer = null;
+        indicator.style.cursor = 'pointer';
+        const startPress = () => {
+            pressTimer = setTimeout(() => this._showParentMenu(), 800);
+        };
+        const cancelPress = () => {
+            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+        };
+        indicator.addEventListener('mousedown', startPress);
+        indicator.addEventListener('mouseup', cancelPress);
+        indicator.addEventListener('mouseleave', cancelPress);
+        indicator.addEventListener('touchstart', startPress, { passive: true });
+        indicator.addEventListener('touchend', cancelPress);
+    }
+
+    _showParentMenu() {
+        // Overlay erstellen
+        const overlay = document.createElement('div');
+        overlay.id = 'parent-menu-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        const dialog = document.createElement('div');
+        dialog.style.cssText = 'background:#fff;border-radius:24px;padding:32px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.2);max-width:340px;width:90vw;';
+
+        const currentMax = this._getCurrentMaxObjects();
+        dialog.innerHTML = `
+            <div style="font-size:1.4rem;font-weight:700;color:#232946;margin-bottom:8px;">⚙️ Eltern-Einstellungen</div>
+            <div style="font-size:0.9rem;color:#666;margin-bottom:20px;">Lange auf Level-Zahl drücken zum Öffnen</div>
+            <div style="margin-bottom:20px;">
+                <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Startschwierigkeit (max. Objekte): <span id="parent-diff-val">${currentMax}</span></div>
+                <input type="range" id="parent-diff-slider" min="2" max="9" value="${currentMax}" style="width:100%;accent-color:#FFD166;">
+            </div>
+            <div style="margin-bottom:20px;">
+                <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Level anpassen:</div>
+                <div style="display:flex;gap:8px;justify-content:center;align-items:center;">
+                    <button id="parent-level-down" style="background:#f0f2f5;border:none;border-radius:12px;width:40px;height:40px;font-size:1.4rem;font-weight:700;cursor:pointer;">−</button>
+                    <span id="parent-level-val" style="font-size:1.6rem;font-weight:700;color:#232946;min-width:40px;">${this.state.level}</span>
+                    <button id="parent-level-up" style="background:#f0f2f5;border:none;border-radius:12px;width:40px;height:40px;font-size:1.4rem;font-weight:700;cursor:pointer;">+</button>
+                </div>
+            </div>
+            <div style="display:flex;gap:12px;justify-content:center;">
+                <button id="parent-menu-apply" style="background:#6AD1E3;color:#fff;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Übernehmen</button>
+                <button id="parent-menu-close" style="background:#f0f2f5;color:#232946;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Abbrechen</button>
+            </div>
+        `;
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        let newLevel = this.state.level;
+        let newMaxOverride = currentMax;
+
+        const slider = document.getElementById('parent-diff-slider');
+        const diffVal = document.getElementById('parent-diff-val');
+        slider.addEventListener('input', () => {
+            newMaxOverride = parseInt(slider.value);
+            diffVal.textContent = newMaxOverride;
+        });
+
+        const levelVal = document.getElementById('parent-level-val');
+        document.getElementById('parent-level-down').addEventListener('click', () => {
+            if (newLevel > 1) { newLevel--; levelVal.textContent = newLevel; }
+        });
+        document.getElementById('parent-level-up').addEventListener('click', () => {
+            newLevel++; levelVal.textContent = newLevel;
+        });
+
+        const cleanup = () => {
+            overlay.remove();
+            document.removeEventListener('keydown', keyHandler);
+        };
+        const keyHandler = (e) => {
+            if (e.key === 'Escape') cleanup();
+        };
+        document.addEventListener('keydown', keyHandler);
+
+        document.getElementById('parent-menu-apply').addEventListener('click', () => {
+            this.state.level = newLevel;
+            this.state.maxObjectsOverride = newMaxOverride;
+            this.ui.updateLevelIndicator();
+            this.ui.updateStars();
+            this.logic.createNewChallenge();
+            cleanup();
+        });
+        document.getElementById('parent-menu-close').addEventListener('click', cleanup);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+    }
+
+    _getCurrentMaxObjects() {
+        if (this.state.maxObjectsOverride) return this.state.maxObjectsOverride;
+        const level = this.state.level;
+        if (level <= 5) return 3;
+        if (level <= 10) return 4;
+        if (level <= 15) return 5;
+        if (level <= 20) return 6;
+        if (level <= 25) return 7;
+        if (level <= 30) return 8;
+        return 9;
     }
 
     async enableGameEvents() {
@@ -448,6 +562,7 @@ class CountingGame {
             {id: 'next-level-btn', fn: async () => await this.logic.nextLevel()},
             {id: 'music-toggle', fn: () => this.toggleMusic()},
             {id: 'tracklist-toggle', fn: () => this.music.showOverlay()},
+            {id: 'sound-toggle', fn: () => this.toggleSound()},
             {id: 'close-btn', fn: () => this.closeGame()},
             {id: 'numbers-toggle', fn: () => this.toggleNumbers()},
             {id: 'prev-track', fn: () => this.music.prevTrack()},
@@ -471,6 +586,16 @@ class CountingGame {
 
     async startGame() {
         console.log('Spiel wird gestartet...');
+        // Fullscreen aktivieren (falls vom Browser erlaubt)
+        try {
+            if (document.documentElement.requestFullscreen) {
+                await document.documentElement.requestFullscreen();
+            } else if (document.documentElement.webkitRequestFullscreen) {
+                await document.documentElement.webkitRequestFullscreen();
+            }
+        } catch(e) { /* Fullscreen nicht verfügbar oder abgelehnt — kein Problem */ }
+        // Trail-Animation stoppen
+        if (window._trailControl) window._trailControl.stop();
         // Verstecke Startscreen
         const startscreen = document.getElementById('startscreen');
         startscreen.style.display = 'none';
@@ -485,6 +610,7 @@ class CountingGame {
         await this.logic.createNewChallenge();
         this.ui.updateDisplay();
         this.ui.updateLevelIndicator();
+        this.ui.updateStars();
         // Setze Zahlenfeld-Button auf ausgeschaltet
         const numbersButton = document.getElementById('numbers-toggle');
         numbersButton.textContent = '⌨️';
@@ -492,6 +618,8 @@ class CountingGame {
         // Verstecke das Zahlenfeld tatsächlich
         const numbersContainer = document.getElementById('numbers-container');
         numbersContainer.style.display = 'none';
+        // Eltern-Menü initialisieren
+        this._initParentMenu();
         // Starte Hintergrundmusik
         this.music.playBackgroundMusic();
         console.log('Spiel-Initialisierung abgeschlossen');
@@ -514,6 +642,11 @@ class CountingGame {
         if (key.toLowerCase() === 'n') {
             e.preventDefault();
             this.toggleNumbers();
+            return;
+        }
+        if (key.toLowerCase() === 's') {
+            e.preventDefault();
+            this.toggleSound();
             return;
         }
         // Zahlentasten: Input-Lock beachten
@@ -627,29 +760,8 @@ class CountingGame {
         this.logic.nextLevel();
     }
 
-    resetGame() {
-        // Zeige Startscreen wieder an
-        const startscreen = document.getElementById('startscreen');
-        startscreen.style.display = 'flex';
-        startscreen.style.pointerEvents = 'auto';
-        document.getElementById('game-container').style.display = 'none';
-        
-        // Reset Spiel-Daten
-        this.state.score = 0;
-        this.state.level = 1;
-        this.state.currentSet = 1;
-        document.getElementById('celebration').classList.remove('show');
-        
-        // Puzzle zurücksetzen
-        if (this.puzzle) {
-            this.puzzle.currentPuzzle = 0;
-            this.puzzle.revealedPieces = 0;
-            this.puzzle.updateDisplay();
-        }
-    }
-
     playSound(type) {
-        // Sound ist immer an, da kein Toggle mehr
+        if (!this.soundEnabled) return;
         const ctx = this.getAudioContext();
         switch(type) {
             case 'success':
@@ -717,6 +829,16 @@ class CountingGame {
         this.music.toggleMusic();
     }
 
+    toggleSound() {
+        this.soundEnabled = !this.soundEnabled;
+        this.speechEnabled = !this.speechEnabled;
+        const btn = document.getElementById('sound-toggle');
+        if (btn) {
+            btn.textContent = this.soundEnabled ? '🔊' : '🔇';
+            btn.title = this.soundEnabled ? 'Soundeffekte an/aus (S)' : 'Soundeffekte aus (S)';
+        }
+    }
+
     closeGame() {
         // Bestätigung nur wenn Fortschritt vorhanden
         if (this.state.level > 1) {
@@ -759,10 +881,18 @@ class CountingGame {
     }
 
     _doCloseGame() {
+        // Fullscreen beenden
+        try {
+            if (document.fullscreenElement) document.exitFullscreen();
+            else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
+        } catch(e) {}
         // Stoppe Hintergrundmusik
         this.music.stopBackgroundMusic();
 
-        // Verstecke Puzzle
+        // Puzzle zurücksetzen und verstecken
+        this.puzzle.currentPuzzle = 0;
+        this.puzzle.revealedPieces = 0;
+        this.puzzle.updateDisplay();
         this.puzzle.hide();
 
         // Offene UI-Overlays schließen
@@ -776,7 +906,6 @@ class CountingGame {
         // Reset Spielstand
         this.state.score = 0;
         this.state.level = 1;
-        this.state.currentSet = 1;
         this.state.isProcessing = false;
 
         // Verstecke Spiel, zeige Startscreen
@@ -790,6 +919,27 @@ class CountingGame {
 
         // Startscreen-Keyboard-Listener wieder aktivieren
         document.addEventListener('keydown', this._startKeyHandler);
+
+        // Trail-Animation wieder starten
+        if (window._trailControl) window._trailControl.start();
+    }
+
+    _showHint() {
+        const answer = this.state.correctAnswer;
+        const { numberNames } = this._getObjectInfo();
+        const zahlwort = numberNames[answer - 1] || answer.toString();
+        // TTS Hinweis
+        this.tts.speak(`Kleiner Tipp: Es sind ${zahlwort}.`);
+        // Richtige Zahl kurz visuell blinken lassen
+        const hint = document.getElementById('big-key-hint');
+        if (hint) {
+            hint.innerHTML = `<span style="color:rgba(106,209,227,0.6);">${answer}</span>`;
+            hint.classList.add('show');
+            clearTimeout(this.ui._bigKeyTimeout);
+            this.ui._bigKeyTimeout = setTimeout(() => {
+                hint.classList.remove('show');
+            }, 2000);
+        }
     }
 
     toggleNumbers() {
@@ -909,6 +1059,7 @@ class CountingGame {
             'next-level-btn',
             'music-toggle',
             'tracklist-toggle',
+            'sound-toggle',
             'close-btn',
             'numbers-toggle',
             'prev-track',
@@ -1087,6 +1238,20 @@ document.addEventListener('touchstart', function() {}, {passive: true});
             animateTrail();
         }
     });
+
+    // API zum Stoppen/Starten der Trail-Animation von außen
+    window._trailControl = {
+        stop() {
+            running = false;
+            if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        },
+        start() {
+            if (!running) {
+                initTrail();
+                animateTrail();
+            }
+        }
+    };
 })();
 
 // --- Kreiswellen-Animation und Sound auf Startscreen-Klick ---
@@ -1590,7 +1755,8 @@ class PuzzleManager {
 
     revealNextPiece() {
         if (this.revealedPieces >= 9) {
-            // Nächstes Puzzle starten
+            // Puzzle komplett! Feier auslösen, dann nächstes starten
+            this._celebratePuzzleComplete();
             this.currentPuzzle++;
             this.revealedPieces = 0;
         }
@@ -1678,5 +1844,25 @@ class PuzzleManager {
         if (container) {
             container.style.display = 'block';
         }
+    }
+
+    _celebratePuzzleComplete() {
+        const container = document.getElementById('puzzle-container');
+        if (!container) return;
+        // Puzzle kurz vergrößern und golden leuchten
+        container.style.transition = 'all 0.5s cubic-bezier(.4,1.3,.6,1)';
+        container.style.transform = 'scale(1.3)';
+        container.style.boxShadow = '0 0 40px #FFD166, 0 0 80px #FFD16688';
+        container.style.zIndex = '10000';
+        // TTS Nachricht
+        if (window.countObjectsGameInstance && window.countObjectsGameInstance.tts) {
+            window.countObjectsGameInstance.tts.speak('Super, du hast das Puzzle geschafft!');
+        }
+        // Zurücksetzen nach 2.5 Sekunden
+        setTimeout(() => {
+            container.style.transform = '';
+            container.style.boxShadow = '';
+            container.style.zIndex = '';
+        }, 2500);
     }
 } 
