@@ -28,6 +28,7 @@
         <button id="close-btn" class="close-button" title="Schließen" aria-label="Schließen">✕</button>
         <div class="level-label">Level</div>
         <div class="level-indicator" id="level-indicator"></div>
+        <div class="star-progress" id="star-progress"></div>
         <div class="objects-display" id="objects-display">
             <!-- Objekte werden hier angezeigt -->
         </div>
@@ -47,6 +48,7 @@
             <button id="music-toggle" class="game-button small" title="Musik Pause/Weiter (M)" aria-label="Musik Pause/Weiter (M)">⏸️</button>
             <button id="next-track" class="game-button small" title="Nächster Track" aria-label="Nächster Track">⏭️</button>
             <button id="tracklist-toggle" class="game-button small" title="Musik-Auswahl" aria-label="Musik-Auswahl">🎵</button>
+            <button id="sound-toggle" class="game-button small" title="Soundeffekte an/aus (S)" aria-label="Soundeffekte an/aus (S)">🔊</button>
             <button id="numbers-toggle" class="game-button small" title="Zahlenfeld an/aus (N)" aria-label="Zahlenfeld an/aus (N)">🔢</button>
         </div>
     </div>
@@ -58,13 +60,6 @@
     </div>
     <div class="success-screen" id="success-screen">
         <div class="success-number" id="success-number"></div>
-    </div>
-    <div class="tracklist-overlay" id="tracklist-overlay">
-      <div class="tracklist-content" id="tracklist-content">
-        <div class="tracklist-title">Musik auswählen</div>
-        <ul class="tracklist-list" id="tracklist-list"></ul>
-        <button class="tracklist-close" id="tracklist-close" title="Schließen" aria-label="Schließen">✕</button>
-      </div>
     </div>
     <script src="script.js"></script>
 </body>
