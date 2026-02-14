@@ -160,20 +160,14 @@ class UIManager {
         const successNumber = document.getElementById('success-number');
         successNumber.textContent = correctAnswer;
         successScreen.classList.add('show');
-        const continueToNext = () => {
-            successScreen.classList.remove('show');
-            successScreen.removeEventListener('click', continueToNext);
-            document.removeEventListener('keydown', handleKeyPress);
-            if (onContinue) onContinue();
-        };
-        const handleKeyPress = (e) => {
-            if (e.code === 'Space') {
-                e.preventDefault();
-                continueToNext();
-            }
-        };
-        successScreen.addEventListener('click', continueToNext);
-        document.addEventListener('keydown', handleKeyPress);
+        // Keine eigenen Skip-Handler hier — das wird von handleNumberClick gesteuert
+        if (onContinue) {
+            // Auto-Dismiss nach 3 Sekunden falls nicht manuell geschlossen
+            this._celebrationTimeout = setTimeout(() => {
+                successScreen.classList.remove('show');
+                onContinue();
+            }, 3000);
+        }
     }
 }
 
@@ -187,21 +181,17 @@ class GameLogic {
      */
     async createNewChallenge() {
         const category = this.game.objectCategories[Math.floor(Math.random() * this.game.objectCategories.length)];
+        // Schrittweise Schwierigkeitskurve: 1-3 → 1-4 → 1-5 → ... → 1-9
+        const level = this.game.state.level;
         let maxObjects;
-        if (this.game.state.level <= 10) {
-            maxObjects = 4;
-        } else if (this.game.state.level <= 20) {
-            maxObjects = 7;
-        } else if (this.game.state.level <= 30) {
-            maxObjects = 9;
-        } else {
-            maxObjects = 9;
-        }
+        if (level <= 5)       maxObjects = 3;
+        else if (level <= 10) maxObjects = 4;
+        else if (level <= 15) maxObjects = 5;
+        else if (level <= 20) maxObjects = 6;
+        else if (level <= 25) maxObjects = 7;
+        else if (level <= 30) maxObjects = 8;
+        else                  maxObjects = 9;
         this.game.state.correctAnswer = Math.floor(Math.random() * maxObjects) + 1;
-        // Für Level 31+: Nur Zahlen 5-9 verwenden
-        if (this.game.state.level > 30) {
-            this.game.state.correctAnswer = Math.floor(Math.random() * 5) + 5; // 5-9
-        }
         this.game.state.currentObjects = [];
         for (let i = 0; i < this.game.state.correctAnswer; i++) {
             this.game.state.currentObjects.push(category.emoji);
@@ -212,9 +202,13 @@ class GameLogic {
     }
     /**
      * Behandelt einen Klick auf eine Zahl. Bei richtiger Antwort: Punkte, Sound, TTS, Animation, Celebration.
-     * Bei falscher Antwort: Sound, TTS, Shake.
+     * Bei falscher Antwort: Sound, TTS, Shake + Cooldown.
      */
     async handleNumberClick(number) {
+        // Input-Lock: Keine Eingabe während Verarbeitung
+        if (this.game.state.isProcessing) return;
+        this.game.state.isProcessing = true;
+
         if (number === this.game.state.correctAnswer) {
             this.game.state.score += this.game.state.level * 10;
             this.game.playSound('success');
@@ -226,23 +220,26 @@ class GameLogic {
             const skipToNext = () => {
                 if (animationSkipped) return;
                 animationSkipped = true;
-                // Event-Listener entfernen
-                document.removeEventListener('keydown', keyHandler);
-                document.removeEventListener('click', clickHandler);
-                // Erfolgsanimation und grüner Screen sofort beenden
+                document.removeEventListener('keydown', skipKeyHandler);
+                document.removeEventListener('click', skipClickHandler);
+                // Auto-Dismiss-Timeout abbrechen
+                if (this.game.ui._celebrationTimeout) {
+                    clearTimeout(this.game.ui._celebrationTimeout);
+                    this.game.ui._celebrationTimeout = null;
+                }
                 const successScreen = document.getElementById('success-screen');
                 if (successScreen) successScreen.classList.remove('show');
-                this.nextLevel(); // Sofort aufrufen!
+                this.nextLevel();
             };
-            const keyHandler = (e) => {
+            const skipKeyHandler = (e) => {
                 if (e.code === 'Space' || e.key === ' ') {
                     e.preventDefault();
                     skipToNext();
                 }
             };
-            const clickHandler = () => skipToNext();
-            document.addEventListener('keydown', keyHandler);
-            document.addEventListener('click', clickHandler);
+            const skipClickHandler = () => skipToNext();
+            document.addEventListener('keydown', skipKeyHandler);
+            document.addEventListener('click', skipClickHandler);
 
             setTimeout(() => {
                 if (!animationSkipped) {
@@ -255,25 +252,28 @@ class GameLogic {
             this.game.playSound('wrong');
             await this.game.speakWrong(number);
             this.game.shakeObjects();
+            // Kurzer Cooldown nach falscher Antwort
+            setTimeout(() => {
+                this.game.state.isProcessing = false;
+            }, 500);
         }
     }
     /**
      * Steigt ins nächste Level auf und startet die nächste Challenge.
      */
     async nextLevel() {
-        document.addEventListener('keydown', this.game._handleKeyPressBound);
         this.game.state.level++;
         this.game.state.currentSet = Math.ceil(this.game.state.level / 3);
         await this.createNewChallenge();
         this.game.ui.updateDisplay();
         this.game.ui.updateLevelIndicator();
+        // Input erst freigeben, nachdem die neue Challenge geladen ist
+        this.game.state.isProcessing = false;
     }
 }
 
 class CountingGame {
     constructor() {
-        // Puzzle-Fortschritt immer zurücksetzen
-        localStorage.removeItem('puzzleProgress');
         // Zentrales State-Objekt für den gesamten Spielzustand
         this.state = {
             score: 0,              // Aktueller Punktestand
@@ -282,6 +282,7 @@ class CountingGame {
             correctAnswer: 0,      // Richtige Antwort für das aktuelle Rätsel
             currentSet: 1,         // Aktuelles Set (1-3 Level pro Set)
             numbersVisible: false, // Ist das Zahlenfeld sichtbar?
+            isProcessing: false,   // Sperrt Input während Antwort-Verarbeitung
         };
         this.soundEnabled = true;
         this.speechEnabled = true;
@@ -321,6 +322,16 @@ class CountingGame {
             { emoji: '🐞', name: 'Marienkäfer' },
             { emoji: '🦕', name: 'Dinosaurier' }
         ];
+        // Singular-Formen mit Artikel (Plural → Singular)
+        this.singularMap = {
+            'Äpfel': 'ein Apfel', 'Pizzen': 'eine Pizza', 'Einhörner': 'ein Einhorn',
+            'Hunde': 'ein Hund', 'Katzen': 'eine Katze', 'Hasen': 'ein Hase',
+            'Frösche': 'ein Frosch', 'Pandas': 'ein Panda', 'Koalas': 'ein Koala',
+            'Löwen': 'ein Löwe', 'Kühe': 'eine Kuh', 'Schweine': 'ein Schwein',
+            'Kraken': 'eine Krake', 'Giraffen': 'eine Giraffe', 'Elefanten': 'ein Elefant',
+            'Füchse': 'ein Fuchs', 'Bären': 'ein Bär', 'Schmetterlinge': 'ein Schmetterling',
+            'Marienkäfer': 'ein Marienkäfer', 'Dinosaurier': 'ein Dinosaurier'
+        };
         this.audioContext = null;
         this.tts = new TTSManager();
         this.music = new MusicManager(this.musicTracks, [
@@ -375,22 +386,24 @@ class CountingGame {
                 osc.frequency.linearRampToValueAtTime(1100, ctx.currentTime + 0.18);
                 gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
                 osc.stop(ctx.currentTime + 0.22);
-                osc.onended = () => ctx.close();
             } catch(e) {}
+            // Start-Keyboard-Listener entfernen
+            document.removeEventListener('keydown', this._startKeyHandler);
             btn.classList.add('clicked');
             const startscreen = document.getElementById('startscreen');
             startscreen.classList.add('hide');
             setTimeout(() => {
                 this.startGame();
                 btn.classList.remove('clicked');
-                startscreen.classList.remove('hide'); // Für späteres Zurücksetzen
+                startscreen.classList.remove('hide');
             }, 600);
         });
         // Start per Tastatur (Leertaste oder Enter)
-        document.addEventListener('keydown', (e) => {
+        this._startKeyHandler = (e) => {
             const startscreen = document.getElementById('startscreen');
             if (startscreen.style.display !== 'none' && (e.key === ' ' || e.key === 'Enter')) {
                 e.preventDefault();
+                document.removeEventListener('keydown', this._startKeyHandler);
                 const btn = document.querySelector('.startscreen-play-btn');
                 // Soundeffekt abspielen
                 try {
@@ -406,7 +419,6 @@ class CountingGame {
                     osc.frequency.linearRampToValueAtTime(1100, ctx.currentTime + 0.18);
                     gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
                     osc.stop(ctx.currentTime + 0.22);
-                    osc.onended = () => ctx.close();
                 } catch(e) {}
                 btn.classList.add('clicked');
                 startscreen.classList.add('hide');
@@ -416,13 +428,17 @@ class CountingGame {
                     startscreen.classList.remove('hide');
                 }, 600);
             }
-        });
+        };
+        document.addEventListener('keydown', this._startKeyHandler);
     }
 
     async enableGameEvents() {
-        // Zahlen-Buttons
+        // Zahlen-Buttons (Input-Lock wird in handleNumberClick geprüft)
         document.querySelectorAll('.number-btn').forEach(btn => {
-            btn._numberClickHandler = async () => await this.logic.handleNumberClick(parseInt(btn.dataset.number));
+            btn._numberClickHandler = async () => {
+                if (this.state.isProcessing) return;
+                await this.logic.handleNumberClick(parseInt(btn.dataset.number));
+            };
             btn.addEventListener('click', btn._numberClickHandler);
         });
         // Tastatur-Events
@@ -431,7 +447,7 @@ class CountingGame {
         const ids = [
             {id: 'next-level-btn', fn: async () => await this.logic.nextLevel()},
             {id: 'music-toggle', fn: () => this.toggleMusic()},
-            {id: 'tracklist-toggle', fn: () => this.toggleTracklist()},
+            {id: 'tracklist-toggle', fn: () => this.music.showOverlay()},
             {id: 'close-btn', fn: () => this.closeGame()},
             {id: 'numbers-toggle', fn: () => this.toggleNumbers()},
             {id: 'prev-track', fn: () => this.music.prevTrack()},
@@ -483,20 +499,13 @@ class CountingGame {
 
     async handleKeyPress(e) {
         const key = e.key;
-        // Wenn Celebration sichtbar ist und Enter/Space gedrückt wird, weiter
-        const celebration = document.getElementById('celebration');
-        if (celebration.classList.contains('show') && (key === 'Enter' || key === ' ')) {
-            e.preventDefault();
-            await this.logic.nextLevel();
-            return;
-        }
-        // ESC schließt das Spiel
+        // ESC schließt das Spiel (immer erlaubt)
         if (key === 'Escape') {
             e.preventDefault();
             this.closeGame();
             return;
         }
-        // Shortcuts für Musik und Zahlenfeld
+        // Shortcuts für Musik und Zahlenfeld (immer erlaubt)
         if (key.toLowerCase() === 'm') {
             e.preventDefault();
             this.toggleMusic();
@@ -507,14 +516,14 @@ class CountingGame {
             this.toggleNumbers();
             return;
         }
-        // Zahlentasten wie bisher
-        if (key >= '0' && key <= '9') {
+        // Zahlentasten: Input-Lock beachten
+        if (key >= '1' && key <= '9') {
+            if (this.state.isProcessing) return;
             await this.logic.handleNumberClick(parseInt(key));
             if (parseInt(key) !== this.state.correctAnswer) {
                 this.ui.showBigKeyHint(key);
             }
         }
-        // Tab und Enter/Space funktionieren für alle Buttons automatisch (HTML-Button-Elemente)
     }
 
     createNewChallenge() {
@@ -572,46 +581,27 @@ class CountingGame {
         this.tts.speak(instruction);
     }
 
-    speakSuccess() {
-        console.log('[TTS] speakSuccess() aufgerufen');
-        // Zahl als Wort
+    _getObjectInfo() {
         const numberNames = ['eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun'];
-        const zahlwort = numberNames[this.state.correctAnswer - 1] || this.state.correctAnswer.toString();
-        // Objektname und Artikel
         let objName = 'Objekte';
-        let artikel = '';
         if (this.state.currentObjects.length > 0) {
             const category = this.objectCategories.find(cat => cat.emoji === this.state.currentObjects[0]);
-            if (category) {
-                objName = category.name;
-                if (this.state.correctAnswer === 1) {
-                    if (objName === 'Äpfel') artikel = 'ein Apfel';
-                    else if (objName === 'Pizzen') artikel = 'eine Pizza';
-                    else if (objName === 'Einhörner') artikel = 'ein Einhorn';
-                    else if (objName === 'Hasen') artikel = 'ein Hase';
-                    else if (objName === 'Frösche') artikel = 'ein Frosch';
-                    else if (objName === 'Pandas') artikel = 'ein Panda';
-                    else if (objName === 'Koalas') artikel = 'ein Koala';
-                    else if (objName === 'Löwen') artikel = 'ein Löwe';
-                    else if (objName === 'Kühe') artikel = 'eine Kuh';
-                    else if (objName === 'Schweine') artikel = 'ein Schwein';
-                    else if (objName === 'Kraken') artikel = 'eine Krake';
-                    else if (objName === 'Giraffen') artikel = 'eine Giraffe';
-                    else if (objName === 'Elefanten') artikel = 'ein Elefant';
-                    else if (objName === 'Füchse') artikel = 'ein Fuchs';
-                    else if (objName === 'Bären') artikel = 'ein Bär';
-                    else if (objName === 'Schmetterlinge') artikel = 'ein Schmetterling';
-                    else if (objName === 'Marienkäfer') artikel = 'ein Marienkäfer';
-                    else if (objName === 'Dinosaurier') artikel = 'ein Dinosaurier';
-                    else if (objName === 'Katzen') artikel = 'eine Katze';
-                    else if (objName === 'Hunde') artikel = 'ein Hund';
-                    else artikel = 'ein ' + objName.slice(0, -1);
-                }
-            }
+            if (category) objName = category.name;
         }
-        let msg = '';
+        return { numberNames, objName };
+    }
+
+    _getSingular(objName) {
+        return this.singularMap[objName] || 'ein ' + objName.slice(0, -1);
+    }
+
+    speakSuccess() {
+        console.log('[TTS] speakSuccess() aufgerufen');
+        const { numberNames, objName } = this._getObjectInfo();
+        const zahlwort = numberNames[this.state.correctAnswer - 1] || this.state.correctAnswer.toString();
+        let msg;
         if (this.state.correctAnswer === 1) {
-            msg = `Ja genau! ${artikel}!`;
+            msg = `Ja genau! ${this._getSingular(objName)}!`;
         } else {
             msg = `Ja genau! ${zahlwort.charAt(0).toUpperCase() + zahlwort.slice(1)} ${objName}!`;
         }
@@ -621,43 +611,11 @@ class CountingGame {
 
     speakWrong(guessedNumber) {
         console.log('[TTS] speakWrong() aufgerufen, guessedNumber:', guessedNumber);
-        const numberNames = ['eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun'];
+        const { numberNames, objName } = this._getObjectInfo();
         const zahlwort = numberNames[guessedNumber - 1] || guessedNumber.toString();
-        let objName = 'Objekte';
-        let artikel = '';
-        if (this.state.currentObjects.length > 0) {
-            const category = this.objectCategories.find(cat => cat.emoji === this.state.currentObjects[0]);
-            if (category) {
-                objName = category.name;
-                // Artikel für Singular (bei guessedNumber = 1)
-                if (guessedNumber === 1) {
-                    if (objName === 'Äpfel') artikel = 'ein Apfel';
-                    else if (objName === 'Pizzen') artikel = 'eine Pizza';
-                    else if (objName === 'Einhörner') artikel = 'ein Einhorn';
-                    else if (objName === 'Hasen') artikel = 'ein Hase';
-                    else if (objName === 'Frösche') artikel = 'ein Frosch';
-                    else if (objName === 'Pandas') artikel = 'ein Panda';
-                    else if (objName === 'Koalas') artikel = 'ein Koala';
-                    else if (objName === 'Löwen') artikel = 'ein Löwe';
-                    else if (objName === 'Kühe') artikel = 'eine Kuh';
-                    else if (objName === 'Schweine') artikel = 'ein Schwein';
-                    else if (objName === 'Kraken') artikel = 'eine Krake';
-                    else if (objName === 'Giraffen') artikel = 'eine Giraffe';
-                    else if (objName === 'Elefanten') artikel = 'ein Elefant';
-                    else if (objName === 'Füchse') artikel = 'ein Fuchs';
-                    else if (objName === 'Bären') artikel = 'ein Bär';
-                    else if (objName === 'Schmetterlinge') artikel = 'ein Schmetterling';
-                    else if (objName === 'Marienkäfer') artikel = 'ein Marienkäfer';
-                    else if (objName === 'Dinosaurier') artikel = 'ein Dinosaurier';
-                    else if (objName === 'Katzen') artikel = 'eine Katze';
-                    else if (objName === 'Hunde') artikel = 'ein Hund';
-                    else artikel = 'ein ' + objName.slice(0, -1);
-                }
-            }
-        }
         let message;
         if (guessedNumber === 1) {
-            message = `Nein, ${artikel} ist es nicht. Zähle noch mal, wieviel ${objName} es sind.`;
+            message = `Nein, ${this._getSingular(objName)} ist es nicht. Zähle noch mal, wieviel ${objName} es sind.`;
         } else {
             message = `Nein, ${zahlwort} ${objName} sind es nicht. Zähle noch mal, wieviel ${objName} es sind.`;
         }
@@ -684,10 +642,8 @@ class CountingGame {
         
         // Puzzle zurücksetzen
         if (this.puzzle) {
-            localStorage.removeItem('puzzleProgress');
             this.puzzle.currentPuzzle = 0;
             this.puzzle.revealedPieces = 0;
-            this.puzzle.saveProgress();
             this.puzzle.updateDisplay();
         }
     }
@@ -700,7 +656,7 @@ class CountingGame {
                 this.playSuccessMelody();
                 break;
             case 'wrong':
-                this.playTone(200, 0.3, 'sawtooth');
+                this.playWrongSound();
                 break;
         }
     }
@@ -721,6 +677,21 @@ class CountingGame {
         
         oscillator.start(ctx.currentTime);
         oscillator.stop(ctx.currentTime + duration);
+    }
+
+    playWrongSound() {
+        const ctx = this.getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 440;
+        osc.frequency.linearRampToValueAtTime(280, ctx.currentTime + 0.35);
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.35);
     }
 
     playSuccessMelody() {
@@ -747,25 +718,78 @@ class CountingGame {
     }
 
     closeGame() {
+        // Bestätigung nur wenn Fortschritt vorhanden
+        if (this.state.level > 1) {
+            this._showCloseConfirmation();
+            return;
+        }
+        this._doCloseGame();
+    }
+
+    _showCloseConfirmation() {
+        // Overlay erstellen
+        const overlay = document.createElement('div');
+        overlay.id = 'close-confirm-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        const dialog = document.createElement('div');
+        dialog.style.cssText = 'background:#fff;border-radius:24px;padding:32px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.2);max-width:320px;';
+        dialog.innerHTML = `
+            <div style="font-size:2.5rem;margin-bottom:16px;">🛑</div>
+            <div style="font-size:1.2rem;font-weight:700;color:#232946;margin-bottom:24px;">Spiel wirklich beenden?</div>
+            <div style="display:flex;gap:16px;justify-content:center;">
+                <button id="close-confirm-yes" style="background:#FF6F91;color:#fff;border:none;border-radius:14px;padding:12px 28px;font-size:1.1rem;font-weight:700;cursor:pointer;">Ja</button>
+                <button id="close-confirm-no" style="background:#6AD1E3;color:#fff;border:none;border-radius:14px;padding:12px 28px;font-size:1.1rem;font-weight:700;cursor:pointer;">Nein</button>
+            </div>
+        `;
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        const cleanup = () => {
+            overlay.remove();
+            document.removeEventListener('keydown', keyHandler);
+        };
+        const keyHandler = (e) => {
+            if (e.key === 'Escape') { cleanup(); }
+            if (e.key === 'Enter') { cleanup(); this._doCloseGame(); }
+        };
+        document.addEventListener('keydown', keyHandler);
+        document.getElementById('close-confirm-yes').addEventListener('click', () => { cleanup(); this._doCloseGame(); });
+        document.getElementById('close-confirm-no').addEventListener('click', cleanup);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+    }
+
+    _doCloseGame() {
         // Stoppe Hintergrundmusik
         this.music.stopBackgroundMusic();
-        
+
         // Verstecke Puzzle
         this.puzzle.hide();
-        
+
+        // Offene UI-Overlays schließen
+        const successScreen = document.getElementById('success-screen');
+        if (successScreen) successScreen.classList.remove('show');
+        if (this.ui._celebrationTimeout) {
+            clearTimeout(this.ui._celebrationTimeout);
+            this.ui._celebrationTimeout = null;
+        }
+
         // Reset Spielstand
         this.state.score = 0;
         this.state.level = 1;
         this.state.currentSet = 1;
-        
+        this.state.isProcessing = false;
+
         // Verstecke Spiel, zeige Startscreen
         document.getElementById('game-container').style.display = 'none';
         const startscreen = document.getElementById('startscreen');
         startscreen.style.display = 'flex';
         startscreen.style.pointerEvents = 'auto';
-        
+
         // Deaktiviere Spiel-Events
         this.disableGameEvents();
+
+        // Startscreen-Keyboard-Listener wieder aktivieren
+        document.addEventListener('keydown', this._startKeyHandler);
     }
 
     toggleNumbers() {
@@ -910,15 +934,6 @@ class CountingGame {
 // Spiel starten wenn DOM geladen ist
 document.addEventListener('DOMContentLoaded', () => {
     window.countObjectsGameInstance = new CountingGame();
-    // Noten-Icon Overlay-Handler
-    const noteBtn = document.getElementById('tracklist-toggle');
-    if (noteBtn) {
-        noteBtn.addEventListener('click', function(e) {
-            if (window.countObjectsGameInstance && window.countObjectsGameInstance.music) {
-                window.countObjectsGameInstance.music.showOverlay();
-            }
-        });
-    }
 });
 
 // Touch-Events für mobile Geräte
@@ -1078,7 +1093,8 @@ document.addEventListener('touchstart', function() {}, {passive: true});
 (function() {
     function playPlickSound() {
         try {
-            const ctx = window.countObjectsGameInstance ? window.countObjectsGameInstance.getAudioContext() : (window._globalPlickAudioContext = window._globalPlickAudioContext || new (window.AudioContext || window.webkitAudioContext)());
+            if (!window.countObjectsGameInstance) return;
+            const ctx = window.countObjectsGameInstance.getAudioContext();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'sine';
@@ -1090,7 +1106,6 @@ document.addEventListener('touchstart', function() {}, {passive: true});
             osc.frequency.linearRampToValueAtTime(700, ctx.currentTime + 0.13);
             gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.18);
             osc.stop(ctx.currentTime + 0.18);
-            osc.onended = () => {};
         } catch(e) {}
     }
 
@@ -1431,7 +1446,7 @@ class PuzzleManager {
 
     init() {
         this.createPuzzleContainer();
-        this.loadProgress();
+        // Kein loadProgress() — Puzzle startet immer frisch (Level startet auch bei 1)
         this.updateDisplay();
     }
 
@@ -1579,6 +1594,10 @@ class PuzzleManager {
             this.currentPuzzle++;
             this.revealedPieces = 0;
         }
+        // Alle Puzzles durchgespielt → beim letzten bleiben oder loopen
+        if (this.currentPuzzle >= this.puzzleImages.length) {
+            this.currentPuzzle = 0; // Von vorne beginnen
+        }
         // Merke Index des neuen Teils
         const newPieceIndex = this.revealedPieces;
         this.revealedPieces++;
@@ -1644,19 +1663,7 @@ class PuzzleManager {
     }
 
     saveProgress() {
-        localStorage.setItem('puzzleProgress', JSON.stringify({
-            currentPuzzle: this.currentPuzzle,
-            revealedPieces: this.revealedPieces
-        }));
-    }
-
-    loadProgress() {
-        const saved = localStorage.getItem('puzzleProgress');
-        if (saved) {
-            const progress = JSON.parse(saved);
-            this.currentPuzzle = progress.currentPuzzle || 0;
-            this.revealedPieces = progress.revealedPieces || 0;
-        }
+        // Puzzle-Fortschritt wird nicht persistiert, da das Spiel immer frisch startet
     }
 
     hide() {
