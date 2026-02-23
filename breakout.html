@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ULTIMATE BREAKOUT</title>
+    <link rel="stylesheet" href="breakout.css">
+</head>
+<body>
+    <div id="game-wrapper">
+        <div id="hud">
+            <span id="score-display">Score: 0</span>
+            <span id="level-display">Level 1</span>
+            <span id="highscore-display">HI: 0</span>
+            <span id="lives-display"></span>
+        </div>
+        <canvas id="gameCanvas" width="480" height="600"></canvas>
+        <div id="start-overlay">
+            <div class="start-text">ULTIMATE<br>BREAKOUT</div>
+            <div class="start-sub">Klick oder Leertaste zum Starten</div>
+            <div class="start-hint">Pfeiltasten / Maus / Touch</div>
+        </div>
+        <div id="game-over-overlay" class="hidden">
+            <div class="gameover-text">GAME OVER</div>
+            <div class="gameover-score"></div>
+            <div class="gameover-highscore"></div>
+            <div class="start-sub">Klick oder Leertaste zum Neustarten</div>
+        </div>
+        <div id="win-overlay" class="hidden">
+            <div class="win-text">DU BIST EINE LEGENDE!</div>
+            <div class="win-score"></div>
+            <div class="win-highscore"></div>
+            <div class="start-sub">Klick oder Leertaste zum Neustarten</div>
+        </div>
+        <div id="level-overlay" class="hidden">
+            <div class="level-complete-text"></div>
+            <div class="level-bonus-text"></div>
+        </div>
+        <div id="pause-overlay" class="hidden">
+            <div class="pause-text">PAUSE</div>
+            <div class="start-sub">P zum Fortsetzen</div>
+        </div>
+    </div>
+    <script src="breakout.js"></script>
+</body>
+</html>
