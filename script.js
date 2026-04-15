@@ -198,19 +198,7 @@ class GameLogic {
     async createNewChallenge() {
         const category = this.game.objectCategories[Math.floor(Math.random() * this.game.objectCategories.length)];
         // Schwierigkeitskurve: Eltern-Override oder schrittweise Steigerung
-        let maxObjects;
-        if (this.game.state.maxObjectsOverride) {
-            maxObjects = this.game.state.maxObjectsOverride;
-        } else {
-            const level = this.game.state.level;
-            if (level <= 5)       maxObjects = 3;
-            else if (level <= 10) maxObjects = 4;
-            else if (level <= 15) maxObjects = 5;
-            else if (level <= 20) maxObjects = 6;
-            else if (level <= 25) maxObjects = 7;
-            else if (level <= 30) maxObjects = 8;
-            else                  maxObjects = 9;
-        }
+        const maxObjects = this.game._getCurrentMaxObjects();
         this.game.state.correctAnswer = Math.floor(Math.random() * maxObjects) + 1;
         this.game.state.currentObjects = [];
         for (let i = 0; i < this.game.state.correctAnswer; i++) {
@@ -706,12 +694,12 @@ class CountingGame {
 
     speakInstruction() {
         console.log('[TTS] speakInstruction() aufgerufen, speechEnabled:', this.speechEnabled);
-        if (!this.speechEnabled) return;
+        if (!this.speechEnabled) return Promise.resolve();
         const category = this.objectCategories.find(cat => cat.emoji === this.state.currentObjects[0]);
         const objectName = category ? category.name : 'Objekte';
         const instruction = `Wie viele ${objectName} siehst du?`;
         console.log('[TTS] Instruction-Text:', instruction);
-        this.tts.speak(instruction);
+        return this.tts.speak(instruction);
     }
 
     _getObjectInfo() {
@@ -739,7 +727,7 @@ class CountingGame {
             msg = `Ja genau! ${zahlwort.charAt(0).toUpperCase() + zahlwort.slice(1)} ${objName}!`;
         }
         console.log('[TTS] Success-Text:', msg);
-        this.tts.speak(msg);
+        return this.tts.speak(msg);
     }
 
     speakWrong(guessedNumber) {
@@ -753,7 +741,7 @@ class CountingGame {
             message = `Nein, ${zahlwort} ${objName} sind es nicht. Zähle noch mal, wieviel ${objName} es sind.`;
         }
         console.log('[TTS] Wrong-Text:', message);
-        this.tts.speak(message);
+        return this.tts.speak(message);
     }
 
     nextLevel() {
@@ -762,7 +750,6 @@ class CountingGame {
 
     playSound(type) {
         if (!this.soundEnabled) return;
-        const ctx = this.getAudioContext();
         switch(type) {
             case 'success':
                 this.playSuccessMelody();
@@ -1566,28 +1553,26 @@ class MusicOverlay {
         this.overlay.addEventListener('mousedown', this._outsideClickHandler);
     }
     hide() {
-        if (this.overlay) {
-            const dialog = this.overlay.querySelector('.music-overlay');
-            if (dialog) {
-                dialog.classList.remove('music-overlay-animate-in');
-                dialog.classList.add('music-overlay-animate-out');
-                setTimeout(() => {
-                    if (this.overlay && this.overlay.parentNode) {
-                        this.overlay.parentNode.removeChild(this.overlay);
-                    }
-                    this.overlay = null;
-                }, 480);
-            } else if (this.overlay.parentNode) {
-                this.overlay.parentNode.removeChild(this.overlay);
-                this.overlay = null;
-            }
-        }
         if (this._spaceHandler) {
             document.removeEventListener('keydown', this._spaceHandler);
             this._spaceHandler = null;
         }
         if (this.overlay) {
             this.overlay.removeEventListener('mousedown', this._outsideClickHandler);
+            const dialog = this.overlay.querySelector('.music-overlay');
+            if (dialog) {
+                dialog.classList.remove('music-overlay-animate-in');
+                dialog.classList.add('music-overlay-animate-out');
+                const overlayRef = this.overlay;
+                setTimeout(() => {
+                    if (overlayRef && overlayRef.parentNode) {
+                        overlayRef.parentNode.removeChild(overlayRef);
+                    }
+                }, 480);
+            } else if (this.overlay.parentNode) {
+                this.overlay.parentNode.removeChild(this.overlay);
+            }
+            this.overlay = null;
         }
         this.grid = null;
         this._closeBtn = null;
@@ -1759,6 +1744,12 @@ class PuzzleManager {
             this._celebratePuzzleComplete();
             this.currentPuzzle++;
             this.revealedPieces = 0;
+            // Alle Puzzles durchgespielt → von vorne beginnen
+            if (this.currentPuzzle >= this.puzzleImages.length) {
+                this.currentPuzzle = 0;
+            }
+            this.updateDisplay();
+            return;
         }
         // Alle Puzzles durchgespielt → beim letzten bleiben oder loopen
         if (this.currentPuzzle >= this.puzzleImages.length) {
@@ -1767,7 +1758,6 @@ class PuzzleManager {
         // Merke Index des neuen Teils
         const newPieceIndex = this.revealedPieces;
         this.revealedPieces++;
-        this.saveProgress();
         // Zeige alle bisherigen Teile, aber NICHT das neue
         const pieces = document.querySelectorAll('.puzzle-piece');
         pieces.forEach((piece, index) => {
@@ -1826,10 +1816,6 @@ class PuzzleManager {
                 piece.style.backgroundPosition = '';
             }
         });
-    }
-
-    saveProgress() {
-        // Puzzle-Fortschritt wird nicht persistiert, da das Spiel immer frisch startet
     }
 
     hide() {
