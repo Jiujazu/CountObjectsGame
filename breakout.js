@@ -605,7 +605,7 @@ class VisualEffects {
         // Starfield
         for (const star of this.stars) {
             ctx.globalAlpha = star.brightness;
-            ctx.fillStyle = partyMode ? `hsl(${Date.now()/10 + star.x}%360,100%,80%)` : '#ccccff';
+            ctx.fillStyle = partyMode ? `hsl(${(Date.now()/10 + star.x)%360},100%,80%)` : '#ccccff';
             if (this.warpSpeed > 0.3) {
                 const len = star.speed * this.warpSpeed * 20;
                 ctx.fillRect(star.x, star.y, 1, len);
@@ -851,7 +851,7 @@ class Ball {
         for (let i = 0; i < this.trail.length; i++) {
             const t = i / this.trail.length;
             ctx.globalAlpha = t * 0.3;
-            ctx.fillStyle = this.fireball ? '#ff8844' : (partyMode ? `hsl(${Date.now()/3+i*30}%360,100%,60%)` : '#fff');
+            ctx.fillStyle = this.fireball ? '#ff8844' : (partyMode ? `hsl(${(Date.now()/3+i*30)%360},100%,60%)` : '#fff');
             ctx.beginPath();
             ctx.arc(this.trail[i].x, this.trail[i].y, this.r * t, 0, Math.PI * 2);
             ctx.fill();
@@ -1396,7 +1396,7 @@ class Game {
         this.balls = [];
         this.bricksDestroyed = 0;
         this.nextExtraLife = 5000;
-        this.highScore = parseInt(localStorage.getItem('breakout_highscore') || '0');
+        try { this.highScore = parseInt(localStorage.getItem('breakout_highscore') || '0'); } catch(e) { this.highScore = 0; }
         this.levelTransitionTimer = 0;
         this.newHighScoreFlag = false;
 
@@ -1755,7 +1755,7 @@ class Game {
         // Check high score
         if (this.score > this.highScore) {
             this.highScore = this.score;
-            localStorage.setItem('breakout_highscore', this.highScore.toString());
+            try { localStorage.setItem('breakout_highscore', this.highScore.toString()); } catch(e) {}
             if (!this.newHighScoreFlag) {
                 this.newHighScoreFlag = true;
                 document.getElementById('highscore-display').classList.add('new-record');
@@ -1875,7 +1875,7 @@ class Game {
         this.score += bonus;
         if (this.score > this.highScore) {
             this.highScore = this.score;
-            localStorage.setItem('breakout_highscore', this.highScore.toString());
+            try { localStorage.setItem('breakout_highscore', this.highScore.toString()); } catch(e) {}
         }
         this.updateHUD();
         // Show overlay
