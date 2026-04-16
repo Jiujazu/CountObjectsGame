@@ -88,7 +88,7 @@ class LetterGame {
         this.speechEnabled = true;
         this.tts = PiperTTSManager.getShared();
         this.music = new MusicManager(SHARED_MUSIC_TRACKS, SHARED_MUSIC_COVERS);
-        this.puzzle = new PuzzleManager();
+        this.puzzle = PuzzleManager.getShared();
         this._keydownHandler = null;
         this._eventsBound = false;
         this._pendingTimeouts = new Set();

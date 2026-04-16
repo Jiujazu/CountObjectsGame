@@ -327,7 +327,7 @@ class CountingGame {
         this.music = new MusicManager(SHARED_MUSIC_TRACKS, SHARED_MUSIC_COVERS);
         this.ui = new UIManager(this);
         this.logic = new GameLogic(this);
-        this.puzzle = new PuzzleManager();
+        this.puzzle = PuzzleManager.getShared();
         this.init();
     }
 

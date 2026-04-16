@@ -522,6 +522,11 @@ class MusicOverlay {
 
 // === PuzzleManager: Puzzle-Fortschrittssystem ===
 class PuzzleManager {
+    static _shared = null;
+    static getShared() {
+        if (!PuzzleManager._shared) PuzzleManager._shared = new PuzzleManager();
+        return PuzzleManager._shared;
+    }
     constructor() {
         this.currentPuzzle = 0;
         this.revealedPieces = 0;
