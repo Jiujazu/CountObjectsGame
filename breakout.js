@@ -1836,15 +1836,18 @@ class InputManager {
             }
         });
         document.addEventListener('keyup', (e) => { this.keys[e.key] = false; });
-        canvas.addEventListener('mousemove', (e) => {
+        // Listen on document so mouse never "escapes" the canvas
+        document.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
-            this.mouseX = (e.clientX - rect.left) * (W / rect.width);
+            const relX = (e.clientX - rect.left) * (W / rect.width);
+            this.mouseX = clamp(relX, 0, W);
             this.useMouse = true;
         });
-        canvas.addEventListener('touchmove', (e) => {
+        document.addEventListener('touchmove', (e) => {
             e.preventDefault();
             const rect = canvas.getBoundingClientRect();
-            this.mouseX = (e.touches[0].clientX - rect.left) * (W / rect.width);
+            const relX = (e.touches[0].clientX - rect.left) * (W / rect.width);
+            this.mouseX = clamp(relX, 0, W);
             this.useMouse = true;
         }, { passive: false });
         const handleClick = () => { this.clicked = true; };
@@ -1874,8 +1877,8 @@ class InputManager {
     }
 
     wantsPause() {
-        const p = this.keys['p'] || this.keys['P'];
-        if (p) { this.keys['p'] = false; this.keys['P'] = false; }
+        const p = this.keys['p'] || this.keys['P'] || this.keys['Escape'];
+        if (p) { this.keys['p'] = false; this.keys['P'] = false; this.keys['Escape'] = false; }
         return p;
     }
 
@@ -1920,16 +1923,63 @@ class Game {
         try { this.unlockedSkins = JSON.parse(localStorage.getItem('breakout_skins') || '["default"]'); } catch(e) { this.unlockedSkins = ['default']; }
         try { this.selectedSkin = localStorage.getItem('breakout_skin') || 'default'; } catch(e) { this.selectedSkin = 'default'; }
         this.skinMenuOpen = false;
+        // Kids mode & level selector
+        this.kidsMode = false;
+        this.startLevel = 0;
+        this.pauseMenuIdx = 0;
         // Puzzle reward
         this.puzzle = new BreakoutPuzzle();
 
-        // Audio beat sync
+        // Background music (MP3 tracks instead of procedural loops)
+        this.bgMusicTracks = [
+            'background music/Funky_Playground_Groove.mp3',
+            'background music/Pixel_Forest.mp3',
+            'background music/Trap_Paradise.mp3',
+            'background music/Joyful_Simplicity.mp3',
+            'background music/Whispering_Horizons.mp3',
+            'background music/Grove.mp3',
+        ];
+        this.bgMusic = null;
+        this.bgMusicIdx = Math.floor(Math.random() * this.bgMusicTracks.length);
+
+        // Keep SFX beat sync for visual effects (but driven by a simple timer)
         this.audio.onBeatCallback = () => this.vfx.onBeat(this.partyMode);
 
         // Back button
         document.getElementById('back-btn').addEventListener('click', () => {
-            this.audio.stopMusic();
+            if (this.bgMusic) { this.bgMusic.pause(); this.bgMusic.currentTime = 0; }
             window.location.href = 'index.html';
+        });
+
+        // Mode toggle (Normal / Kids)
+        const modeBtn = document.getElementById('mode-toggle');
+        modeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.kidsMode = !this.kidsMode;
+            modeBtn.textContent = this.kidsMode ? 'Kids' : 'Normal';
+            modeBtn.classList.toggle('kids', this.kidsMode);
+        });
+
+        // Level selector
+        const levelBtn = document.getElementById('level-toggle');
+        const maxSelectLevel = 15; // allow selecting up to level 15 for testing
+        levelBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.startLevel = (this.startLevel + 1) % (maxSelectLevel + 1);
+            levelBtn.textContent = this.startLevel === 0 ? '1' : (this.startLevel + 1) + (this._isBossLevel(this.startLevel) ? ' (Boss)' : '');
+        });
+
+        // Pause menu click handlers
+        document.querySelectorAll('.pause-menu-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this._executePauseAction(btn.dataset.action);
+            });
+            btn.addEventListener('mouseenter', () => {
+                const btns = [...document.querySelectorAll('.pause-menu-btn')];
+                this.pauseMenuIdx = btns.indexOf(btn);
+                this._highlightPauseBtn(this.pauseMenuIdx);
+            });
         });
 
         // Skin selector
@@ -1949,15 +1999,35 @@ class Game {
         this.loop();
     }
 
+    _startBgMusic() {
+        if (!this.bgMusic) {
+            this.bgMusic = new Audio(this.bgMusicTracks[this.bgMusicIdx]);
+            this.bgMusic.volume = 0.25;
+            this.bgMusic.loop = false;
+            this.bgMusic.onended = () => {
+                this.bgMusicIdx = (this.bgMusicIdx + 1) % this.bgMusicTracks.length;
+                this.bgMusic.src = this.bgMusicTracks[this.bgMusicIdx];
+                this.bgMusic.play().catch(()=>{});
+            };
+        }
+        this.bgMusic.play().catch(()=>{});
+        // Still init audio engine for SFX
+        this.audio.init();
+    }
+
+    _isBossLevel(idx) {
+        return idx > 0 && (idx + 1) % 5 === 0;
+    }
+
     // --- State transitions ---
     startGame() {
         this.audio.init();
         this.state = 'playing';
         this.score = 0;
-        this.lives = 3;
+        this.lives = this.kidsMode ? 5 : 3;
         this.combo = 0;
         this.bricksDestroyed = 0;
-        this.nextExtraLife = 5000;
+        this.nextExtraLife = this.kidsMode ? 3000 : 5000;
         this.partyMode = false;
         this.partyTimer = 0;
         this.newHighScoreFlag = false;
@@ -1965,11 +2035,12 @@ class Game {
         this.maxComboEver = 0;
         this.bossesDefeated = 0;
         document.body.classList.remove('party-mode');
-        this.levels.currentLevel = 0;
+        this.levels.currentLevel = this.startLevel;
         this.powerups.reset();
         this.paddle = new Paddle();
-        this.loadLevel(0);
-        this.audio.startMusic(0);
+        if (this.kidsMode) this.paddle.setWidth(120); // wider paddle for kids
+        this.loadLevel(this.startLevel);
+        this._startBgMusic();
         this.hideAllOverlays();
         this.updateHUD();
     }
@@ -1989,8 +2060,12 @@ class Game {
         this.resetBalls();
     }
 
+    getEffectiveSpeed(baseSpeed) {
+        return this.kidsMode ? baseSpeed * 0.6 : baseSpeed;
+    }
+
     resetBalls() {
-        const speed = this.levels.getBaseSpeed();
+        const speed = this.getEffectiveSpeed(this.levels.getBaseSpeed());
         const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
         this.balls = [new Ball(W / 2, H - 50, Math.cos(angle) * speed, Math.sin(angle) * speed, speed)];
     }
@@ -2012,11 +2087,7 @@ class Game {
         }
 
         if (this.state === 'paused') {
-            if (this.input.wantsPause()) {
-                this.state = 'playing';
-                document.getElementById('pause-overlay').classList.add('hidden');
-                this.audio.resumeMusic(this.levels.currentLevel);
-            }
+            this._updatePauseMenu();
             return;
         }
 
@@ -2029,7 +2100,7 @@ class Game {
                 document.getElementById('level-overlay').classList.add('hidden');
                 const nextLvl = this.levels.currentLevel + 1;
                 this.loadLevel(nextLvl);
-                this.audio.startMusic(nextLvl);
+                // bgMusic continues between levels
                 this.updateHUD();
             }
             return;
@@ -2037,9 +2108,7 @@ class Game {
 
         // Playing state
         if (this.input.wantsPause()) {
-            this.state = 'paused';
-            document.getElementById('pause-overlay').classList.remove('hidden');
-            this.audio.pauseMusic();
+            this.pauseGame();
             return;
         }
 
@@ -2237,8 +2306,9 @@ class Game {
         }
 
         // Powerup effects expiry - restore paddle width
+        const defaultW = this.kidsMode ? 120 : this.paddle.baseW;
         if (!this.powerups.isActive('giant') && !this.powerups.isActive('tiny') && !this.partyMode) {
-            if (this.paddle.w !== this.paddle.baseW) this.paddle.setWidth(this.paddle.baseW);
+            if (this.paddle.w !== defaultW) this.paddle.setWidth(defaultW);
         }
         if (!this.powerups.isActive('fireball') && !this.partyMode) {
             for (const ball of this.balls) ball.fireball = false;
@@ -2421,9 +2491,10 @@ class Game {
         }
         // Powerup drop
         this.powerups.trySpawn(brick.x + brick.w / 2, brick.y + brick.h / 2, this.partyMode);
-        // Ball speed increase every 5 bricks
-        if (this.bricksDestroyed % 5 === 0) {
-            const maxSpeed = this.levels.getBaseSpeed() + 3;
+        // Ball speed increase every 5 bricks (slower in kids mode)
+        const brickInterval = this.kidsMode ? 10 : 5;
+        if (this.bricksDestroyed % brickInterval === 0) {
+            const maxSpeed = this.getEffectiveSpeed(this.levels.getBaseSpeed() + 3);
             for (const b of this.balls) {
                 if (!b.stuck) {
                     const currentSpeed = Math.sqrt(b.dx * b.dx + b.dy * b.dy);
@@ -2612,7 +2683,7 @@ class Game {
     levelComplete() {
         this.state = 'leveltransition';
         this.levelTransitionTimer = 150;
-        this.audio.stopMusic();
+        // procedural music disabled
         this.audio.sfx('levelUp');
         this.vfx.flash('#ffffff', 1.0);
         this.vfx.triggerShake(6);
@@ -2640,9 +2711,69 @@ class Game {
         }
     }
 
+    pauseGame() {
+        this.state = 'paused';
+        this.pauseMenuIdx = 0;
+        // procedural music disabled
+        if (this.bgMusic) this.bgMusic.pause();
+        const overlay = document.getElementById('pause-overlay');
+        overlay.classList.remove('hidden');
+        this._highlightPauseBtn(0);
+    }
+
+    _updatePauseMenu() {
+        const btns = document.querySelectorAll('.pause-menu-btn');
+        // Navigate with arrows
+        if (this.input.keys['ArrowDown'] || this.input.keys['s']) {
+            this.input.keys['ArrowDown'] = false; this.input.keys['s'] = false;
+            this.pauseMenuIdx = (this.pauseMenuIdx + 1) % btns.length;
+            this._highlightPauseBtn(this.pauseMenuIdx);
+        }
+        if (this.input.keys['ArrowUp'] || this.input.keys['w']) {
+            this.input.keys['ArrowUp'] = false; this.input.keys['w'] = false;
+            this.pauseMenuIdx = (this.pauseMenuIdx - 1 + btns.length) % btns.length;
+            this._highlightPauseBtn(this.pauseMenuIdx);
+        }
+        // Select with Enter/Space
+        if (this.input.keys['Enter'] || this.input.keys[' ']) {
+            this.input.keys['Enter'] = false; this.input.keys[' '] = false;
+            this._executePauseAction(btns[this.pauseMenuIdx].dataset.action);
+            return;
+        }
+        // Escape = resume
+        if (this.input.keys['Escape']) {
+            this.input.keys['Escape'] = false;
+            this._executePauseAction('resume');
+        }
+    }
+
+    _highlightPauseBtn(idx) {
+        const btns = document.querySelectorAll('.pause-menu-btn');
+        btns.forEach((b, i) => b.classList.toggle('selected', i === idx));
+    }
+
+    _executePauseAction(action) {
+        document.getElementById('pause-overlay').classList.add('hidden');
+        switch (action) {
+            case 'resume':
+                this.state = 'playing';
+                // procedural music disabled
+                if (this.bgMusic) this.bgMusic.play().catch(()=>{});
+                break;
+            case 'restart':
+                this.startGame();
+                break;
+            case 'quit':
+                // procedural music disabled
+                if (this.bgMusic) { this.bgMusic.pause(); this.bgMusic.currentTime = 0; }
+                window.location.href = 'index.html';
+                break;
+        }
+    }
+
     gameOver() {
         this.state = 'gameover';
-        this.audio.stopMusic();
+        if (this.bgMusic) this.bgMusic.pause();
         const overlay = document.getElementById('game-over-overlay');
         overlay.classList.remove('hidden');
         overlay.querySelector('.gameover-score').textContent = 'Score: ' + this.score;
@@ -2651,7 +2782,7 @@ class Game {
 
     winGame() {
         this.state = 'win';
-        this.audio.stopMusic();
+        // procedural music disabled
         this.audio.sfx('win');
         this.vfx.flash('#44ff88', 0.8);
         const overlay = document.getElementById('win-overlay');
