@@ -79,7 +79,9 @@ class GameLogic {
             this.game.state.currentObjects.push(category.emoji);
         }
         this.game.displayObjects();
-        await this.game.speakInstruction();
+        // TTS fire-and-forget: Instruktion parallel zur Anzeige sprechen,
+        // nicht darauf warten, sonst blockiert der naechste Input.
+        this.game.speakInstruction();
     }
     /**
      * Behandelt einen Klick auf eine Zahl. Bei richtiger Antwort: Punkte, Sound, TTS, Animation, Celebration.
@@ -93,17 +95,16 @@ class GameLogic {
         if (number === this.game.state.correctAnswer) {
             this.game.state.wrongStreak = 0;
             this.game.state.score += this.game.state.level * 10;
-            this.game.playSound('success');
-            await this.game.speakSuccess();
-            this.game.celebrateObjects();
-            this.game.puzzle.revealNextPiece();
-
+            // Skip-Handler VOR TTS registrieren, damit Leertaste instant reagiert
             let animationSkipped = false;
             const skipToNext = () => {
                 if (animationSkipped) return;
                 animationSkipped = true;
                 document.removeEventListener('keydown', skipKeyHandler);
                 document.removeEventListener('click', skipClickHandler);
+                // Laufende TTS abbrechen, damit der Wechsel sich instant anfuehlt
+                if (this.game.tts && typeof this.game.tts._stop === 'function') this.game.tts._stop();
+                if (window.speechSynthesis) window.speechSynthesis.cancel();
                 // Auto-Dismiss-Timeout abbrechen
                 if (this.game.ui._celebrationTimeout) {
                     clearTimeout(this.game.ui._celebrationTimeout);
@@ -123,6 +124,12 @@ class GameLogic {
             document.addEventListener('keydown', skipKeyHandler);
             document.addEventListener('click', skipClickHandler);
 
+            // Sound, TTS (fire-and-forget) und Effekte zeitgleich starten
+            this.game.playSound('success');
+            this.game.speakSuccess();
+            this.game.celebrateObjects();
+            this.game.puzzle.revealNextPiece();
+
             setTimeout(() => {
                 if (!animationSkipped) {
                     this.game.ui.showCelebration(this.game.state.correctAnswer, () => {
@@ -132,9 +139,10 @@ class GameLogic {
             }, 1000);
         } else {
             this.game.state.wrongStreak++;
+            // Sound und Shake sofort; TTS fire-and-forget parallel
             this.game.playSound('wrong');
-            await this.game.speakWrong(number);
             this.game.shakeObjects();
+            this.game.speakWrong(number);
             // Nach 3 Fehlversuchen: Hinweis geben
             if (this.game.state.wrongStreak >= 3) {
                 this.game.state.wrongStreak = 0;
