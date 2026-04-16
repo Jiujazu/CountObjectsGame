@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zählspiel</title>
+    <title>Kids Games</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&family=Open+Sans:wght@700&display=swap" rel="stylesheet">
 </head>
@@ -14,11 +14,24 @@
       <span id="level"></span>
     </div>
     
-    <!-- Startscreen -->
+    <!-- Startscreen mit Spielauswahl -->
     <div class="startscreen" id="startscreen">
         <canvas id="trail-canvas"></canvas>
         <div class="startscreen-content">
-            <img src="images/play_button.png" alt="Spiel starten" class="startscreen-play-btn" />
+            <div class="game-select-menu" id="game-select-menu">
+                <button class="game-select-btn" data-game="counting">
+                    <span class="game-select-icon">🔢</span>
+                    <span class="game-select-label">Zaehlen</span>
+                </button>
+                <button class="game-select-btn" data-game="letters">
+                    <span class="game-select-icon">🔤</span>
+                    <span class="game-select-label">Buchstaben</span>
+                </button>
+                <button class="game-select-btn" data-game="breakout">
+                    <span class="game-select-icon">🧱</span>
+                    <span class="game-select-label">Breakout</span>
+                </button>
+            </div>
         </div>
         <video class="startscreen-video" src="video/Comic_Julian_holding_emojis.mp4" loop autoplay muted playsinline></video>
     </div>
@@ -61,6 +74,28 @@
     <div class="success-screen" id="success-screen">
         <div class="success-number" id="success-number"></div>
     </div>
+
+    <!-- Buchstabenspiel (anfangs versteckt) -->
+    <div class="game-container letter-game-container" id="letter-game-container" style="display: none;">
+        <button id="letter-close-btn" class="close-button" title="Schliessen" aria-label="Schliessen">&#x2715;</button>
+        <div class="level-label">Level</div>
+        <div class="level-indicator" id="letter-level-indicator"></div>
+        <div class="star-progress" id="letter-star-progress"></div>
+        <div class="letter-display" id="letter-display"></div>
+        <div class="letter-answer-area" id="letter-answer-area"></div>
+        <div class="letter-keyboard" id="letter-keyboard"></div>
+        <div class="controls controls-bottom-left">
+            <button id="letter-prev-track" class="game-button small" title="Vorheriger Track" aria-label="Vorheriger Track">&#x23EE;&#xFE0F;</button>
+            <button id="letter-music-toggle" class="game-button small" title="Musik Pause/Weiter (M)" aria-label="Musik Pause/Weiter (M)">&#x23F8;&#xFE0F;</button>
+            <button id="letter-next-track" class="game-button small" title="Naechster Track" aria-label="Naechster Track">&#x23ED;&#xFE0F;</button>
+            <button id="letter-tracklist-toggle" class="game-button small" title="Musik-Auswahl" aria-label="Musik-Auswahl">&#x1F3B5;</button>
+            <button id="letter-sound-toggle" class="game-button small" title="Soundeffekte an/aus (S)" aria-label="Soundeffekte an/aus (S)">&#x1F50A;</button>
+            <button id="letter-hint-btn" class="game-button small" title="Tipp" aria-label="Tipp">&#x1F4A1;</button>
+        </div>
+    </div>
+
+    <script src="shared.js"></script>
     <script src="script.js"></script>
+    <script src="letter-game.js"></script>
 </body>
 </html> 

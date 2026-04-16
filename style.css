@@ -1036,4 +1036,223 @@ html, body {
     overflow-x: hidden;
     width: 100%;
     max-width: 100%;
-} 
+}
+
+/* === Spielauswahl-Menu === */
+.game-select-menu {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 0 16px;
+}
+
+.game-select-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 140px;
+    height: 140px;
+    border: none;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 4px 24px rgba(35, 41, 70, 0.12);
+    cursor: pointer;
+    transition: transform 0.2s cubic-bezier(.4,1.3,.6,1), box-shadow 0.2s;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.game-select-btn:hover,
+.game-select-btn:focus {
+    transform: scale(1.1);
+    box-shadow: 0 8px 32px rgba(255, 209, 102, 0.4), 0 4px 16px rgba(35, 41, 70, 0.15);
+    outline: none;
+}
+
+.game-select-btn:active {
+    transform: scale(0.95);
+}
+
+.game-select-icon {
+    font-size: 3.5rem;
+    line-height: 1;
+}
+
+.game-select-label {
+    font-size: 1rem;
+    font-family: 'Roboto', 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-weight: 700;
+    color: #232946;
+    letter-spacing: 0.02em;
+}
+
+@media (max-width: 480px) {
+    .game-select-btn {
+        width: 100px;
+        height: 100px;
+        border-radius: 22px;
+        gap: 8px;
+    }
+    .game-select-icon {
+        font-size: 2.5rem;
+    }
+    .game-select-label {
+        font-size: 0.8rem;
+    }
+    .game-select-menu {
+        gap: 14px;
+    }
+}
+
+/* === Buchstabenspiel === */
+.letter-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 0 16px 0;
+    min-height: 200px;
+    gap: 12px;
+}
+
+.letter-display .letter-big {
+    font-size: 12rem;
+    font-weight: 900;
+    font-family: 'Roboto', 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: #232946;
+    line-height: 1;
+    user-select: none;
+    animation: objectAppear 0.5s ease-out;
+}
+
+.letter-display .letter-emoji {
+    font-size: 5rem;
+    animation: objectAppear 0.5s ease-out 0.15s both;
+}
+
+.letter-display .letter-word {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #666;
+    font-family: 'Roboto', 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    animation: objectAppear 0.5s ease-out 0.3s both;
+}
+
+.letter-answer-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+    padding: 8px 0;
+}
+
+.letter-answer-area .answer-slot {
+    width: 70px;
+    height: 80px;
+    border: 3px dashed #ccc;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3.5rem;
+    font-weight: 900;
+    font-family: 'Roboto', 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: #232946;
+    transition: border-color 0.3s, background 0.3s;
+}
+
+.letter-answer-area .answer-slot.filled {
+    border-color: #6AD1E3;
+    background: #E6FAF5;
+}
+
+.letter-answer-area .answer-slot.correct {
+    border-color: #4CAF50;
+    background: rgba(76, 175, 80, 0.15);
+    animation: correctPulse 0.6s ease;
+}
+
+.letter-answer-area .answer-slot.wrong {
+    border-color: #FF6F91;
+    background: #FFF0F3;
+    animation: wrongShake 0.6s ease;
+}
+
+.letter-keyboard {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 0 12px 12px 12px;
+}
+
+.letter-key {
+    background: #f0f2f5;
+    color: #232946;
+    border: none;
+    border-radius: 14px;
+    font-size: 1.8rem;
+    font-family: 'Roboto', 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.18s, transform 0.18s;
+    user-select: none;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+    padding: 0;
+}
+
+.letter-key:hover,
+.letter-key:focus {
+    background: #FFD166;
+    transform: scale(1.08);
+    outline: none;
+}
+
+.letter-key:active {
+    transform: scale(0.95);
+}
+
+.letter-key.correct {
+    background: #E6FAF5;
+    color: #6AD1E3;
+}
+
+.letter-key.wrong {
+    background: #FFF0F3;
+    color: #FF6F91;
+}
+
+.letter-key.hint-flash {
+    animation: hintFlash 1.5s ease;
+}
+
+@keyframes hintFlash {
+    0%, 100% { background: #f0f2f5; }
+    25% { background: rgba(106,209,227,0.5); transform: scale(1.15); }
+    50% { background: rgba(106,209,227,0.3); }
+    75% { background: rgba(106,209,227,0.5); transform: scale(1.15); }
+}
+
+@media (max-width: 480px) {
+    .letter-display .letter-big { font-size: 7rem; }
+    .letter-display .letter-emoji { font-size: 3.5rem; }
+    .letter-display .letter-word { font-size: 1.3rem; }
+    .letter-keyboard {
+        grid-template-columns: repeat(7, 1fr);
+        gap: 5px;
+        max-width: 350px;
+    }
+    .letter-key { font-size: 1.3rem; border-radius: 10px; }
+    .letter-answer-area .answer-slot {
+        width: 50px; height: 60px; font-size: 2.5rem;
+    }
+}

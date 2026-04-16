@@ -1,132 +1,6 @@
-// === TTSManager: Text-to-Speech als eigene Klasse ===
-class TTSManager {
-    constructor() {}
-    async speak(text) {
-        return new Promise((resolve) => {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // Laufende Sprachausgabe abbrechen!
-                this._waitAndSpeak(text, 0, resolve);
-            } else {
-                resolve();
-            }
-        });
-    }
-    _waitAndSpeak(text, tries = 0, onEnd = null) {
-        if (tries > 20) {
-            window.speechSynthesis.cancel();
-            if (onEnd) onEnd();
-            return;
-        }
-        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
-            setTimeout(() => this._waitAndSpeak(text, tries + 1, onEnd), 100);
-        } else {
-            this._speakNow(text, onEnd);
-        }
-    }
-    _speakNow(text, onEnd = null) {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'de-DE';
-        utterance.rate = 0.8;
-        utterance.pitch = 1.1;
-        utterance.onend = () => { if (onEnd) onEnd(); };
-        utterance.onerror = () => { window.speechSynthesis.cancel(); if (onEnd) onEnd(); };
-        speechSynthesis.speak(utterance);
-    }
-}
+// === script.js: Zaehlspiel (nutzt shared.js) ===
 
-// === MusicManager: Musiksteuerung als eigene Klasse ===
-class MusicManager {
-    constructor(tracks, covers) {
-        this.musicTracks = tracks;
-        this.covers = covers;
-        this.backgroundMusic = null;
-        this.musicEnabled = true;
-    }
-    playBackgroundMusic() {
-        if (!this.musicEnabled) return;
-        if (!this.backgroundMusic) {
-            const randomIndex = Math.floor(Math.random() * this.musicTracks.length);
-            const track = this.musicTracks[randomIndex];
-            this.backgroundMusic = new Audio(track);
-            this.backgroundMusic.loop = false;
-            this.backgroundMusic.volume = 0.3;
-            this.backgroundMusic.preload = 'auto';
-            this.backgroundMusic.onended = () => {
-                this.nextTrack();
-            };
-        }
-        this.backgroundMusic.play().catch(()=>{});
-        this._updateMusicButton();
-    }
-    stopBackgroundMusic() {
-        if (this.backgroundMusic && !this.backgroundMusic.paused) {
-            this.backgroundMusic.pause();
-        }
-    }
-    toggleMusic() {
-        this.musicEnabled = !this.musicEnabled;
-        this._updateMusicButton();
-        if (this.musicEnabled) {
-            if (this.backgroundMusic) {
-                this.backgroundMusic.play().catch(()=>{});
-            } else {
-                this.playBackgroundMusic();
-            }
-        } else {
-            this.stopBackgroundMusic();
-        }
-    }
-    selectTrack(idx) {
-        if (this.backgroundMusic) {
-            this.backgroundMusic.pause();
-            this.backgroundMusic = null;
-        }
-        const track = this.musicTracks[idx];
-        this.backgroundMusic = new Audio(track);
-        this.backgroundMusic.loop = false;
-        this.backgroundMusic.volume = 0.3;
-        this.backgroundMusic.preload = 'auto';
-        this.backgroundMusic.onended = () => {
-            this.nextTrack();
-        };
-        this.backgroundMusic.play().catch(()=>{});
-        this.musicEnabled = true;
-        this._updateMusicButton();
-    }
-    prevTrack() {
-        if (!this.backgroundMusic) return;
-        const currentFile = decodeURIComponent(this.backgroundMusic.src.split('/').pop());
-        let idx = this.musicTracks.findIndex(track => track.split('/').pop() === currentFile);
-        idx = (idx - 1 + this.musicTracks.length) % this.musicTracks.length;
-        this.selectTrack(idx);
-    }
-    nextTrack() {
-        if (!this.backgroundMusic) return;
-        const currentFile = decodeURIComponent(this.backgroundMusic.src.split('/').pop());
-        let idx = this.musicTracks.findIndex(track => track.split('/').pop() === currentFile);
-        idx = (idx + 1) % this.musicTracks.length;
-        this.selectTrack(idx);
-    }
-    _updateMusicButton() {
-        const musicButton = document.getElementById('music-toggle');
-        if (!musicButton) return;
-        if (this.musicEnabled) {
-            musicButton.textContent = '⏸️';
-            musicButton.title = 'Musik pausieren (M)';
-        } else {
-            musicButton.textContent = '▶️';
-            musicButton.title = 'Musik abspielen (M)';
-        }
-    }
-    showOverlay() {
-        if (!this._overlayInstance) {
-            this._overlayInstance = new MusicOverlay(this);
-        }
-        this._overlayInstance.show();
-    }
-}
-
-// === UIManager: UI- und DOM-Logik als eigene Klasse ===
+// === UIManager: UI- und DOM-Logik ===
 class UIManager {
     constructor(game) {
         this.game = game; // Referenz auf das Spiel für State-Zugriff
@@ -304,20 +178,6 @@ class CountingGame {
         };
         this.soundEnabled = true;
         this.speechEnabled = true;
-        this.musicTracks = [
-            'background music/Whispering_Horizons.mp3',
-            'background music/Pixel_Forest.mp3',
-            'background music/Echoes_of_the_Woods.mp3',
-            'background music/Echoes_of_the_Wild.mp3',
-            'background music/Grove.mp3',
-            'background music/Natures_Glow.mp3',
-            'background music/Joyful_Simplicity.mp3',
-            'background music/Trap_Paradise.mp3',
-            'background music/Funky_Playground_Groove.mp3',
-            'background music/Whispering_Sunshine.mp3',
-            'background music/Pathways.mp3',
-            'background music/Soothing_of_the_Pines.mp3'
-        ];
         this.objectCategories = [
             { emoji: '🍎', name: 'Äpfel' },
             { emoji: '🍕', name: 'Pizzen' },
@@ -350,22 +210,9 @@ class CountingGame {
             'Füchse': 'ein Fuchs', 'Bären': 'ein Bär', 'Schmetterlinge': 'ein Schmetterling',
             'Marienkäfer': 'ein Marienkäfer', 'Dinosaurier': 'ein Dinosaurier'
         };
-        this.audioContext = null;
         this.tts = new TTSManager();
-        this.music = new MusicManager(this.musicTracks, [
-            'images/Plattencover/cover_01.jpg',
-            'images/Plattencover/cover_02.jpg',
-            'images/Plattencover/cover_03.jpg',
-            'images/Plattencover/cover_04.jpg',
-            'images/Plattencover/cover_05.jpg',
-            'images/Plattencover/cover_06.jpg',
-            'images/Plattencover/cover_07.jpg',
-            'images/Plattencover/cover_08.jpg',
-            'images/Plattencover/cover_09.jpg',
-            'images/Plattencover/cover_10.jpg',
-            'images/Plattencover/cover_11.jpg',
-            'images/Plattencover/cover_12.jpg'
-        ]);
+        window._sharedTTS = this.tts;
+        this.music = new MusicManager(SHARED_MUSIC_TRACKS, SHARED_MUSIC_COVERS);
         this.ui = new UIManager(this);
         this.logic = new GameLogic(this);
         this.puzzle = new PuzzleManager();
@@ -373,10 +220,7 @@ class CountingGame {
     }
 
     getAudioContext() {
-        if (!this.audioContext || this.audioContext.state === 'closed') {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        return this.audioContext;
+        return SharedAudio.getContext();
     }
 
     init() {
@@ -387,50 +231,27 @@ class CountingGame {
     }
 
     _playStartSound() {
-        try {
-            const ctx = this.getAudioContext();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.value = 740;
-            gain.gain.value = 0.18;
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            osc.frequency.linearRampToValueAtTime(1100, ctx.currentTime + 0.18);
-            gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
-            osc.stop(ctx.currentTime + 0.22);
-        } catch(e) {}
+        SharedAudio.playStartSound();
     }
 
     _triggerStartTransition() {
         this._playStartSound();
-        document.removeEventListener('keydown', this._startKeyHandler);
-        const btn = document.querySelector('.startscreen-play-btn');
-        btn.classList.add('clicked');
         const startscreen = document.getElementById('startscreen');
         startscreen.classList.add('hide');
         setTimeout(() => {
             this.startGame();
-            btn.classList.remove('clicked');
             startscreen.classList.remove('hide');
         }, 600);
     }
 
     bindEvents() {
-        // Play-Button
-        document.querySelector('.startscreen-play-btn').addEventListener('click', () => {
-            this._triggerStartTransition();
-        });
-        // Start per Tastatur (Leertaste oder Enter)
-        this._startKeyHandler = (e) => {
-            const startscreen = document.getElementById('startscreen');
-            if (startscreen.style.display !== 'none' && (e.key === ' ' || e.key === 'Enter')) {
-                e.preventDefault();
+        // Spielauswahl-Button "Zaehlen"
+        const countingBtn = document.querySelector('[data-game="counting"]');
+        if (countingBtn) {
+            countingBtn.addEventListener('click', () => {
                 this._triggerStartTransition();
-            }
-        };
-        document.addEventListener('keydown', this._startKeyHandler);
+            });
+        }
     }
 
     _initParentMenu() {
@@ -760,47 +581,12 @@ class CountingGame {
         }
     }
 
-    playTone(frequency, duration, type = 'sine') {
-        const ctx = this.getAudioContext();
-        const oscillator = ctx.createOscillator();
-        const gainNode = ctx.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(ctx.destination);
-        
-        oscillator.frequency.value = frequency;
-        oscillator.type = type;
-        
-        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
-        
-        oscillator.start(ctx.currentTime);
-        oscillator.stop(ctx.currentTime + duration);
+    playSuccessMelody() {
+        SharedAudio.playSuccessMelody();
     }
 
     playWrongSound() {
-        const ctx = this.getAudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = 440;
-        osc.frequency.linearRampToValueAtTime(280, ctx.currentTime + 0.35);
-        gain.gain.setValueAtTime(0.18, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.35);
-    }
-
-    playSuccessMelody() {
-        const notes = [523, 659, 784, 1047]; // C, E, G, C (höher)
-        
-        notes.forEach((frequency, index) => {
-            setTimeout(() => {
-                this.playTone(frequency, 0.2, 'sine');
-            }, index * 150);
-        });
+        SharedAudio.playWrongSound();
     }
 
     speakWelcome() {
@@ -903,9 +689,6 @@ class CountingGame {
 
         // Deaktiviere Spiel-Events
         this.disableGameEvents();
-
-        // Startscreen-Keyboard-Listener wieder aktivieren
-        document.addEventListener('keydown', this._startKeyHandler);
 
         // Trail-Animation wieder starten
         if (window._trailControl) window._trailControl.start();
@@ -1245,8 +1028,7 @@ document.addEventListener('touchstart', function() {}, {passive: true});
 (function() {
     function playPlickSound() {
         try {
-            if (!window.countObjectsGameInstance) return;
-            const ctx = window.countObjectsGameInstance.getAudioContext();
+            const ctx = SharedAudio.getContext();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'sine';
@@ -1290,10 +1072,10 @@ document.addEventListener('touchstart', function() {}, {passive: true});
     }
 
     document.getElementById('startscreen').addEventListener('click', function(e) {
-        // Nicht auslösen, wenn auf Play-Button oder Video geklickt wurde
-        const btn = document.querySelector('.startscreen-play-btn');
+        // Nicht ausloesen, wenn auf Spielauswahl-Buttons oder Video geklickt wurde
+        const menu = document.getElementById('game-select-menu');
         const video = document.querySelector('.startscreen-video');
-        if (btn && btn.contains(e.target)) return;
+        if (menu && menu.contains(e.target)) return;
         if (video && video.contains(e.target)) return;
         // Position relativ zum Canvas bestimmen
         const canvas = document.getElementById('trail-canvas');
@@ -1305,550 +1087,4 @@ document.addEventListener('touchstart', function() {}, {passive: true});
     });
 })();
 
-// === Musik-Overlay für die Track-Auswahl ===
-class MusicOverlay {
-    constructor(musicManager) {
-        this.musicManager = musicManager;
-        this.overlay = null;
-        this.grid = null;
-        this._spaceHandler = null;
-        this._outsideClickHandler = null;
-        this._closeBtn = null;
-        this._initCSS();
-    }
-    _initCSS() {
-        if (!document.getElementById('music-overlay-style')) {
-            const style = document.createElement('style');
-            style.id = 'music-overlay-style';
-            style.textContent = `
-                .music-overlay-bg {
-                    position: fixed;
-                    top: 0; left: 0; width: 100vw; height: 100vh;
-                    background: rgba(0,0,0,0.28);
-                    z-index: 10000;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
-                .music-overlay {
-                    background: #fff;
-                    border-radius: 32px;
-                    box-shadow: 0 8px 64px #23294633;
-                    padding: 72px 32px 32px 32px;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    min-width: 320px;
-                    min-height: 320px;
-                    max-width: 90vw;
-                    max-height: 90vh;
-                    position: relative;
-                    opacity: 1;
-                    transform: scale(1);
-                }
-                .music-overlay-animate-in {
-                    animation: overlayBounceInFade 0.6s cubic-bezier(.4,1.3,.6,1) both;
-                }
-                .music-overlay-animate-out {
-                    animation: overlayBounceOutFade 0.5s cubic-bezier(.4,1.3,.6,1) both;
-                }
-                @keyframes overlayBounceInFade {
-                    0% { opacity: 0; transform: scale(0.7); }
-                    60% { opacity: 1; transform: scale(1.12); }
-                    80% { transform: scale(0.95); }
-                    100% { opacity: 1; transform: scale(1); }
-                }
-                @keyframes overlayBounceOutFade {
-                    0% { opacity: 1; transform: scale(1); }
-                    20% { opacity: 1; transform: scale(1.1); }
-                    100% { opacity: 0; transform: scale(0.7); }
-                }
-                .music-overlay-grid {
-                    display: grid;
-                    grid-template-columns: repeat(4, 1fr);
-                    gap: 44px;
-                    width: 100%;
-                    max-width: 700px;
-                }
-                .music-overlay-cover-btn {
-                    width: 120px;
-                    height: 120px;
-                    min-width: 90px;
-                    min-height: 90px;
-                    max-width: 150px;
-                    max-height: 150px;
-                    aspect-ratio: 1/1;
-                    border: none;
-                    background: none;
-                    box-shadow: none;
-                    padding: 0;
-                    position: relative;
-                    transition: box-shadow 0.2s, transform 0.18s;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    overflow: visible;
-                    outline: none;
-                    border-radius: 18px;
-                }
-                .music-overlay-cover-btn:hover,
-                .music-overlay-cover-btn:focus {
-                    transform: scale(1.08);
-                    box-shadow: 0 8px 32px #FFD16633, 0 2px 8px #23294622;
-                    z-index: 2;
-                }
-                .music-overlay-cover-btn img {
-                    width: 100%;
-                    height: 100%;
-                    border-radius: 18px;
-                    box-shadow: 0 4px 24px #0002;
-                    display: block;
-                    object-fit: cover;
-                }
-                .music-overlay-cover-btn.active {
-                    box-shadow: 0 0 0 8px #FFD166, 0 0 0 18px #6AD1E3, 0 4px 24px #FFD16644;
-                    animation: coverPulse 1.2s infinite;
-                }
-                .music-overlay-cover-btn.active::after {
-                    content: '';
-                    position: absolute;
-                    top: 8px;
-                    right: 8px;
-                    width: 24px;
-                    height: 24px;
-                    border-radius: 50%;
-                    background: radial-gradient(circle at 60% 40%, #FFD166 70%, #6AD1E3 100%);
-                    box-shadow: 0 0 12px #FFD16688;
-                    display: block;
-                    z-index: 2;
-                    animation: playPulse 1.2s infinite;
-                }
-                @keyframes coverPulse {
-                    0%, 100% { box-shadow: 0 0 0 8px #FFD166, 0 0 0 18px #6AD1E3, 0 4px 24px #FFD16644; }
-                    50% { box-shadow: 0 0 0 18px #FFD16644, 0 0 0 32px #6AD1E344, 0 4px 32px #FFD16688; }
-                }
-                @keyframes playPulse {
-                    0%, 100% { transform: scale(1); opacity: 1; }
-                    50% { transform: scale(1.18); opacity: 0.7; }
-                }
-                .music-overlay-close {
-                    position: absolute;
-                    top: 32px;
-                    right: 32px;
-                    background: #FFD166;
-                    border: none;
-                    font-size: 3.2rem;
-                    color: #fff;
-                    cursor: pointer;
-                    border-radius: 50%;
-                    width: 56px;
-                    height: 56px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    z-index: 10001;
-                    box-shadow: 0 2px 12px #FFD16688;
-                    transition: background 0.18s, color 0.18s, transform 0.18s;
-                }
-                .music-overlay-close:hover {
-                    background: #232946;
-                    color: #FFD166;
-                    transform: scale(1.1);
-                }
-                @media (max-width: 900px) {
-                    .music-overlay-grid {
-                        grid-template-columns: repeat(3, 1fr);
-                        gap: 28px;
-                    }
-                }
-                @media (max-width: 600px) {
-                    .music-overlay {
-                        padding: 38px 6px 6px 6px;
-                        min-width: 0;
-                        min-height: 0;
-                        max-width: 99vw;
-                        max-height: 99vh;
-                    }
-                    .music-overlay-grid {
-                        grid-template-columns: repeat(2, 1fr);
-                        gap: 18px;
-                    }
-                    .music-overlay-close {
-                        top: 18px;
-                        right: 18px;
-                        width: 38px;
-                        height: 38px;
-                        font-size: 2rem;
-                    }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-    }
-    show() {
-        // Overlay-Background
-        this.overlay = document.createElement('div');
-        this.overlay.className = 'music-overlay-bg';
-        this.overlay.setAttribute('role', 'dialog');
-        this.overlay.setAttribute('aria-modal', 'true');
-        // Haupt-Overlay
-        const dialog = document.createElement('div');
-        dialog.className = 'music-overlay music-overlay-animate-in';
-        // Schließen-Button
-        this._closeBtn = document.createElement('button');
-        this._closeBtn.className = 'music-overlay-close';
-        this._closeBtn.innerHTML = '×';
-        this._closeBtn.onclick = () => this.hide();
-        dialog.appendChild(this._closeBtn);
-        // Grid
-        this.grid = document.createElement('div');
-        this.grid.className = 'music-overlay-grid';
-        // Cover-Buttons
-        const currentSrc = this.musicManager.backgroundMusic ? this.musicManager.backgroundMusic.src : '';
-        let activeBtn = null;
-        this.musicManager.musicTracks.forEach((track, idx) => {
-            const btn = document.createElement('button');
-            btn.className = 'music-overlay-cover-btn';
-            btn.setAttribute('tabindex', '0');
-            btn.setAttribute('aria-label', 'Song ' + (idx+1));
-            if (this.musicManager.backgroundMusic && currentSrc.includes(track)) {
-                btn.classList.add('active');
-                activeBtn = btn;
-            }
-            const img = document.createElement('img');
-            img.src = this.musicManager.covers[idx];
-            img.alt = '';
-            btn.appendChild(img);
-            btn.onclick = () => {
-                this.musicManager.selectTrack(idx);
-                // Markierung sofort aktualisieren
-                this.grid.querySelectorAll('.music-overlay-cover-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-            };
-            this.grid.appendChild(btn);
-        });
-        dialog.appendChild(this.grid);
-        this.overlay.appendChild(dialog);
-        document.body.appendChild(this.overlay);
-        // Beim Öffnen: Aktuellen Track in die Mitte scrollen
-        if (activeBtn && typeof activeBtn.scrollIntoView === 'function') {
-            setTimeout(() => {
-                activeBtn.scrollIntoView({block: 'center', inline: 'center', behavior: 'smooth'});
-            }, 100);
-        }
-        // Schließen mit Leertaste
-        this._spaceHandler = (e) => {
-            if ((e.code === 'Space' || e.key === ' ') && document.body.contains(this.overlay)) {
-                e.preventDefault();
-                this.hide();
-            }
-        };
-        document.addEventListener('keydown', this._spaceHandler);
-        // Schließen bei Klick außerhalb des Dialogs
-        this._outsideClickHandler = (e) => {
-            if (e.target === this.overlay) {
-                this.hide();
-            }
-        };
-        this.overlay.addEventListener('mousedown', this._outsideClickHandler);
-    }
-    hide() {
-        if (this._spaceHandler) {
-            document.removeEventListener('keydown', this._spaceHandler);
-            this._spaceHandler = null;
-        }
-        if (this.overlay) {
-            this.overlay.removeEventListener('mousedown', this._outsideClickHandler);
-            const dialog = this.overlay.querySelector('.music-overlay');
-            if (dialog) {
-                dialog.classList.remove('music-overlay-animate-in');
-                dialog.classList.add('music-overlay-animate-out');
-                const overlayRef = this.overlay;
-                setTimeout(() => {
-                    if (overlayRef && overlayRef.parentNode) {
-                        overlayRef.parentNode.removeChild(overlayRef);
-                    }
-                }, 480);
-            } else if (this.overlay.parentNode) {
-                this.overlay.parentNode.removeChild(this.overlay);
-            }
-            this.overlay = null;
-        }
-        this.grid = null;
-        this._closeBtn = null;
-    }
-}
-
-// === PuzzleManager: Puzzle-Fortschrittssystem ===
-class PuzzleManager {
-    constructor() {
-        this.currentPuzzle = 0;
-        this.revealedPieces = 0;
-        this.puzzleImages = [
-            'images/puzzle-images/puzzle_animals_1.jpg',
-            'images/puzzle-images/puzzle_animals_2.jpg', 
-            'images/puzzle-images/puzzle_animals_3.jpg',
-            'images/puzzle-images/puzzle_animals_4.jpg'
-        ];
-        this.isExpanded = false;
-        this.init();
-    }
-
-    init() {
-        this.createPuzzleContainer();
-        // Kein loadProgress() — Puzzle startet immer frisch (Level startet auch bei 1)
-        this.updateDisplay();
-    }
-
-    createPuzzleContainer() {
-        // Puzzle-Container erstellen
-        const puzzleContainer = document.createElement('div');
-        puzzleContainer.id = 'puzzle-container';
-        puzzleContainer.className = 'puzzle-container';
-        puzzleContainer.innerHTML = `
-            <div class="puzzle-grid">
-                <div class="puzzle-piece" data-piece="0"></div>
-                <div class="puzzle-piece" data-piece="1"></div>
-                <div class="puzzle-piece" data-piece="2"></div>
-                <div class="puzzle-piece" data-piece="3"></div>
-                <div class="puzzle-piece" data-piece="4"></div>
-                <div class="puzzle-piece" data-piece="5"></div>
-                <div class="puzzle-piece" data-piece="6"></div>
-                <div class="puzzle-piece" data-piece="7"></div>
-                <div class="puzzle-piece" data-piece="8"></div>
-            </div>
-        `;
-        
-        // Puzzle-Container zum Body hinzufügen
-        document.body.appendChild(puzzleContainer);
-        
-        // Click-Event für Zoom
-        puzzleContainer.addEventListener('click', () => this.toggleZoom());
-        
-        // CSS für Puzzle hinzufügen
-        this.addPuzzleCSS();
-    }
-
-    addPuzzleCSS() {
-        if (document.getElementById('puzzle-css')) return;
-        
-        const style = document.createElement('style');
-        style.id = 'puzzle-css';
-        style.textContent = `
-            .puzzle-container {
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                width: 180px;
-                height: 180px;
-                background: rgba(255, 255, 255, 0.95);
-                border-radius: 16px;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-                cursor: pointer;
-                z-index: 1000;
-                transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-                border: 3px solid #FFD166;
-            }
-            .puzzle-container:hover {
-                transform: scale(1.05);
-                box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
-            }
-            .puzzle-container.expanded {
-                width: 420px;
-                height: 420px;
-                bottom: 50px;
-                right: 50px;
-                z-index: 10000;
-            }
-            .puzzle-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 2px;
-                width: 100%;
-                height: 100%;
-                padding: 8px;
-            }
-            .puzzle-piece {
-                background: linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 100%);
-                border-radius: 6px;
-                border: 1px solid #ddd;
-                transition: none;
-                position: relative;
-                overflow: hidden;
-                backface-visibility: hidden;
-            }
-            .puzzle-piece::before {
-                content: '?';
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                font-size: 1.2em;
-                color: #999;
-                font-weight: bold;
-            }
-            .puzzle-piece.revealed {
-                background: none;
-                border: 1px solid #FFD166;
-            }
-            .puzzle-piece.revealed::before {
-                display: none;
-            }
-            .puzzle-piece.revealed {
-                background-size: cover;
-                background-position: center;
-            }
-            .puzzle-reveal-overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100vw;
-                height: 100vh;
-                background: radial-gradient(circle, rgba(255, 209, 102, 0.3) 0%, transparent 70%);
-                z-index: 9999;
-                pointer-events: none;
-                animation: revealOverlay 1s ease-out forwards;
-            }
-            @keyframes revealOverlay {
-                0% {
-                    opacity: 0;
-                    transform: scale(0);
-                }
-                50% {
-                    opacity: 1;
-                    transform: scale(1.2);
-                }
-                100% {
-                    opacity: 0;
-                    transform: scale(2);
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    toggleZoom() {
-        const container = document.getElementById('puzzle-container');
-        this.isExpanded = !this.isExpanded;
-        
-        if (this.isExpanded) {
-            container.classList.add('expanded');
-        } else {
-            container.classList.remove('expanded');
-        }
-    }
-
-    revealNextPiece() {
-        if (this.revealedPieces >= 9) {
-            // Puzzle komplett! Feier auslösen, dann nächstes starten
-            this._celebratePuzzleComplete();
-            this.currentPuzzle++;
-            this.revealedPieces = 0;
-            // Alle Puzzles durchgespielt → von vorne beginnen
-            if (this.currentPuzzle >= this.puzzleImages.length) {
-                this.currentPuzzle = 0;
-            }
-            this.updateDisplay();
-            return;
-        }
-        // Alle Puzzles durchgespielt → beim letzten bleiben oder loopen
-        if (this.currentPuzzle >= this.puzzleImages.length) {
-            this.currentPuzzle = 0; // Von vorne beginnen
-        }
-        // Merke Index des neuen Teils
-        const newPieceIndex = this.revealedPieces;
-        this.revealedPieces++;
-        // Zeige alle bisherigen Teile, aber NICHT das neue
-        const pieces = document.querySelectorAll('.puzzle-piece');
-        pieces.forEach((piece, index) => {
-            if (index < newPieceIndex) {
-                piece.classList.add('revealed');
-                piece.style.backgroundImage = `url(${this.puzzleImages[this.currentPuzzle]})`;
-                piece.style.backgroundSize = '300% 300%';
-                const positions = [
-                    '0% 0%', '50% 0%', '100% 0%',
-                    '0% 50%', '50% 50%', '100% 50%',
-                    '0% 100%', '50% 100%', '100% 100%'
-                ];
-                piece.style.backgroundPosition = positions[index];
-            } else {
-                piece.classList.remove('revealed');
-                piece.style.backgroundImage = '';
-                piece.style.backgroundSize = '';
-                piece.style.backgroundPosition = '';
-            }
-        });
-        // Neues Puzzleteil einfach direkt aufdecken
-        setTimeout(() => {
-            const piece = document.querySelector(`[data-piece="${newPieceIndex}"]`);
-            if (piece) {
-                piece.classList.add('revealed');
-                piece.style.background = '';
-                piece.style.backgroundImage = `url(${this.puzzleImages[this.currentPuzzle]})`;
-                piece.style.backgroundSize = '300% 300%';
-                const positions = [
-                    '0% 0%', '50% 0%', '100% 0%',
-                    '0% 50%', '50% 50%', '100% 50%',
-                    '0% 100%', '50% 100%', '100% 100%'
-                ];
-                piece.style.backgroundPosition = positions[newPieceIndex];
-            }
-        }, 0);
-    }
-
-    updateDisplay() {
-        const pieces = document.querySelectorAll('.puzzle-piece');
-        pieces.forEach((piece, index) => {
-            if (index < this.revealedPieces) {
-                piece.classList.add('revealed');
-                piece.style.backgroundImage = `url(${this.puzzleImages[this.currentPuzzle]})`;
-                piece.style.backgroundSize = '300% 300%';
-                const positions = [
-                    '0% 0%', '50% 0%', '100% 0%',
-                    '0% 50%', '50% 50%', '100% 50%',
-                    '0% 100%', '50% 100%', '100% 100%'
-                ];
-                piece.style.backgroundPosition = positions[index];
-            } else {
-                piece.classList.remove('revealed');
-                piece.style.backgroundImage = '';
-                piece.style.backgroundSize = '';
-                piece.style.backgroundPosition = '';
-            }
-        });
-    }
-
-    hide() {
-        const container = document.getElementById('puzzle-container');
-        if (container) {
-            container.style.display = 'none';
-        }
-    }
-
-    show() {
-        const container = document.getElementById('puzzle-container');
-        if (container) {
-            container.style.display = 'block';
-        }
-    }
-
-    _celebratePuzzleComplete() {
-        const container = document.getElementById('puzzle-container');
-        if (!container) return;
-        // Puzzle kurz vergrößern und golden leuchten
-        container.style.transition = 'all 0.5s cubic-bezier(.4,1.3,.6,1)';
-        container.style.transform = 'scale(1.3)';
-        container.style.boxShadow = '0 0 40px #FFD166, 0 0 80px #FFD16688';
-        container.style.zIndex = '10000';
-        // TTS Nachricht
-        if (window.countObjectsGameInstance && window.countObjectsGameInstance.tts) {
-            window.countObjectsGameInstance.tts.speak('Super, du hast das Puzzle geschafft!');
-        }
-        // Zurücksetzen nach 2.5 Sekunden
-        setTimeout(() => {
-            container.style.transform = '';
-            container.style.boxShadow = '';
-            container.style.zIndex = '';
-        }, 2500);
-    }
-} 
+// MusicOverlay und PuzzleManager sind jetzt in shared.js
