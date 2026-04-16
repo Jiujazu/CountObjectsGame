@@ -201,6 +201,25 @@ class MusicManager {
         this.covers = covers;
         this.backgroundMusic = null;
         this.musicEnabled = true;
+        // Default leiser, damit TTS-Sprecher darueber gut hoerbar bleibt.
+        // Persistiert ueber localStorage.
+        this.volume = this._loadVolume();
+    }
+    _loadVolume() {
+        try {
+            const v = localStorage.getItem('music-volume');
+            if (v !== null) {
+                const n = parseFloat(v);
+                if (!Number.isNaN(n) && n >= 0 && n <= 1) return n;
+            }
+        } catch (e) {}
+        return 0.5;
+    }
+    setVolume(v) {
+        v = Math.max(0, Math.min(1, v));
+        this.volume = v;
+        if (this.backgroundMusic) this.backgroundMusic.volume = v;
+        try { localStorage.setItem('music-volume', String(v)); } catch (e) {}
     }
     playBackgroundMusic() {
         if (!this.musicEnabled) return;
@@ -209,7 +228,7 @@ class MusicManager {
             const track = this.musicTracks[randomIndex];
             this.backgroundMusic = new Audio(track);
             this.backgroundMusic.loop = false;
-            this.backgroundMusic.volume = 0.3;
+            this.backgroundMusic.volume = this.volume;
             this.backgroundMusic.preload = 'auto';
             this.backgroundMusic.onended = () => {
                 this.nextTrack();
@@ -244,7 +263,7 @@ class MusicManager {
         const track = this.musicTracks[idx];
         this.backgroundMusic = new Audio(track);
         this.backgroundMusic.loop = false;
-        this.backgroundMusic.volume = 0.3;
+        this.backgroundMusic.volume = this.volume;
         this.backgroundMusic.preload = 'auto';
         this.backgroundMusic.onended = () => {
             this.nextTrack();

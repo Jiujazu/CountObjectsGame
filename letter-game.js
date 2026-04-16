@@ -460,6 +460,10 @@ class LetterGame {
                 </label>
             </div>
             <div style="margin-bottom:16px;">
+                <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Musik-Lautstärke: <span id="lp-vol-val">${Math.round((this.music.volume ?? 0.5) * 100)}%</span></div>
+                <input type="range" id="lp-vol-slider" min="0" max="100" value="${Math.round((this.music.volume ?? 0.5) * 100)}" style="width:100%;accent-color:#6AD1E3;">
+            </div>
+            <div style="margin-bottom:16px;">
                 <label style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:1rem;color:#232946;cursor:pointer;">
                     <input type="checkbox" id="lp-piper" ${this.tts.enabled ? 'checked' : ''} style="width:20px;height:20px;"> Piper-Stimme (Thorsten)
                 </label>
@@ -549,6 +553,15 @@ class LetterGame {
         const vkbCheckbox = document.getElementById('lp-vkb');
         vkbCheckbox.addEventListener('change', () => {
             newShowVirtualKeyboard = vkbCheckbox.checked;
+        });
+
+        // Musik-Lautstaerke: live anwenden, damit man sofort prueft, wie laut ueber dem Sprecher liegt
+        const volSlider = document.getElementById('lp-vol-slider');
+        const volVal = document.getElementById('lp-vol-val');
+        volSlider.addEventListener('input', () => {
+            const pct = parseInt(volSlider.value);
+            volVal.textContent = pct + '%';
+            this.music.setVolume(pct / 100);
         });
 
         let newPiperEnabled = this.tts.enabled;

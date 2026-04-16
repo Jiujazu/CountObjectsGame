@@ -1,5 +1,110 @@
 // === script.js: Zaehlspiel (nutzt shared.js) ===
 
+// Kindgerechte, abwechslungsreiche TTS-Phrasen fuer das Zaehlspiel.
+// Platzhalter: {name} (Plural-Name z.B. "Hunde"), {singular} (z.B. "ein Hund"),
+// {count} (Ziffer), {zahlwort} (z.B. "drei"), {zahlwort_cap} ("Drei"),
+// {guessed}, {guessed_zahlwort} (nur bei Wrong).
+const COUNT_PHRASES = {
+    instruction: [
+        'Wie viele {name} siehst du?',
+        'Zähl mal: wie viele {name} sind hier?',
+        'Schau genau hin! Wie viele {name} entdeckst du?',
+        'Kannst du die {name} zählen?',
+        'Oh, {name}! Wie viele sind es?',
+        'Hilf mir zählen: wie viele {name} siehst du?',
+        'Jetzt aber: wie viele {name} sind das?',
+        'Zeig mal mit dem Finger mit. Wie viele {name}?',
+        'Na, wie viele {name} hast du entdeckt?',
+        'Das sind ja ganz schön viele {name}. Wie viele denn?',
+        'Da tummeln sich {name}. Zähl mal!',
+        'Spannend! Wie viele {name} sind das?',
+        'Mach mal deine Augen auf und zähl die {name}!',
+        'Huch, {name}! Zähl mal, wie viele hier sind.',
+        'Ich frage mich, wie viele {name} das wohl sind.',
+        'Augen auf und losgezählt! Wie viele {name}?',
+        'Hast du schon gezählt? Wie viele {name} sind es?',
+        'Puh, sind das viele {name}! Wie viele denn?',
+    ],
+    correct: [
+        'Ja genau! {zahlwort_cap} {name}!',
+        'Richtig! Das waren {zahlwort} {name}!',
+        'Super gemacht! {zahlwort_cap} {name}, genau richtig!',
+        'Klasse, du hast richtig gezählt: {zahlwort} {name}!',
+        'Wow, Volltreffer! {zahlwort_cap} {name}!',
+        'Toll! Da sind tatsächlich {zahlwort} {name}.',
+        'Juhu! {zahlwort_cap} {name}, das stimmt!',
+        'Bravo! Das waren wirklich {zahlwort} {name}.',
+        'Mega, richtig! {zahlwort_cap} {name}!',
+        'Du bist ein richtiger Zählprofi! {zahlwort_cap} {name}!',
+        'Hurra, Treffer! {zahlwort_cap} {name}!',
+        'Genau, {zahlwort} {name}, du hast\'s drauf!',
+        'Stark! {zahlwort_cap} {name}, ganz genau.',
+        '{zahlwort_cap} {name}! Richtig erkannt!',
+        'Yes! {zahlwort_cap} {name} sind es tatsächlich.',
+        'Ganz genau so viele! {zahlwort_cap} {name}.',
+        'Da hast du aber gut aufgepasst: {zahlwort} {name}!',
+        'Perfekt! Ich zähle auch {zahlwort} {name}.',
+    ],
+    correct_one: [
+        'Ja genau, {singular}!',
+        'Richtig, da ist nur {singular}!',
+        'Super, {singular}, stimmt genau!',
+        'Klar, {singular} ist richtig!',
+        'Bravo, das ist tatsächlich nur {singular}!',
+        'Jawoll, {singular}, ganz allein!',
+        'Ganz genau: {singular}, mehr ist\'s nicht.',
+        'Richtig! Nur {singular} versteckt sich hier.',
+        'Yep, {singular}. Volltreffer!',
+        'Stimmt, da ist wirklich nur {singular}.',
+    ],
+    wrong: [
+        'Oh, das passt noch nicht. Zähl nochmal nach!',
+        'Hmm, nicht ganz. Zähl die {name} nochmal!',
+        'Ups, daneben. Probier\'s nochmal!',
+        'Hoppla, das war noch nicht richtig.',
+        'Na, zähl mal ganz genau: wie viele sind es wirklich?',
+        'Nicht ganz! Nimm den Finger und zähl einzeln.',
+        'Noch nicht ganz. Versuch\'s nochmal!',
+        'Schade, das war\'s nicht. Zähl in Ruhe nach!',
+        'Hm hm, nochmal hinschauen!',
+        'Fast! Aber zähl nochmal genau.',
+        'Oh, das stimmt noch nicht. Eine nach der anderen!',
+        'Nee, so viele sind es nicht. Zähl nochmal!',
+        'Das war\'s noch nicht. Nochmal versuchen!',
+        'Hmm, probier\'s nochmal. Zähl die {name} in Ruhe!',
+        'Knapp daneben. Zähl nochmal mit dem Finger mit!',
+        'Oh je, nicht ganz. Du schaffst das!',
+        'Noch einen Versuch. Wie viele {name} sind es?',
+    ],
+    wrong_one: [
+        'Nein, nur {singular} ist es nicht. Zähl nochmal!',
+        'Oh, es ist nicht nur {singular}. Schau genau hin!',
+        'Hm, mehr als {singular} sehe ich da. Zähl nochmal!',
+    ],
+    hint: [
+        'Kleiner Tipp: Es sind {zahlwort}.',
+        'Ich verrate es dir: {zahlwort_cap} {name} sind es.',
+        'Pssst, es sind {zahlwort} {name}.',
+        'Hier ist ein Tipp: {zahlwort_cap} {name}!',
+        'Soll ich helfen? Es sind {zahlwort}.',
+        'Magst du einen Tipp? Es sind {zahlwort} {name}.',
+        'Die richtige Zahl ist {zahlwort}.',
+        'Kleine Hilfe: zähle bis {zahlwort}.',
+    ],
+    welcome: [
+        'Willkommen beim Zählspiel! Schau dir die Objekte an und drücke die richtige Zahl.',
+        'Schön, dass du da bist! Zähl die Objekte und drück die richtige Zahl.',
+        'Los geht\'s mit dem Zählen! Schau dir die Bilder an und finde die richtige Zahl.',
+        'Hallo! Bereit zum Zählen? Drück einfach die passende Zahl.',
+        'Hi! Heute üben wir Zählen. Drück die richtige Zahl.',
+    ],
+};
+
+function _pickCountPhrase(list, vars = {}) {
+    const tpl = list[Math.floor(Math.random() * list.length)];
+    return tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+}
+
 // === UIManager: UI- und DOM-Logik ===
 class UIManager {
     constructor(game) {
@@ -288,12 +393,17 @@ class CountingGame {
         dialog.style.cssText = 'background:#fff;border-radius:24px;padding:32px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.2);max-width:340px;width:90vw;';
 
         const currentMax = this._getCurrentMaxObjects();
+        const currentVolPct = Math.round((this.music.volume ?? 0.5) * 100);
         dialog.innerHTML = `
             <div style="font-size:1.4rem;font-weight:700;color:#232946;margin-bottom:8px;">⚙️ Eltern-Einstellungen</div>
             <div style="font-size:0.9rem;color:#666;margin-bottom:20px;">Lange auf Level-Zahl drücken zum Öffnen</div>
             <div style="margin-bottom:20px;">
                 <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Startschwierigkeit (max. Objekte): <span id="parent-diff-val">${currentMax}</span></div>
                 <input type="range" id="parent-diff-slider" min="2" max="9" value="${currentMax}" style="width:100%;accent-color:#FFD166;">
+            </div>
+            <div style="margin-bottom:20px;">
+                <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Musik-Lautstärke: <span id="parent-vol-val">${currentVolPct}%</span></div>
+                <input type="range" id="parent-vol-slider" min="0" max="100" value="${currentVolPct}" style="width:100%;accent-color:#6AD1E3;">
             </div>
             <div style="margin-bottom:20px;">
                 <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Level anpassen:</div>
@@ -319,6 +429,15 @@ class CountingGame {
         slider.addEventListener('input', () => {
             newMaxOverride = parseInt(slider.value);
             diffVal.textContent = newMaxOverride;
+        });
+
+        // Musik-Lautstaerke: live anwenden, damit man sofort den Unterschied hoert
+        const volSlider = document.getElementById('parent-vol-slider');
+        const volVal = document.getElementById('parent-vol-val');
+        volSlider.addEventListener('input', () => {
+            const pct = parseInt(volSlider.value);
+            volVal.textContent = pct + '%';
+            this.music.setVolume(pct / 100);
         });
 
         const levelVal = document.getElementById('parent-level-val');
@@ -521,13 +640,13 @@ class CountingGame {
     }
 
     speakInstruction() {
-        console.log('[TTS] speakInstruction() aufgerufen, speechEnabled:', this.speechEnabled);
         if (!this.speechEnabled) return Promise.resolve();
-        const category = this.objectCategories.find(cat => cat.emoji === this.state.currentObjects[0]);
-        const objectName = category ? category.name : 'Objekte';
-        const instruction = `Wie viele ${objectName} siehst du?`;
-        console.log('[TTS] Instruction-Text:', instruction);
-        return this.tts.speak(instruction);
+        const { objName } = this._getObjectInfo();
+        const text = _pickCountPhrase(COUNT_PHRASES.instruction, {
+            name: objName,
+            singular: this._getSingular(objName),
+        });
+        return this.tts.speak(text);
     }
 
     _getObjectInfo() {
@@ -545,31 +664,31 @@ class CountingGame {
     }
 
     speakSuccess() {
-        console.log('[TTS] speakSuccess() aufgerufen');
         const { numberNames, objName } = this._getObjectInfo();
-        const zahlwort = numberNames[this.state.correctAnswer - 1] || this.state.correctAnswer.toString();
-        let msg;
-        if (this.state.correctAnswer === 1) {
-            msg = `Ja genau! ${this._getSingular(objName)}!`;
-        } else {
-            msg = `Ja genau! ${zahlwort.charAt(0).toUpperCase() + zahlwort.slice(1)} ${objName}!`;
-        }
-        console.log('[TTS] Success-Text:', msg);
-        return this.tts.speak(msg);
+        const count = this.state.correctAnswer;
+        const zahlwort = numberNames[count - 1] || count.toString();
+        const vars = {
+            count,
+            zahlwort,
+            zahlwort_cap: zahlwort.charAt(0).toUpperCase() + zahlwort.slice(1),
+            name: objName,
+            singular: this._getSingular(objName),
+        };
+        const list = count === 1 ? COUNT_PHRASES.correct_one : COUNT_PHRASES.correct;
+        return this.tts.speak(_pickCountPhrase(list, vars));
     }
 
     speakWrong(guessedNumber) {
-        console.log('[TTS] speakWrong() aufgerufen, guessedNumber:', guessedNumber);
         const { numberNames, objName } = this._getObjectInfo();
         const zahlwort = numberNames[guessedNumber - 1] || guessedNumber.toString();
-        let message;
-        if (guessedNumber === 1) {
-            message = `Nein, ${this._getSingular(objName)} ist es nicht. Zähle noch mal, wieviel ${objName} es sind.`;
-        } else {
-            message = `Nein, ${zahlwort} ${objName} sind es nicht. Zähle noch mal, wieviel ${objName} es sind.`;
-        }
-        console.log('[TTS] Wrong-Text:', message);
-        return this.tts.speak(message);
+        const vars = {
+            guessed: guessedNumber,
+            guessed_zahlwort: zahlwort,
+            name: objName,
+            singular: this._getSingular(objName),
+        };
+        const list = guessedNumber === 1 ? COUNT_PHRASES.wrong_one : COUNT_PHRASES.wrong;
+        return this.tts.speak(_pickCountPhrase(list, vars));
     }
 
     nextLevel() {
@@ -597,11 +716,9 @@ class CountingGame {
     }
 
     speakWelcome() {
-        console.log('[TTS] speakWelcome() aufgerufen, speechEnabled:', this.speechEnabled);
         if (!this.speechEnabled) return;
         setTimeout(() => {
-            console.log('[TTS] Willkommensansage wird gesprochen...');
-            this.tts.speak("Willkommen beim Zählspiel! Schau dir die Objekte an und drücke die richtige Zahl.");
+            this.tts.speak(_pickCountPhrase(COUNT_PHRASES.welcome));
         }, 500);
     }
 
@@ -703,10 +820,17 @@ class CountingGame {
 
     _showHint() {
         const answer = this.state.correctAnswer;
-        const { numberNames } = this._getObjectInfo();
+        const { numberNames, objName } = this._getObjectInfo();
         const zahlwort = numberNames[answer - 1] || answer.toString();
-        // TTS Hinweis
-        this.tts.speak(`Kleiner Tipp: Es sind ${zahlwort}.`);
+        // TTS Hinweis (Variation)
+        if (this.speechEnabled) {
+            this.tts.speak(_pickCountPhrase(COUNT_PHRASES.hint, {
+                count: answer,
+                zahlwort,
+                zahlwort_cap: zahlwort.charAt(0).toUpperCase() + zahlwort.slice(1),
+                name: objName,
+            }));
+        }
         // Richtige Zahl kurz visuell blinken lassen
         const hint = document.getElementById('big-key-hint');
         if (hint) {
