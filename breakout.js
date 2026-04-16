@@ -19,6 +19,26 @@ const POWERUP_SYMBOLS = {
     multiball:'M', laser:'L', giant:'G', tiny:'T', fireball:'F',
     slowmo:'S', speeddemon:'D', shield:'H', magnet:'N', bomb:'B'
 };
+const POWERUP_EMOJI = {
+    multiball:'\u26A1', laser:'\u2191', giant:'\u2B1B', tiny:'\u25AA',
+    fireball:'\uD83D\uDD25', slowmo:'\u23F3', speeddemon:'\uD83D\uDCA8',
+    shield:'\uD83D\uDEE1\uFE0F', magnet:'\uD83E\uDDF2', bomb:'\uD83D\uDCA3'
+};
+const POWERUP_NAMES_DE = {
+    multiball:'MULTIBALL', laser:'LASER', giant:'RIESE', tiny:'WINZIG',
+    fireball:'FEUERBALL', slowmo:'ZEITLUPE', speeddemon:'TURBO',
+    shield:'SCHILD', magnet:'MAGNET', bomb:'BOMBE'
+};
+const POWERUP_HINTS_DE = {
+    multiball:'Mehr B\u00e4lle!', laser:'Paddle schie\u00dft!', giant:'Gro\u00dfes Paddle!', tiny:'Kleines Paddle!',
+    fireball:'Ball brennt!', slowmo:'Alles langsam!', speeddemon:'Alles schnell!',
+    shield:'Boden gesch\u00fctzt!', magnet:'Ball klebt!', bomb:'Explosion!'
+};
+const POWERUP_GOOD = {
+    multiball:true, laser:true, giant:true, tiny:false,
+    fireball:true, slowmo:true, speeddemon:false,
+    shield:true, magnet:true, bomb:false
+};
 const POWERUP_WEIGHTS = {
     multiball:15, laser:10, giant:15, tiny:5, fireball:10,
     slowmo:10, speeddemon:10, shield:15, magnet:5, bomb:5
@@ -585,6 +605,18 @@ class AudioEngine {
             const gain = this.ctx.createGain();
             osc.type = 'triangle'; osc.frequency.value = f;
             gain.gain.setValueAtTime(0.1, t + i * 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.2);
+            osc.connect(gain); gain.connect(this.sfxGain);
+            osc.start(t + i * 0.1); osc.stop(t + i * 0.1 + 0.2);
+        });
+    }
+
+    _sfx_encourage(t) {
+        [250, 330, 440].forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle'; osc.frequency.value = f;
+            gain.gain.setValueAtTime(0.08, t + i * 0.1);
             gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.2);
             osc.connect(gain); gain.connect(this.sfxGain);
             osc.start(t + i * 0.1); osc.stop(t + i * 0.1 + 0.2);
@@ -1244,23 +1276,27 @@ class PowerUp {
         if (!this.alive) return;
         const color = POWERUP_COLORS[this.type];
         const glow = 0.5 + Math.sin(this.glowPhase) * 0.3;
+        const isGood = POWERUP_GOOD[this.type];
         ctx.save();
         ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
-        // Glow
+        if (!isGood) {
+            ctx.strokeStyle = '#ff2222';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.w / 2 + 3, 0, Math.PI * 2);
+            ctx.stroke();
+        }
         ctx.shadowColor = color;
         ctx.shadowBlur = 15 * glow;
-        // Pill shape
         ctx.fillStyle = color;
         ctx.beginPath();
         roundRect(ctx, -this.w / 2, -this.h / 2, this.w, this.h, this.h / 2);
         ctx.fill();
         ctx.shadowBlur = 0;
-        // Letter
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 9px system-ui';
+        ctx.font = '12px system-ui';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(POWERUP_SYMBOLS[this.type], 0, 1);
+        ctx.fillText(POWERUP_EMOJI[this.type] || POWERUP_SYMBOLS[this.type], 0, 1);
         ctx.restore();
     }
 
@@ -1524,16 +1560,24 @@ class LevelManager {
         ];
     }
 
-    generateLayout(levelIndex) {
-        const difficulty = Math.min((levelIndex - 5) / 15, 1); // 0..1 over 20 levels
+    generateLayout(levelIndex, kidsMode = false) {
+        const difficulty = Math.min((levelIndex - 5) / 15, 1);
         const rows = 6;
         const layout = [];
-        // Probability weights scale with difficulty
-        const pEmpty = Math.max(0.08, 0.25 - difficulty * 0.15);
-        const pSteel = Math.min(0.18, difficulty * 0.2);
-        const pMulti = Math.min(0.25, 0.1 + difficulty * 0.18);
-        const pExplosive = Math.min(0.15, 0.05 + difficulty * 0.12);
-        const pMoving = Math.min(0.12, 0.03 + difficulty * 0.1);
+        let pEmpty, pSteel, pMulti, pExplosive, pMoving;
+        if (kidsMode) {
+            pEmpty = Math.max(0.1, 0.3 - difficulty * 0.12);
+            pSteel = levelIndex >= 5 ? Math.min(0.1, difficulty * 0.12) : 0;
+            pMulti = levelIndex >= 7 ? Math.min(0.15, difficulty * 0.12) : 0;
+            pExplosive = levelIndex >= 7 ? Math.min(0.08, difficulty * 0.08) : 0;
+            pMoving = levelIndex >= 9 ? Math.min(0.06, difficulty * 0.06) : 0;
+        } else {
+            pEmpty = Math.max(0.08, 0.25 - difficulty * 0.15);
+            pSteel = Math.min(0.18, difficulty * 0.2);
+            pMulti = Math.min(0.25, 0.1 + difficulty * 0.18);
+            pExplosive = Math.min(0.15, 0.05 + difficulty * 0.12);
+            pMoving = Math.min(0.12, 0.03 + difficulty * 0.1);
+        }
         const pGold = 0.04;
         // Generate symmetrical patterns for visual appeal
         const symmetry = Math.random() < 0.5;
@@ -1573,19 +1617,24 @@ class LevelManager {
         return layout;
     }
 
-    getBricks(levelIndex) {
+    getBricks(levelIndex, kidsMode = false) {
         let layout;
         if (levelIndex < this.layouts.length) {
             layout = this.layouts[levelIndex];
         } else {
-            layout = this.generateLayout(levelIndex);
+            layout = this.generateLayout(levelIndex, kidsMode);
         }
         const bricks = [];
         for (let r = 0; r < layout.length; r++) {
             const row = layout[r];
             for (let c = 0; c < BRICK_COLS; c++) {
-                const ch = c < row.length ? row[c] : '.';
+                let ch = c < row.length ? row[c] : '.';
                 if (ch === '.' || ch === ' ') continue;
+                if (kidsMode && levelIndex < this.layouts.length) {
+                    if (ch === 'S' && levelIndex < 4) ch = '#';
+                    if ((ch === 'X' || ch === '2' || ch === '3') && levelIndex < 2) ch = '#';
+                    if (ch === 'M' && levelIndex < 3) ch = '#';
+                }
                 const x = BRICK_OFFSET_X + c * (BRICK_W + BRICK_PAD);
                 const y = BRICK_OFFSET_Y + r * (BRICK_H + BRICK_PAD);
                 let type = 'normal';
@@ -1597,7 +1646,6 @@ class LevelManager {
                 else if (ch === 'G') type = 'gold';
                 const brick = new Brick(x, y, type, r, c);
                 if (ch === '3') { brick.hp = 3; brick.maxHp = 3; }
-                // Apply per-level animations
                 const anim = levelIndex < this.levelAnims.length
                     ? this.levelAnims[levelIndex]
                     : { breathing: true, descending: levelIndex >= 8, descendSpeed: Math.min(0.008, 0.002 + (levelIndex - 7) * 0.001) };
@@ -1636,11 +1684,12 @@ class LevelManager {
 // BOSS
 // ═══════════════════════════════════════════════════════════════
 class Boss {
-    constructor(levelIndex, worldIndex) {
+    constructor(levelIndex, worldIndex, easyMode = false) {
         this.worldIndex = worldIndex;
+        this.easyMode = easyMode;
         const bossNum = Math.floor(levelIndex / 5);
         this.type = ['kraken','phoenix','golem','dragon','hydra'][bossNum % 5];
-        this.maxHp = 40 + bossNum * 15;
+        this.maxHp = easyMode ? 20 + bossNum * 5 : 40 + bossNum * 15;
         this.hp = this.maxHp;
         this.x = W / 2;
         this.y = 70;
@@ -1659,10 +1708,12 @@ class Boss {
     }
 
     _initWeakPoints() {
+        const r = this.easyMode ? 18 : 10;
+        const rc = this.easyMode ? 20 : 12;
         return [
-            { ox: -50, oy: 0, r: 10, active: true, cooldown: 0 },
-            { ox: 0, oy: -15, r: 12, active: true, cooldown: 0 },
-            { ox: 50, oy: 0, r: 10, active: true, cooldown: 0 },
+            { ox: -50, oy: 0, r: r, active: true, cooldown: 0 },
+            { ox: 0, oy: -15, r: rc, active: true, cooldown: 0 },
+            { ox: 50, oy: 0, r: r, active: true, cooldown: 0 },
         ];
     }
 
@@ -1670,22 +1721,26 @@ class Boss {
         if (this.defeated) { this.defeatTimer++; return; }
         this.timer++;
         this.phaseTimer++;
-        this.moveAngle += 0.02;
+        this.moveAngle += this.easyMode ? 0.012 : 0.02;
         const sway = Math.sin(this.moveAngle) * (W / 2 - this.width / 2 - 20);
         this.x = W / 2 + sway;
+        if (this.easyMode) {
+            for (const wp of this.weakPoints) {
+                if (wp.cooldown > 0) wp.cooldown--;
+                wp.active = true;
+            }
+            return;
+        }
         if (this.phaseTimer >= this.phaseDuration) {
             this.phaseTimer = 0;
             this.phase = (this.phase + 1) % 3;
         }
-        // Phase 0: Sway + drop projectiles
         if (this.phase === 0 && this.timer % 40 === 0) {
             this.projectiles.push({ x: this.x + rnd(-30, 30), y: this.y + this.height / 2, dy: 2.5, r: 5 });
         }
-        // Phase 1: Rapid fire
         if (this.phase === 1 && this.timer % 15 === 0) {
             this.projectiles.push({ x: this.x + rnd(-50, 50), y: this.y + this.height / 2 + 10, dy: 3.5, r: 4 });
         }
-        // Phase 2: Shield phase - weak points briefly hide
         for (const wp of this.weakPoints) {
             if (wp.cooldown > 0) wp.cooldown--;
             wp.active = !(this.phase === 2 && this.phaseTimer < 60);
@@ -1776,6 +1831,13 @@ class Boss {
                 ctx.arc(wpx, wpy, wp.r, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.shadowBlur = 0;
+                if (this.easyMode) {
+                    const bob = Math.sin(Date.now() / 200) * 4;
+                    ctx.fillStyle = '#ffff44';
+                    ctx.font = 'bold 16px system-ui';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('\u2193', wpx, wpy - wp.r - 6 + bob);
+                }
             } else {
                 ctx.fillStyle = 'rgba(100,100,100,0.4)';
                 ctx.beginPath();
@@ -1820,34 +1882,38 @@ class InputManager {
         this.konamiSeq = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
         this.konamiIdx = 0;
         this.konamiTriggered = false;
+        this.menuUp = false;
+        this.menuDown = false;
+        this.menuConfirm = false;
 
         document.addEventListener('keydown', (e) => {
             this.keys[e.key] = true;
             if (e.key === ' ' || e.key === 'Enter') e.preventDefault();
-            // Konami
+            if (e.key === 'ArrowUp') this.menuUp = true;
+            if (e.key === 'ArrowDown') this.menuDown = true;
+            if (e.key === 'Enter') this.menuConfirm = true;
             if (e.key === this.konamiSeq[this.konamiIdx]) {
                 this.konamiIdx++;
                 if (this.konamiIdx === this.konamiSeq.length) {
                     this.konamiIdx = 0;
                     this.konamiTriggered = true;
                 }
-            } else {
+            } else if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
                 this.konamiIdx = 0;
             }
         });
         document.addEventListener('keyup', (e) => { this.keys[e.key] = false; });
-        // Listen on document so mouse never "escapes" the canvas
         document.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
-            const relX = (e.clientX - rect.left) * (W / rect.width);
-            this.mouseX = clamp(relX, 0, W);
+            const raw = (e.clientX - rect.left) * (W / rect.width);
+            this.mouseX = clamp(raw, 0, W);
             this.useMouse = true;
         });
         document.addEventListener('touchmove', (e) => {
             e.preventDefault();
             const rect = canvas.getBoundingClientRect();
-            const relX = (e.touches[0].clientX - rect.left) * (W / rect.width);
-            this.mouseX = clamp(relX, 0, W);
+            const raw = (e.touches[0].clientX - rect.left) * (W / rect.width);
+            this.mouseX = clamp(raw, 0, W);
             this.useMouse = true;
         }, { passive: false });
         const handleClick = () => { this.clicked = true; };
@@ -1871,6 +1937,10 @@ class InputManager {
         if (this.konamiTriggered) { this.konamiTriggered = false; return true; }
         return false;
     }
+
+    consumeMenuUp() { if (this.menuUp) { this.menuUp = false; return true; } return false; }
+    consumeMenuDown() { if (this.menuDown) { this.menuDown = false; return true; } return false; }
+    consumeMenuConfirm() { if (this.menuConfirm) { this.menuConfirm = false; return true; } return false; }
 
     wantsStart() {
         return this.keys[' '] || this.keys['Enter'] || this.consumeClick();
@@ -1902,7 +1972,7 @@ class Game {
         this.levels = new LevelManager();
         this.input = new InputManager(this.canvas);
 
-        this.state = 'start'; // start | playing | paused | leveltransition | gameover | win
+        this.state = 'start';
         this.score = 0;
         this.lives = 3;
         this.combo = 0;
@@ -1919,67 +1989,62 @@ class Game {
         this.newHighScoreFlag = false;
         this.bossesDefeated = 0;
         this.maxComboEver = 0;
+        // Kids mode (default true)
+        try { this.kidsMode = localStorage.getItem('breakout_kidsMode') !== 'false'; } catch(e) { this.kidsMode = true; }
+        this.startLevel = 0;
+        // Seen power-ups for intro tooltip
+        try { this.seenPowerups = JSON.parse(localStorage.getItem('breakout_seenPowerups') || '{}'); } catch(e) { this.seenPowerups = {}; }
+        // Sound settings
+        try { this.musicMuted = localStorage.getItem('breakout_musicMuted') === 'true'; } catch(e) { this.musicMuted = false; }
+        try { this.sfxMuted = localStorage.getItem('breakout_sfxMuted') === 'true'; } catch(e) { this.sfxMuted = false; }
+        // Tutorial
+        try { this.tutorialSeen = localStorage.getItem('breakout_tutorialSeen') === 'true'; } catch(e) { this.tutorialSeen = false; }
+        this.tutorialStep = 0;
+        this.tutorialCards = [
+            { icon: '\uD83D\uDDB1\uFE0F', text: 'Maus oder Pfeiltasten:\nPaddle bewegen' },
+            { icon: '\uD83E\uDDF1', text: 'Zerst\u00f6re alle\nbunten Steine!' },
+            { icon: '\u2B50', text: 'Sammle Power-ups\nf\u00fcr Superkr\u00e4fte!' },
+        ];
+        // Pause menu
+        this.pauseMenuIdx = 0;
         // Skins
         try { this.unlockedSkins = JSON.parse(localStorage.getItem('breakout_skins') || '["default"]'); } catch(e) { this.unlockedSkins = ['default']; }
         try { this.selectedSkin = localStorage.getItem('breakout_skin') || 'default'; } catch(e) { this.selectedSkin = 'default'; }
         this.skinMenuOpen = false;
-        // Kids mode & level selector
-        this.kidsMode = false;
-        this.startLevel = 0;
-        this.pauseMenuIdx = 0;
         // Puzzle reward
         this.puzzle = new BreakoutPuzzle();
 
-        // Background music (MP3 tracks instead of procedural loops)
-        this.bgMusicTracks = [
-            'background music/Funky_Playground_Groove.mp3',
-            'background music/Pixel_Forest.mp3',
-            'background music/Trap_Paradise.mp3',
-            'background music/Joyful_Simplicity.mp3',
-            'background music/Whispering_Horizons.mp3',
-            'background music/Grove.mp3',
-        ];
-        this.bgMusic = null;
-        this.bgMusicIdx = Math.floor(Math.random() * this.bgMusicTracks.length);
-
-        // Keep SFX beat sync for visual effects (but driven by a simple timer)
         this.audio.onBeatCallback = () => this.vfx.onBeat(this.partyMode);
+        this._applySoundSettings();
 
         // Back button
         document.getElementById('back-btn').addEventListener('click', () => {
-            if (this.bgMusic) { this.bgMusic.pause(); this.bgMusic.currentTime = 0; }
+            this.audio.stopMusic();
             window.location.href = 'index.html';
         });
 
-        // Mode toggle (Normal / Kids)
+        // Play button
+        document.getElementById('play-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._triggerStart();
+        });
+
+        // Mode toggle
         const modeBtn = document.getElementById('mode-toggle');
+        this._updateModeBtn(modeBtn);
         modeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.kidsMode = !this.kidsMode;
-            modeBtn.textContent = this.kidsMode ? 'Kids' : 'Normal';
-            modeBtn.classList.toggle('kids', this.kidsMode);
+            try { localStorage.setItem('breakout_kidsMode', this.kidsMode.toString()); } catch(e) {}
+            this._updateModeBtn(modeBtn);
         });
 
-        // Level selector
+        // Level toggle
         const levelBtn = document.getElementById('level-toggle');
-        const maxSelectLevel = 15; // allow selecting up to level 15 for testing
         levelBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.startLevel = (this.startLevel + 1) % (maxSelectLevel + 1);
-            levelBtn.textContent = this.startLevel === 0 ? '1' : (this.startLevel + 1) + (this._isBossLevel(this.startLevel) ? ' (Boss)' : '');
-        });
-
-        // Pause menu click handlers
-        document.querySelectorAll('.pause-menu-btn').forEach((btn) => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this._executePauseAction(btn.dataset.action);
-            });
-            btn.addEventListener('mouseenter', () => {
-                const btns = [...document.querySelectorAll('.pause-menu-btn')];
-                this.pauseMenuIdx = btns.indexOf(btn);
-                this._highlightPauseBtn(this.pauseMenuIdx);
-            });
+            this.startLevel = (this.startLevel + 1) % 15;
+            levelBtn.textContent = (this.startLevel + 1).toString();
         });
 
         // Skin selector
@@ -1995,39 +2060,93 @@ class Game {
             document.getElementById('start-overlay').classList.remove('hidden');
         });
 
+        // Pause menu button clicks
+        document.querySelectorAll('.pause-menu-btn').forEach((btn, idx) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.state === 'paused') {
+                    this.pauseMenuIdx = idx;
+                    this._executePauseAction(btn.dataset.action);
+                }
+            });
+            btn.addEventListener('mouseenter', () => {
+                if (this.state === 'paused') {
+                    this.pauseMenuIdx = idx;
+                    this._highlightPauseBtn(Array.from(document.querySelectorAll('.pause-menu-btn')));
+                }
+            });
+        });
+
         this.updateHUD();
         this.loop();
     }
 
-    _startBgMusic() {
-        if (!this.bgMusic) {
-            this.bgMusic = new Audio(this.bgMusicTracks[this.bgMusicIdx]);
-            this.bgMusic.volume = 0.25;
-            this.bgMusic.loop = false;
-            this.bgMusic.onended = () => {
-                this.bgMusicIdx = (this.bgMusicIdx + 1) % this.bgMusicTracks.length;
-                this.bgMusic.src = this.bgMusicTracks[this.bgMusicIdx];
-                this.bgMusic.play().catch(()=>{});
-            };
+    _updateModeBtn(btn) {
+        btn.textContent = this.kidsMode ? 'Kinder' : 'Normal';
+        btn.className = 'option-btn' + (this.kidsMode ? ' kids' : '');
+    }
+
+    _applySoundSettings() {
+        if (this.audio.sfxGain) this.audio.sfxGain.gain.value = this.sfxMuted ? 0 : 0.5;
+        if (this.audio.musicGain) this.audio.musicGain.gain.value = this.musicMuted ? 0 : 0.35;
+    }
+
+    _triggerStart() {
+        if (!this.tutorialSeen) {
+            this.tutorialSeen = true;
+            try { localStorage.setItem('breakout_tutorialSeen', 'true'); } catch(e) {}
+            this.tutorialStep = 0;
+            this.state = 'tutorial';
+            this.hideAllOverlays();
+            this._showTutorialCard();
+            return;
         }
-        this.bgMusic.play().catch(()=>{});
-        // Still init audio engine for SFX
-        this.audio.init();
+        this.startGame();
     }
 
-    _isBossLevel(idx) {
-        return idx > 0 && (idx + 1) % 5 === 0;
+    _showTutorialCard() {
+        const overlay = document.getElementById('tutorial-overlay');
+        overlay.classList.remove('hidden');
+        const card = this.tutorialCards[this.tutorialStep];
+        let dotsHtml = '';
+        for (let i = 0; i < this.tutorialCards.length; i++) {
+            dotsHtml += '<div class="tut-dot' + (i === this.tutorialStep ? ' active' : '') + '"></div>';
+        }
+        overlay.innerHTML = '<div class="tut-card"><div class="tut-icon">' + card.icon +
+            '</div><div class="tut-text">' + card.text.replace('\n', '<br>') +
+            '</div><div class="tut-next">' + (this.tutorialStep < this.tutorialCards.length - 1 ? 'Klick oder Enter' : 'LOS!') +
+            '</div><div class="tut-dots">' + dotsHtml + '</div></div>';
     }
 
-    // --- State transitions ---
+    _advanceTutorial() {
+        this.tutorialStep++;
+        if (this.tutorialStep >= this.tutorialCards.length) {
+            document.getElementById('tutorial-overlay').classList.add('hidden');
+            this.startGame();
+        } else {
+            this._showTutorialCard();
+        }
+    }
+
+    _showPowerupIntro(type) {
+        if (this.seenPowerups[type]) return;
+        this.seenPowerups[type] = true;
+        try { localStorage.setItem('breakout_seenPowerups', JSON.stringify(this.seenPowerups)); } catch(e) {}
+        const name = POWERUP_NAMES_DE[type] || type.toUpperCase();
+        const hint = POWERUP_HINTS_DE[type] || '';
+        this.vfx.addFloatingText(W / 2, H / 2 - 40, name + '!', POWERUP_COLORS[type]);
+        if (hint) this.vfx.addFloatingText(W / 2, H / 2 - 15, hint, '#e0e0ff');
+    }
+
     startGame() {
         this.audio.init();
+        this._applySoundSettings();
         this.state = 'playing';
         this.score = 0;
         this.lives = this.kidsMode ? 5 : 3;
         this.combo = 0;
         this.bricksDestroyed = 0;
-        this.nextExtraLife = this.kidsMode ? 3000 : 5000;
+        this.nextExtraLife = 5000;
         this.partyMode = false;
         this.partyTimer = 0;
         this.newHighScoreFlag = false;
@@ -2038,9 +2157,9 @@ class Game {
         this.levels.currentLevel = this.startLevel;
         this.powerups.reset();
         this.paddle = new Paddle();
-        if (this.kidsMode) this.paddle.setWidth(120); // wider paddle for kids
+        if (this.kidsMode) this.paddle.setWidth(120);
         this.loadLevel(this.startLevel);
-        this._startBgMusic();
+        this.audio.startMusic(this.startLevel);
         this.hideAllOverlays();
         this.updateHUD();
     }
@@ -2050,22 +2169,19 @@ class Game {
         this.currentWorld = getWorldForLevel(idx);
         this.bricksDestroyed = 0;
         this.boss = null;
-        // Boss fight every 5th level (after level 4, 9, 14...)
-        if (idx > 0 && (idx + 1) % 5 === 0) {
-            this.boss = new Boss(idx, this.currentWorld);
-            this.bricks = []; // clear bricks for boss arena
+        const bossInterval = this.kidsMode ? 10 : 5;
+        if (idx > 0 && (idx + 1) % bossInterval === 0) {
+            this.boss = new Boss(idx, this.currentWorld, this.kidsMode);
+            this.bricks = [];
         } else {
-            this.bricks = this.levels.getBricks(idx);
+            this.bricks = this.levels.getBricks(idx, this.kidsMode);
         }
         this.resetBalls();
     }
 
-    getEffectiveSpeed(baseSpeed) {
-        return this.kidsMode ? baseSpeed * 0.6 : baseSpeed;
-    }
-
     resetBalls() {
-        const speed = this.getEffectiveSpeed(this.levels.getBaseSpeed());
+        const baseSpeed = this.levels.getBaseSpeed();
+        const speed = this.kidsMode ? baseSpeed * 0.6 : baseSpeed;
         const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
         this.balls = [new Ball(W / 2, H - 50, Math.cos(angle) * speed, Math.sin(angle) * speed, speed)];
     }
@@ -2077,12 +2193,19 @@ class Game {
         requestAnimationFrame(() => this.loop());
     }
 
-    // --- Update ---
     update() {
-        // Handle state-independent input
+        if (this.state === 'tutorial') {
+            if (this.input.wantsStart()) this._advanceTutorial();
+            return;
+        }
+
         if (this.state === 'start' || this.state === 'gameover' || this.state === 'win') {
             if (!document.getElementById('skins-overlay').classList.contains('hidden')) return;
-            if (this.input.wantsStart()) this.startGame();
+            if (this.state === 'start') {
+                if (this.input.wantsStart()) this._triggerStart();
+            } else {
+                if (this.input.wantsStart()) this.startGame();
+            }
             return;
         }
 
@@ -2100,13 +2223,12 @@ class Game {
                 document.getElementById('level-overlay').classList.add('hidden');
                 const nextLvl = this.levels.currentLevel + 1;
                 this.loadLevel(nextLvl);
-                // bgMusic continues between levels
+                this.audio.startMusic(nextLvl);
                 this.updateHUD();
             }
             return;
         }
 
-        // Playing state
         if (this.input.wantsPause()) {
             this.pauseGame();
             return;
@@ -2213,15 +2335,21 @@ class Game {
             if (!ball.stuck) this.checkBrickCollisions(ball);
         }
 
-        // Remove dead balls
         this.balls = this.balls.filter(b => b.alive);
         if (this.balls.length === 0) {
             this.lives--;
             this.combo = 0;
             if (this.partyMode) this.deactivatePartyMode();
-            this.audio.sfx('loseLife');
-            this.vfx.triggerShake(8);
-            this.vfx.flash('#ff0000', 0.4);
+            if (this.kidsMode) {
+                this.audio.sfx('encourage');
+                this.vfx.triggerShake(4);
+                this.vfx.flash('#4488ff', 0.2);
+                if (this.lives > 0) this.vfx.addFloatingText(W / 2, H / 2, "Versuch's nochmal!", '#44bbff');
+            } else {
+                this.audio.sfx('loseLife');
+                this.vfx.triggerShake(8);
+                this.vfx.flash('#ff0000', 0.4);
+            }
             this.updateHUD();
             if (this.lives <= 0) {
                 this.gameOver();
@@ -2284,10 +2412,10 @@ class Game {
             }
         }
 
-        // Powerup collection
         const collected = this.powerups.update(this.paddle);
         for (const type of collected) {
             this.audio.sfx('powerup');
+            this._showPowerupIntro(type);
             this.applyPowerup(type);
         }
 
@@ -2306,9 +2434,8 @@ class Game {
         }
 
         // Powerup effects expiry - restore paddle width
-        const defaultW = this.kidsMode ? 120 : this.paddle.baseW;
         if (!this.powerups.isActive('giant') && !this.powerups.isActive('tiny') && !this.partyMode) {
-            if (this.paddle.w !== defaultW) this.paddle.setWidth(defaultW);
+            if (this.paddle.w !== this.paddle.baseW) this.paddle.setWidth(this.paddle.baseW);
         }
         if (!this.powerups.isActive('fireball') && !this.partyMode) {
             for (const ball of this.balls) ball.fireball = false;
@@ -2491,10 +2618,9 @@ class Game {
         }
         // Powerup drop
         this.powerups.trySpawn(brick.x + brick.w / 2, brick.y + brick.h / 2, this.partyMode);
-        // Ball speed increase every 5 bricks (slower in kids mode)
-        const brickInterval = this.kidsMode ? 10 : 5;
-        if (this.bricksDestroyed % brickInterval === 0) {
-            const maxSpeed = this.getEffectiveSpeed(this.levels.getBaseSpeed() + 3);
+        // Ball speed increase every 5 bricks
+        if (this.bricksDestroyed % 5 === 0) {
+            const maxSpeed = this.levels.getBaseSpeed() + 3;
             for (const b of this.balls) {
                 if (!b.stuck) {
                     const currentSpeed = Math.sqrt(b.dx * b.dx + b.dy * b.dy);
@@ -2683,7 +2809,7 @@ class Game {
     levelComplete() {
         this.state = 'leveltransition';
         this.levelTransitionTimer = 150;
-        // procedural music disabled
+        this.audio.stopMusic();
         this.audio.sfx('levelUp');
         this.vfx.flash('#ffffff', 1.0);
         this.vfx.triggerShake(6);
@@ -2711,69 +2837,9 @@ class Game {
         }
     }
 
-    pauseGame() {
-        this.state = 'paused';
-        this.pauseMenuIdx = 0;
-        // procedural music disabled
-        if (this.bgMusic) this.bgMusic.pause();
-        const overlay = document.getElementById('pause-overlay');
-        overlay.classList.remove('hidden');
-        this._highlightPauseBtn(0);
-    }
-
-    _updatePauseMenu() {
-        const btns = document.querySelectorAll('.pause-menu-btn');
-        // Navigate with arrows
-        if (this.input.keys['ArrowDown'] || this.input.keys['s']) {
-            this.input.keys['ArrowDown'] = false; this.input.keys['s'] = false;
-            this.pauseMenuIdx = (this.pauseMenuIdx + 1) % btns.length;
-            this._highlightPauseBtn(this.pauseMenuIdx);
-        }
-        if (this.input.keys['ArrowUp'] || this.input.keys['w']) {
-            this.input.keys['ArrowUp'] = false; this.input.keys['w'] = false;
-            this.pauseMenuIdx = (this.pauseMenuIdx - 1 + btns.length) % btns.length;
-            this._highlightPauseBtn(this.pauseMenuIdx);
-        }
-        // Select with Enter/Space
-        if (this.input.keys['Enter'] || this.input.keys[' ']) {
-            this.input.keys['Enter'] = false; this.input.keys[' '] = false;
-            this._executePauseAction(btns[this.pauseMenuIdx].dataset.action);
-            return;
-        }
-        // Escape = resume
-        if (this.input.keys['Escape']) {
-            this.input.keys['Escape'] = false;
-            this._executePauseAction('resume');
-        }
-    }
-
-    _highlightPauseBtn(idx) {
-        const btns = document.querySelectorAll('.pause-menu-btn');
-        btns.forEach((b, i) => b.classList.toggle('selected', i === idx));
-    }
-
-    _executePauseAction(action) {
-        document.getElementById('pause-overlay').classList.add('hidden');
-        switch (action) {
-            case 'resume':
-                this.state = 'playing';
-                // procedural music disabled
-                if (this.bgMusic) this.bgMusic.play().catch(()=>{});
-                break;
-            case 'restart':
-                this.startGame();
-                break;
-            case 'quit':
-                // procedural music disabled
-                if (this.bgMusic) { this.bgMusic.pause(); this.bgMusic.currentTime = 0; }
-                window.location.href = 'index.html';
-                break;
-        }
-    }
-
     gameOver() {
         this.state = 'gameover';
-        if (this.bgMusic) this.bgMusic.pause();
+        this.audio.stopMusic();
         const overlay = document.getElementById('game-over-overlay');
         overlay.classList.remove('hidden');
         overlay.querySelector('.gameover-score').textContent = 'Score: ' + this.score;
@@ -2782,7 +2848,7 @@ class Game {
 
     winGame() {
         this.state = 'win';
-        // procedural music disabled
+        this.audio.stopMusic();
         this.audio.sfx('win');
         this.vfx.flash('#44ff88', 0.8);
         const overlay = document.getElementById('win-overlay');
@@ -2894,13 +2960,13 @@ class Game {
         ctx.restore();
     }
 
-    // --- UI ---
     updateHUD() {
         document.getElementById('score-display').textContent = 'Score: ' + this.score;
         const theme = WORLD_THEMES[this.currentWorld];
         const lvl = this.levels.currentLevel + 1;
         const worldLabel = theme ? theme.name : '';
-        document.getElementById('level-display').textContent = worldLabel + ' L' + lvl;
+        const endlessLabel = lvl > 5 ? ' Endlos' : '';
+        document.getElementById('level-display').textContent = worldLabel + endlessLabel + ' L' + lvl;
         document.getElementById('highscore-display').textContent = 'HI: ' + this.highScore;
         const hearts = [];
         for (let i = 0; i < this.lives; i++) hearts.push('\u2764\uFE0F');
@@ -2948,9 +3014,84 @@ class Game {
         }
     }
 
+    _updatePauseMenu() {
+        const btns = Array.from(document.querySelectorAll('.pause-menu-btn'));
+        if (this.input.consumeMenuUp()) {
+            this.pauseMenuIdx = (this.pauseMenuIdx - 1 + btns.length) % btns.length;
+            this._highlightPauseBtn(btns);
+        }
+        if (this.input.consumeMenuDown()) {
+            this.pauseMenuIdx = (this.pauseMenuIdx + 1) % btns.length;
+            this._highlightPauseBtn(btns);
+        }
+        if (this.input.consumeMenuConfirm() || this.input.consumeClick()) {
+            this._executePauseAction(btns[this.pauseMenuIdx].dataset.action);
+            return;
+        }
+        if (this.input.wantsPause()) {
+            this._executePauseAction('resume');
+        }
+    }
+
+    _highlightPauseBtn(btns) {
+        btns.forEach((b, i) => b.classList.toggle('selected', i === this.pauseMenuIdx));
+    }
+
+    _executePauseAction(action) {
+        switch (action) {
+            case 'resume':
+                this.state = 'playing';
+                document.getElementById('pause-overlay').classList.add('hidden');
+                this.audio.resumeMusic(this.levels.currentLevel);
+                break;
+            case 'toggleMusic':
+                this.musicMuted = !this.musicMuted;
+                try { localStorage.setItem('breakout_musicMuted', this.musicMuted.toString()); } catch(e) {}
+                this._applySoundSettings();
+                this._updateSoundBtns();
+                break;
+            case 'toggleSfx':
+                this.sfxMuted = !this.sfxMuted;
+                try { localStorage.setItem('breakout_sfxMuted', this.sfxMuted.toString()); } catch(e) {}
+                this._applySoundSettings();
+                this._updateSoundBtns();
+                break;
+            case 'restart':
+                document.getElementById('pause-overlay').classList.add('hidden');
+                this.startGame();
+                break;
+            case 'quit':
+                this.audio.stopMusic();
+                this.state = 'start';
+                this.hideAllOverlays();
+                document.getElementById('start-overlay').classList.remove('hidden');
+                break;
+        }
+    }
+
+    _updateSoundBtns() {
+        const btns = Array.from(document.querySelectorAll('.pause-menu-btn'));
+        for (const btn of btns) {
+            if (btn.dataset.action === 'toggleMusic') btn.textContent = this.musicMuted ? 'Musik aus' : 'Musik an';
+            if (btn.dataset.action === 'toggleSfx') btn.textContent = this.sfxMuted ? 'Effekte aus' : 'Effekte an';
+        }
+    }
+
+    pauseGame() {
+        this.state = 'paused';
+        this.pauseMenuIdx = 0;
+        const overlay = document.getElementById('pause-overlay');
+        overlay.classList.remove('hidden');
+        this._updateSoundBtns();
+        const btns = Array.from(document.querySelectorAll('.pause-menu-btn'));
+        this._highlightPauseBtn(btns);
+        this.audio.pauseMusic();
+    }
+
     hideAllOverlays() {
-        ['start-overlay', 'game-over-overlay', 'win-overlay', 'level-overlay', 'pause-overlay', 'skins-overlay'].forEach(id => {
-            document.getElementById(id).classList.add('hidden');
+        ['start-overlay', 'game-over-overlay', 'win-overlay', 'level-overlay', 'pause-overlay', 'skins-overlay', 'tutorial-overlay'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
         });
     }
 }
