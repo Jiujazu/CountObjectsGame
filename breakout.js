@@ -1035,6 +1035,8 @@ class Ball {
         this.bomb = false;
         this.stuck = false; // magnet
         this.stuckOffset = 0;
+        this.stuckTimer = 0;       // frames since last paddle contact
+        this.lastPaddleHit = 0;    // frame counter of last paddle hit
     }
 
     update(speedMult = 1) {
@@ -1043,6 +1045,15 @@ class Ball {
         this.y += this.dy * speedMult;
         this.trail.push({ x: this.x, y: this.y });
         if (this.trail.length > 14) this.trail.shift();
+        // Stuck detection: if ball stays in upper third too long, nudge it down
+        this.stuckTimer++;
+        if (this.stuckTimer > 300 && this.y < H * 0.35) {
+            // Force ball downward with a strong angle
+            const currentSpeed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+            this.dy = Math.abs(currentSpeed) * 0.85;
+            this.dx = (Math.random() - 0.5) * currentSpeed * 0.6;
+            this.stuckTimer = 0;
+        }
     }
 
     draw(ctx, partyMode, chromaticOffset = 0) {
@@ -2124,6 +2135,7 @@ class Game {
                     ball.dy = Math.sin(angle) * currentSpeed;
                     ball.y = this.paddle.y - ball.r;
                 }
+                ball.stuckTimer = 0; // reset stuck detection
                 this.audio.sfx('paddleHit');
                 this.particles.spawn(ball.x, ball.y, WORLD_THEMES[this.currentWorld].particleColor, 4);
             }
@@ -2291,6 +2303,9 @@ class Game {
                     this.audio.sfx('steel');
                     this.vfx.triggerShake(1);
                     brick.hitFlash = 6;
+                    // Add slight random deflection to prevent infinite loops in steel corridors
+                    ball.dx += (Math.random() - 0.5) * 0.4;
+                    ball.dy += (Math.random() - 0.5) * 0.2;
                     break;
                 }
 
