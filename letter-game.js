@@ -47,7 +47,7 @@ class LetterGame {
         };
         this.soundEnabled = true;
         this.speechEnabled = true;
-        this.tts = new TTSManager();
+        this.tts = new PiperTTSManager();
         this.music = new MusicManager(SHARED_MUSIC_TRACKS, SHARED_MUSIC_COVERS);
         this.puzzle = new PuzzleManager();
         this._keydownHandler = null;
@@ -408,6 +408,12 @@ class LetterGame {
                     <input type="checkbox" id="lp-vkb" ${newShowVirtualKeyboard ? 'checked' : ''} style="width:20px;height:20px;"> Virtuelle Tastatur anzeigen
                 </label>
             </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:1rem;color:#232946;cursor:pointer;">
+                    <input type="checkbox" id="lp-piper" ${this.tts.enabled ? 'checked' : ''} style="width:20px;height:20px;"> Piper-Stimme (Thorsten)
+                </label>
+                <div id="lp-piper-status" style="font-size:0.85rem;color:#666;margin-top:4px;"></div>
+            </div>
             <div style="display:flex;gap:12px;justify-content:center;">
                 <button id="lp-apply" style="background:#6AD1E3;color:#fff;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Übernehmen</button>
                 <button id="lp-close" style="background:#f0f2f5;color:#232946;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Abbrechen</button>
@@ -465,7 +471,20 @@ class LetterGame {
             newLevel++; levelVal.textContent = newLevel;
         });
 
+        const statusEl = document.getElementById('lp-piper-status');
+        const renderStatus = () => {
+            if (!statusEl) return;
+            const s = this.tts.status;
+            if (s === 'ready') statusEl.textContent = 'Bereit';
+            else if (s === 'downloading') statusEl.textContent = `Modell lädt … ${Math.round((this.tts.progress || 0) * 100)}%`;
+            else if (s === 'fallback') statusEl.textContent = 'Nicht verfügbar – Browser-Stimme aktiv';
+            else statusEl.textContent = 'Initialisiert …';
+        };
+        renderStatus();
+        const statusTimer = setInterval(renderStatus, 500);
+
         const cleanup = () => {
+            clearInterval(statusTimer);
             overlay.remove();
             document.removeEventListener('keydown', keyHandler);
         };
@@ -479,6 +498,12 @@ class LetterGame {
             newShowVirtualKeyboard = vkbCheckbox.checked;
         });
 
+        let newPiperEnabled = this.tts.enabled;
+        const piperCheckbox = document.getElementById('lp-piper');
+        piperCheckbox.addEventListener('change', () => {
+            newPiperEnabled = piperCheckbox.checked;
+        });
+
         document.getElementById('lp-apply').addEventListener('click', () => {
             if (selectedLetters.length < 2) {
                 selectedLetters = [...ALL_LETTERS];
@@ -486,6 +511,7 @@ class LetterGame {
             this.state.activeLetters = selectedLetters;
             this.state.level = newLevel;
             this.state.showVirtualKeyboard = newShowVirtualKeyboard;
+            this.tts.setEnabled(newPiperEnabled);
             this._buildKeyboard();
             this._updateLevelIndicator();
             this._updateStars();

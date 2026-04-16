@@ -96,6 +96,75 @@ class TTSManager {
     }
 }
 
+// === PiperTTSManager: lokales, hochqualitatives TTS via Piper + Thorsten ===
+// Laedt das Modell beim ersten Start von Hugging Face (~63MB) und cached es
+// via OPFS. Bis das Modell bereit ist oder falls etwas scheitert, wird
+// transparent auf den SpeechSynthesis-TTSManager zurueckgefallen.
+class PiperTTSManager {
+    constructor(voiceId = 'de_DE-thorsten-medium') {
+        this.voiceId = voiceId;
+        this.fallback = new TTSManager();
+        this.ready = false;
+        this.enabled = true; // kann per Eltern-Menue deaktiviert werden
+        this.progress = 0;   // 0..1 Modell-Download-Fortschritt
+        this.status = 'init'; // init | downloading | ready | fallback
+        this._currentAudio = null;
+        this.initPromise = this._init();
+    }
+    async _waitForPiperModule(timeoutMs = 5000) {
+        if (window._piper) return true;
+        return new Promise((resolve) => {
+            const t = setTimeout(() => { window.removeEventListener('piper-ready', onReady); resolve(false); }, timeoutMs);
+            const onReady = () => { clearTimeout(t); resolve(true); };
+            window.addEventListener('piper-ready', onReady, { once: true });
+        });
+    }
+    async _init() {
+        const loaded = await this._waitForPiperModule();
+        if (!loaded) { this.status = 'fallback'; return; }
+        try {
+            this.status = 'downloading';
+            await window._piper.download(this.voiceId, (p) => {
+                if (p && p.total) this.progress = p.loaded / p.total;
+            });
+            this.ready = true;
+            this.status = 'ready';
+        } catch (e) {
+            console.warn('[PiperTTS] Modell konnte nicht geladen werden, Fallback aktiv:', e);
+            this.status = 'fallback';
+        }
+    }
+    async speak(text) {
+        this._stop();
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        if (!this.enabled || !this.ready) {
+            return this.fallback.speak(text);
+        }
+        try {
+            const wav = await window._piper.predict({ text, voiceId: this.voiceId });
+            const url = URL.createObjectURL(wav);
+            const audio = new Audio(url);
+            this._currentAudio = audio;
+            return new Promise((resolve) => {
+                const cleanup = () => { URL.revokeObjectURL(url); this._currentAudio = null; resolve(); };
+                audio.onended = cleanup;
+                audio.onerror = cleanup;
+                audio.play().catch(cleanup);
+            });
+        } catch (e) {
+            console.warn('[PiperTTS] Synthese fehlgeschlagen, Fallback:', e);
+            return this.fallback.speak(text);
+        }
+    }
+    _stop() {
+        if (this._currentAudio) {
+            try { this._currentAudio.pause(); } catch (e) {}
+            this._currentAudio = null;
+        }
+    }
+    setEnabled(v) { this.enabled = !!v; }
+}
+
 // === MusicManager: Musiksteuerung ===
 class MusicManager {
     constructor(tracks, covers) {
