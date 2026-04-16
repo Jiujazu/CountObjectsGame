@@ -210,7 +210,7 @@ class CountingGame {
             'Füchse': 'ein Fuchs', 'Bären': 'ein Bär', 'Schmetterlinge': 'ein Schmetterling',
             'Marienkäfer': 'ein Marienkäfer', 'Dinosaurier': 'ein Dinosaurier'
         };
-        this.tts = new TTSManager();
+        this.tts = new PiperTTSManager();
         window._sharedTTS = this.tts;
         this.music = new MusicManager(SHARED_MUSIC_TRACKS, SHARED_MUSIC_COVERS);
         this.ui = new UIManager(this);

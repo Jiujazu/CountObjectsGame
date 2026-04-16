@@ -77,7 +77,7 @@
 
     <!-- Buchstabenspiel (anfangs versteckt) -->
     <div class="game-container letter-game-container" id="letter-game-container" style="display: none;">
-        <button id="letter-close-btn" class="close-button" title="Schliessen" aria-label="Schliessen">&#x2715;</button>
+        <button id="letter-close-btn" class="close-button" title="Schließen" aria-label="Schließen">&#x2715;</button>
         <div class="level-label">Level</div>
         <div class="level-indicator" id="letter-level-indicator"></div>
         <div class="star-progress" id="letter-star-progress"></div>
@@ -87,13 +87,21 @@
         <div class="controls controls-bottom-left">
             <button id="letter-prev-track" class="game-button small" title="Vorheriger Track" aria-label="Vorheriger Track">&#x23EE;&#xFE0F;</button>
             <button id="letter-music-toggle" class="game-button small" title="Musik Pause/Weiter (M)" aria-label="Musik Pause/Weiter (M)">&#x23F8;&#xFE0F;</button>
-            <button id="letter-next-track" class="game-button small" title="Naechster Track" aria-label="Naechster Track">&#x23ED;&#xFE0F;</button>
+            <button id="letter-next-track" class="game-button small" title="Nächster Track" aria-label="Nächster Track">&#x23ED;&#xFE0F;</button>
             <button id="letter-tracklist-toggle" class="game-button small" title="Musik-Auswahl" aria-label="Musik-Auswahl">&#x1F3B5;</button>
             <button id="letter-sound-toggle" class="game-button small" title="Soundeffekte an/aus (S)" aria-label="Soundeffekte an/aus (S)">&#x1F50A;</button>
             <button id="letter-hint-btn" class="game-button small" title="Tipp" aria-label="Tipp">&#x1F4A1;</button>
         </div>
     </div>
 
+    <script type="importmap">
+    {
+      "imports": {
+        "onnxruntime-web": "https://esm.sh/onnxruntime-web@1.18.0"
+      }
+    }
+    </script>
+    <script type="module" src="piper-loader.js"></script>
     <script src="shared.js"></script>
     <script src="script.js"></script>
     <script src="letter-game.js"></script>
