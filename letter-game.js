@@ -35,6 +35,45 @@ const ANLAUT_TABLE = {
 
 const ALL_LETTERS = Object.keys(ANLAUT_TABLE);
 
+// Kindgerechte, variierende TTS-Phrasen. Platzhalter: {word}, {letter}.
+const TTS_PHRASES = {
+    instruction: [
+        '{word}. Mit welchem Buchstaben fängt {word} an?',
+        'Hör gut zu: {word}. Welcher Buchstabe ist am Anfang?',
+        '{word}. Welcher Buchstabe kommt ganz zuerst?',
+        'Das Wort heißt {word}. Mit welchem Buchstaben beginnt es?',
+        '{word}. Kannst du den ersten Buchstaben hören?',
+        'Finde den ersten Buchstaben von {word}.',
+    ],
+    correct: [
+        'Genau! {letter} wie {word}!',
+        'Super gemacht! {word} beginnt mit {letter}!',
+        'Richtig! Das ist ein {letter}, wie in {word}!',
+        'Klasse! {letter} ist richtig!',
+        'Toll! {word} fängt mit {letter} an!',
+        'Bravo! {letter} wie {word}, genau richtig!',
+    ],
+    wrong: [
+        'Hm, das war nicht der erste Buchstabe. Hör nochmal gut hin!',
+        'Nicht ganz. Probier es nochmal!',
+        'Das war\'s noch nicht. Versuch einen anderen Buchstaben!',
+        'Ups, leider falsch. Hör nochmal genau hin!',
+        'Noch nicht ganz richtig. Du schaffst das!',
+    ],
+    hint: [
+        'Tipp: {word} beginnt mit {letter}.',
+        'Hör mal: {word} fängt mit {letter} an.',
+        'Am Anfang von {word} kommt ein {letter}.',
+        'Der erste Buchstabe von {word} ist ein {letter}.',
+    ],
+};
+
+function _pickTTS(kind, vars) {
+    const list = TTS_PHRASES[kind];
+    const tpl = list[Math.floor(Math.random() * list.length)];
+    return tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+}
+
 class LetterGame {
     constructor() {
         this.state = {
@@ -216,7 +255,7 @@ class LetterGame {
     async _speakInstruction() {
         if (!this.speechEnabled) return;
         const entry = ANLAUT_TABLE[this.state.currentLetter];
-        await this.tts.speak(`${entry.word}. Welcher Buchstabe?`);
+        await this.tts.speak(_pickTTS('instruction', { word: entry.word, letter: this.state.currentLetter }));
     }
 
     async _handleLetterClick(letter) {
@@ -236,7 +275,7 @@ class LetterGame {
             // Sound & TTS
             if (this.soundEnabled) SharedAudio.playSuccessMelody();
             if (this.speechEnabled) {
-                await this.tts.speak(`Genau! ${letter} wie ${ANLAUT_TABLE[letter].word}!`);
+                await this.tts.speak(_pickTTS('correct', { letter, word: ANLAUT_TABLE[letter].word }));
             }
             // Puzzle Fortschritt
             this.puzzle.revealNextPiece();
@@ -258,7 +297,7 @@ class LetterGame {
             if (this.soundEnabled) SharedAudio.playWrongSound();
             document.body.classList.add('flash-wrong');
             if (this.speechEnabled) {
-                await this.tts.speak(`Nein, das ist nicht ${letter}. Versuch es nochmal!`);
+                await this.tts.speak(_pickTTS('wrong', {}));
             }
             this._setTimeout(() => {
                 slot.classList.remove('wrong', 'filled');
@@ -283,16 +322,8 @@ class LetterGame {
             this.closeGame();
             return;
         }
-        if (e.key.toLowerCase() === 'm') {
-            e.preventDefault();
-            this.music.toggleMusic();
-            return;
-        }
-        if (e.key.toLowerCase() === 'h') {
-            e.preventDefault();
-            this._showHint();
-            return;
-        }
+        // Keine Buchstaben-Shortcuts, sonst kollidieren Musik/Hinweis mit M/H-Raten.
+        // Musik & Hinweis bleiben ueber die On-Screen-Buttons erreichbar.
         // Buchstaben-Eingabe
         const letter = e.key.toUpperCase();
         if (ALL_LETTERS.includes(letter) && this.state.activeLetters.includes(letter)) {
@@ -306,7 +337,7 @@ class LetterGame {
         const entry = ANLAUT_TABLE[letter];
         // TTS Hinweis nur wenn Sprache aktiviert
         if (this.speechEnabled) {
-            this.tts.speak(`Tipp: ${entry.word} beginnt mit ${letter}.`);
+            this.tts.speak(_pickTTS('hint', { word: entry.word, letter }));
         }
         // Visueller Hinweis: richtigen Key blinken lassen
         const key = document.querySelector(`.letter-key[data-letter="${letter}"]`);
