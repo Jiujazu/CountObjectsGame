@@ -39,9 +39,27 @@ class SharedAudio {
         } catch(e) {}
     }
     static playSuccessMelody() {
+        // Alle Toene vorab auf der Audio-Clock schedulen, damit sie auch bei
+        // Main-Thread-Blocking (z.B. Piper-WASM-Synthese parallel) sauber in
+        // "duedueduemm" abgespielt werden und nicht abgehackt klingen.
+        const ctx = SharedAudio.getContext();
+        if (ctx.state === 'suspended') { try { ctx.resume(); } catch(e) {} }
         const notes = [523, 659, 784, 1047];
+        const t0 = ctx.currentTime;
+        const duration = 0.2;
+        const volume = 0.3;
         notes.forEach((freq, i) => {
-            setTimeout(() => SharedAudio.playTone(freq, 0.2, 'sine'), i * 150);
+            const when = t0 + i * 0.15;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(volume, when);
+            gain.gain.exponentialRampToValueAtTime(0.01, when + duration);
+            osc.start(when);
+            osc.stop(when + duration);
         });
     }
     static playWrongSound() {
