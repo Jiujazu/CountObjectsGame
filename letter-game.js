@@ -382,7 +382,7 @@ class LetterGame {
 
         dialog.innerHTML = `
             <div style="font-size:1.4rem;font-weight:700;color:#232946;margin-bottom:8px;">\u2699\uFE0F Eltern-Einstellungen</div>
-            <div style="font-size:0.9rem;color:#666;margin-bottom:16px;">Lange auf Level-Zahl druecken zum Oeffnen</div>
+            <div style="font-size:0.9rem;color:#666;margin-bottom:16px;">Lange auf Level-Zahl drücken zum Öffnen</div>
             <div style="margin-bottom:16px;">
                 <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Buchstaben-Presets:</div>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;" id="preset-buttons">
@@ -409,7 +409,7 @@ class LetterGame {
                 </label>
             </div>
             <div style="display:flex;gap:12px;justify-content:center;">
-                <button id="lp-apply" style="background:#6AD1E3;color:#fff;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Uebernehmen</button>
+                <button id="lp-apply" style="background:#6AD1E3;color:#fff;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Übernehmen</button>
                 <button id="lp-close" style="background:#f0f2f5;color:#232946;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Abbrechen</button>
             </div>
         `;
