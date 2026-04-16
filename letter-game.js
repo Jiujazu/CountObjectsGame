@@ -3,7 +3,7 @@
 // Deutsche Anlauttabelle: Buchstabe -> Emoji + Wort
 const ANLAUT_TABLE = {
     'A': { emoji: '🐒', word: 'Affe' },
-    'B': { emoji: '🐻', word: 'Baer' },
+    'B': { emoji: '🐻', word: 'Bär' },
     'C': { emoji: '🤡', word: 'Clown' },
     'D': { emoji: '🐬', word: 'Delfin' },
     'E': { emoji: '🐘', word: 'Elefant' },
@@ -13,12 +13,12 @@ const ANLAUT_TABLE = {
     'I': { emoji: '🦔', word: 'Igel' },
     'J': { emoji: '🪁', word: 'Jojo' },
     'K': { emoji: '🐱', word: 'Katze' },
-    'L': { emoji: '🦁', word: 'Loewe' },
+    'L': { emoji: '🦁', word: 'Löwe' },
     'M': { emoji: '🐭', word: 'Maus' },
     'N': { emoji: '🦏', word: 'Nashorn' },
     'O': { emoji: '🦦', word: 'Otter' },
     'P': { emoji: '🐧', word: 'Pinguin' },
-    'Q': { emoji: '🐸', word: 'Quak' },
+    'Q': { emoji: '🪼', word: 'Qualle' },
     'R': { emoji: '🚀', word: 'Rakete' },
     'S': { emoji: '☀️', word: 'Sonne' },
     'T': { emoji: '🐯', word: 'Tiger' },
@@ -27,7 +27,10 @@ const ANLAUT_TABLE = {
     'W': { emoji: '🐋', word: 'Wal' },
     'X': { emoji: '🎸', word: 'Xylophon' },
     'Y': { emoji: '🧘', word: 'Yoga' },
-    'Z': { emoji: '🦓', word: 'Zebra' }
+    'Z': { emoji: '🦓', word: 'Zebra' },
+    'Ä': { emoji: '🌾', word: 'Ähre' },
+    'Ö': { emoji: '🛢️', word: 'Öl' },
+    'Ü': { emoji: '🎁', word: 'Überraschung' }
 };
 
 const ALL_LETTERS = Object.keys(ANLAUT_TABLE);
@@ -40,6 +43,7 @@ class LetterGame {
             wrongStreak: 0,
             isProcessing: false,
             activeLetters: [...ALL_LETTERS], // Eltern-Presets koennen das aendern
+            showVirtualKeyboard: false, // Kind soll physische Tastatur lernen; im Eltern-Menue umschaltbar
         };
         this.soundEnabled = true;
         this.speechEnabled = true;
@@ -113,11 +117,13 @@ class LetterGame {
     _buildKeyboard() {
         const container = document.getElementById('letter-keyboard');
         container.innerHTML = '';
+        container.style.display = this.state.showVirtualKeyboard ? '' : 'none';
         this.state.activeLetters.forEach(letter => {
             const btn = document.createElement('button');
             btn.className = 'letter-key';
             btn.textContent = letter;
             btn.dataset.letter = letter;
+            btn.setAttribute('aria-label', `Buchstabe ${letter}`);
             btn.addEventListener('click', () => this._handleLetterClick(letter));
             container.appendChild(btn);
         });
@@ -353,12 +359,14 @@ class LetterGame {
 
         // Buchstaben-Presets
         const presets = {
-            'Alle (A-Z)': ALL_LETTERS,
+            'Alle': ALL_LETTERS,
             'Einfach (A-M)': ALL_LETTERS.slice(0, 13),
             'Vokale': ['A', 'E', 'I', 'O', 'U'],
+            'Umlaute': ['Ä', 'Ö', 'Ü'],
             'Erste 10': ALL_LETTERS.slice(0, 10),
         };
         let selectedLetters = [...this.state.activeLetters];
+        let newShowVirtualKeyboard = this.state.showVirtualKeyboard;
 
         let presetHTML = Object.entries(presets).map(([name, letters]) => {
             const active = JSON.stringify(letters) === JSON.stringify(selectedLetters) ? ' style="background:#FFD166;color:#fff;"' : '';
@@ -394,6 +402,11 @@ class LetterGame {
                     <span id="lp-level-val" style="font-size:1.6rem;font-weight:700;color:#232946;min-width:40px;">${this.state.level}</span>
                     <button id="lp-level-up" style="background:#f0f2f5;border:none;border-radius:12px;width:40px;height:40px;font-size:1.4rem;font-weight:700;cursor:pointer;">+</button>
                 </div>
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:1rem;color:#232946;cursor:pointer;">
+                    <input type="checkbox" id="lp-vkb" ${newShowVirtualKeyboard ? 'checked' : ''} style="width:20px;height:20px;"> Virtuelle Tastatur anzeigen
+                </label>
             </div>
             <div style="display:flex;gap:12px;justify-content:center;">
                 <button id="lp-apply" style="background:#6AD1E3;color:#fff;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Uebernehmen</button>
@@ -461,12 +474,18 @@ class LetterGame {
         };
         document.addEventListener('keydown', keyHandler);
 
+        const vkbCheckbox = document.getElementById('lp-vkb');
+        vkbCheckbox.addEventListener('change', () => {
+            newShowVirtualKeyboard = vkbCheckbox.checked;
+        });
+
         document.getElementById('lp-apply').addEventListener('click', () => {
             if (selectedLetters.length < 2) {
                 selectedLetters = [...ALL_LETTERS];
             }
             this.state.activeLetters = selectedLetters;
             this.state.level = newLevel;
+            this.state.showVirtualKeyboard = newShowVirtualKeyboard;
             this._buildKeyboard();
             this._updateLevelIndicator();
             this._updateStars();
