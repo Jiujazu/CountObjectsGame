@@ -101,6 +101,14 @@ class TTSManager {
 // via OPFS. Bis das Modell bereit ist oder falls etwas scheitert, wird
 // transparent auf den SpeechSynthesis-TTSManager zurueckgefallen.
 class PiperTTSManager {
+    static _shared = null;
+    static getShared(voiceId = 'de_DE-thorsten-medium') {
+        if (!PiperTTSManager._shared) {
+            PiperTTSManager._shared = new PiperTTSManager(voiceId);
+            window._sharedTTS = PiperTTSManager._shared;
+        }
+        return PiperTTSManager._shared;
+    }
     constructor(voiceId = 'de_DE-thorsten-medium') {
         this.voiceId = voiceId;
         this.fallback = new TTSManager();
@@ -141,7 +149,10 @@ class PiperTTSManager {
             return this.fallback.speak(text);
         }
         try {
-            const wav = await window._piper.predict({ text, voiceId: this.voiceId });
+            const wav = await Promise.race([
+                window._piper.predict({ text, voiceId: this.voiceId }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('piper-timeout')), 4000))
+            ]);
             const url = URL.createObjectURL(wav);
             const audio = new Audio(url);
             this._currentAudio = audio;

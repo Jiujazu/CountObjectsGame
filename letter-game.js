@@ -47,11 +47,27 @@ class LetterGame {
         };
         this.soundEnabled = true;
         this.speechEnabled = true;
-        this.tts = new PiperTTSManager();
+        this.tts = PiperTTSManager.getShared();
         this.music = new MusicManager(SHARED_MUSIC_TRACKS, SHARED_MUSIC_COVERS);
         this.puzzle = new PuzzleManager();
         this._keydownHandler = null;
         this._eventsBound = false;
+        this._pendingTimeouts = new Set();
+        this._parentMenuCleanup = null;
+    }
+
+    _setTimeout(fn, ms) {
+        const id = setTimeout(() => {
+            this._pendingTimeouts.delete(id);
+            fn();
+        }, ms);
+        this._pendingTimeouts.add(id);
+        return id;
+    }
+
+    _clearPendingTimeouts() {
+        this._pendingTimeouts.forEach(id => clearTimeout(id));
+        this._pendingTimeouts.clear();
     }
 
     _triggerStartTransition() {
@@ -225,7 +241,7 @@ class LetterGame {
             // Puzzle Fortschritt
             this.puzzle.revealNextPiece();
             // Naechstes Level nach kurzer Pause
-            setTimeout(async () => {
+            this._setTimeout(async () => {
                 slot.classList.remove('correct', 'filled');
                 slot.textContent = '';
                 this.state.level++;
@@ -244,7 +260,7 @@ class LetterGame {
             if (this.speechEnabled) {
                 await this.tts.speak(`Nein, das ist nicht ${letter}. Versuch es nochmal!`);
             }
-            setTimeout(() => {
+            this._setTimeout(() => {
                 slot.classList.remove('wrong', 'filled');
                 slot.textContent = '';
                 document.body.classList.remove('flash-wrong');
@@ -260,6 +276,8 @@ class LetterGame {
     }
 
     _handleKeyDown(e) {
+        // Modifier-Kombinationen (Strg+S, Cmd+A, AltGr) nicht als Buchstabe werten
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (e.key === 'Escape') {
             e.preventDefault();
             this.closeGame();
@@ -286,8 +304,10 @@ class LetterGame {
     _showHint() {
         const letter = this.state.currentLetter;
         const entry = ANLAUT_TABLE[letter];
-        // TTS Hinweis
-        this.tts.speak(`Tipp: ${entry.word} beginnt mit ${letter}.`);
+        // TTS Hinweis nur wenn Sprache aktiviert
+        if (this.speechEnabled) {
+            this.tts.speak(`Tipp: ${entry.word} beginnt mit ${letter}.`);
+        }
         // Visueller Hinweis: richtigen Key blinken lassen
         const key = document.querySelector(`.letter-key[data-letter="${letter}"]`);
         if (key) {
@@ -300,7 +320,7 @@ class LetterGame {
         if (hint) {
             hint.innerHTML = `<span style="color:rgba(106,209,227,0.6);">${letter}</span>`;
             hint.classList.add('show');
-            setTimeout(() => hint.classList.remove('show'), 2000);
+            this._setTimeout(() => hint.classList.remove('show'), 2000);
         }
     }
 
@@ -454,7 +474,7 @@ class LetterGame {
                 if (cb.checked) {
                     if (!selectedLetters.includes(cb.dataset.letterCheck)) {
                         selectedLetters.push(cb.dataset.letterCheck);
-                        selectedLetters.sort();
+                        selectedLetters.sort((a, b) => a.localeCompare(b, 'de'));
                     }
                 } else {
                     selectedLetters = selectedLetters.filter(l => l !== cb.dataset.letterCheck);
@@ -485,9 +505,11 @@ class LetterGame {
 
         const cleanup = () => {
             clearInterval(statusTimer);
-            overlay.remove();
+            if (overlay.parentNode) overlay.remove();
             document.removeEventListener('keydown', keyHandler);
+            this._parentMenuCleanup = null;
         };
+        this._parentMenuCleanup = cleanup;
         const keyHandler = (e) => {
             if (e.key === 'Escape') cleanup();
         };
@@ -560,6 +582,18 @@ class LetterGame {
     }
 
     _doClose() {
+        // Ausstehende Timeouts (Next-Challenge, Wrong-Reset, Hint-Hide) stoppen
+        this._clearPendingTimeouts();
+        // Laufende Sprachausgabe abbrechen
+        if (this.tts && typeof this.tts._stop === 'function') this.tts._stop();
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        // Eltern-Menue schliessen falls offen
+        if (this._parentMenuCleanup) this._parentMenuCleanup();
+        // Visuelle Reste aufraeumen
+        document.body.classList.remove('flash-wrong');
+        document.querySelectorAll('.letter-key').forEach(k => k.classList.remove('hint-flash', 'correct', 'wrong'));
+        const hint = document.getElementById('big-key-hint');
+        if (hint) hint.classList.remove('show');
         // Fullscreen beenden
         try {
             if (document.fullscreenElement) document.exitFullscreen();
