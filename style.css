@@ -1140,6 +1140,7 @@ html, body {
     color: #666;
     font-family: 'Roboto', 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     animation: objectAppear 0.5s ease-out 0.3s both;
+    text-transform: uppercase;
 }
 
 .letter-answer-area {
