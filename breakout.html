@@ -18,8 +18,18 @@
         <canvas id="gameCanvas" width="480" height="600"></canvas>
         <div id="start-overlay">
             <div class="start-text">ULTIMATE<br>BREAKOUT</div>
-            <div class="start-sub">Klick oder Leertaste zum Starten</div>
-            <div class="start-hint">Pfeiltasten / Maus / Touch</div>
+            <div class="start-options">
+                <div class="start-option-row">
+                    <span class="option-label">Modus:</span>
+                    <button id="mode-toggle" class="option-btn">Normal</button>
+                </div>
+                <div class="start-option-row">
+                    <span class="option-label">Level:</span>
+                    <button id="level-toggle" class="option-btn">1</button>
+                </div>
+            </div>
+            <div class="start-sub">Leertaste oder Enter zum Starten</div>
+            <div class="start-hint">Pfeiltasten / Maus / Touch &middot; Escape = Pause</div>
             <button id="skins-btn" class="skin-button">Paddle-Skins</button>
         </div>
         <div id="skins-overlay" class="hidden">
@@ -45,7 +55,12 @@
         </div>
         <div id="pause-overlay" class="hidden">
             <div class="pause-text">PAUSE</div>
-            <div class="start-sub">P zum Fortsetzen</div>
+            <div class="pause-menu">
+                <button class="pause-menu-btn selected" data-action="resume">Weiterspielen</button>
+                <button class="pause-menu-btn" data-action="restart">Neustart</button>
+                <button class="pause-menu-btn" data-action="quit">Hauptmen&uuml;</button>
+            </div>
+            <div class="pause-hint">Pfeiltasten + Enter</div>
         </div>
     </div>
     <script src="breakout.js"></script>

@@ -17,8 +17,9 @@ body {
 
 #game-wrapper {
     position: relative;
-    width: 480px;
-    max-width: 100vw;
+    width: min(100vw, 80vh * 0.8);
+    min-width: 480px;
+    max-width: 900px;
 }
 
 #hud {
@@ -102,6 +103,11 @@ body {
     background: rgba(10, 10, 46, 0.88);
     border-radius: 8px;
     z-index: 10;
+}
+
+#start-overlay,
+#game-over-overlay,
+#win-overlay {
     cursor: pointer;
 }
 
@@ -118,6 +124,53 @@ body {
     margin-bottom: 16px;
     text-align: center;
     line-height: 1.1;
+}
+
+.start-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.start-option-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.option-label {
+    color: rgba(200, 200, 255, 0.6);
+    font-size: 0.9rem;
+    font-weight: 600;
+    min-width: 55px;
+    text-align: right;
+}
+
+.option-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(170, 170, 255, 0.25);
+    color: #ccccff;
+    padding: 6px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-width: 110px;
+    outline: none;
+}
+
+.option-btn:hover, .option-btn:focus {
+    background: rgba(170, 170, 255, 0.15);
+    border-color: #aaaaff;
+    color: #fff;
+}
+
+.option-btn.kids {
+    border-color: rgba(68, 255, 136, 0.4);
+    color: #44ff88;
 }
 
 .start-sub {
@@ -187,7 +240,43 @@ body {
     color: #aaaaff;
     text-shadow: 0 0 30px rgba(170, 170, 255, 0.5);
     letter-spacing: 0.2em;
+    margin-bottom: 24px;
+}
+
+.pause-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     margin-bottom: 16px;
+}
+
+.pause-menu-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 2px solid rgba(170, 170, 255, 0.2);
+    color: #ccccff;
+    padding: 14px 48px;
+    border-radius: 12px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+    outline: none;
+}
+
+.pause-menu-btn:hover,
+.pause-menu-btn.selected {
+    background: rgba(170, 170, 255, 0.15);
+    border-color: #aaaaff;
+    color: #ffffff;
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(170, 170, 255, 0.3);
+}
+
+.pause-hint {
+    font-size: 0.75rem;
+    color: rgba(200, 200, 255, 0.35);
+    margin-top: 4px;
 }
 
 @keyframes pulse {
