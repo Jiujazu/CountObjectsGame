@@ -396,9 +396,12 @@ class CountingGame {
         panel.className = 'parent-panel';
 
         const currentMax = this._getCurrentMaxObjects();
-        const currentVolPct = Math.round((this.music.volume ?? 0.5) * 100);
+        const currentVolPct = Math.round((this.music.volume ?? 0.25) * 100);
         let newLevel = this.state.level;
         let newMaxOverride = currentMax;
+        let newBackend = this.tts.backend;
+        let newGoogleKey = this.tts.googleKey;
+        let newGoogleVoice = this.tts.googleVoice;
 
         panel.innerHTML = `
             <div class="parent-panel-header">
@@ -436,6 +439,43 @@ class CountingGame {
                         </div>
                         <input type="range" id="parent-vol-slider" min="0" max="100" value="${currentVolPct}">
                     </div>
+                    <div class="parent-field">
+                        <div class="parent-field-head">
+                            <span class="parent-field-label">Stimme</span>
+                        </div>
+                        <div class="parent-voice-options">
+                            <label class="parent-voice-option">
+                                <input type="radio" name="parent-voice" value="piper" ${newBackend === 'piper' ? 'checked' : ''}>
+                                <span class="parent-voice-text">
+                                    <span class="parent-voice-label">Piper / Thorsten</span>
+                                    <span class="parent-helper">Offline, gratis. ~63 MB Download beim ersten Start.</span>
+                                </span>
+                            </label>
+                            <label class="parent-voice-option">
+                                <input type="radio" name="parent-voice" value="google" ${newBackend === 'google' ? 'checked' : ''}>
+                                <span class="parent-voice-text">
+                                    <span class="parent-voice-label">Google Chirp 3 HD</span>
+                                    <span class="parent-helper">Premium-Qualität. Eigener API-Key nötig (100k Zeichen/Monat gratis).</span>
+                                </span>
+                            </label>
+                            <label class="parent-voice-option">
+                                <input type="radio" name="parent-voice" value="browser" ${newBackend === 'browser' ? 'checked' : ''}>
+                                <span class="parent-voice-text">
+                                    <span class="parent-voice-label">Browser-Stimme</span>
+                                    <span class="parent-helper">Eingebaut, Qualität variiert je nach Gerät.</span>
+                                </span>
+                            </label>
+                        </div>
+                        <div class="parent-voice-google" id="parent-google-config" ${newBackend === 'google' ? '' : 'hidden'}>
+                            <input type="password" id="parent-google-key" class="parent-text-input" placeholder="Google API-Key" value="${newGoogleKey}" autocomplete="off">
+                            <input type="text" id="parent-google-voice" class="parent-text-input" placeholder="Stimmen-Name" value="${newGoogleVoice}">
+                            <button type="button" class="parent-btn parent-btn-secondary parent-btn-slim" id="parent-google-test">Testen</button>
+                            <div class="parent-helper">
+                                Key auf <code>console.cloud.google.com</code> erstellen, „Text-to-Speech API" aktivieren. Key per HTTP-Referrer auf deine Domain beschränken. Wird nur im Browser gespeichert.
+                            </div>
+                        </div>
+                        <div class="parent-status" id="parent-tts-status"></div>
+                    </div>
                 </section>
             </div>
             <div class="parent-panel-footer">
@@ -469,7 +509,9 @@ class CountingGame {
             newLevel++; levelVal.textContent = newLevel;
         });
 
+        let statusTimer = null;
         const cleanup = () => {
+            if (statusTimer) clearInterval(statusTimer);
             overlay.remove();
             document.removeEventListener('keydown', keyHandler);
         };
@@ -478,9 +520,58 @@ class CountingGame {
         };
         document.addEventListener('keydown', keyHandler);
 
+        const statusEl = document.getElementById('parent-tts-status');
+        const renderStatus = () => {
+            if (!statusEl) return;
+            statusEl.classList.remove('ready', 'fallback');
+            if (newBackend === 'browser') {
+                statusEl.textContent = '● Browser-Stimme aktiv';
+                statusEl.classList.add('ready'); return;
+            }
+            if (newBackend === 'google') {
+                const gs = this.tts.googleStatus;
+                if (!newGoogleKey) { statusEl.textContent = '○ Kein API-Key eingetragen'; statusEl.classList.add('fallback'); return; }
+                if (gs === 'ready') { statusEl.textContent = '● Google-Stimme bereit'; statusEl.classList.add('ready'); return; }
+                if (gs === 'error') { statusEl.textContent = '○ API-Fehler – Browser-Fallback aktiv'; statusEl.classList.add('fallback'); return; }
+                statusEl.textContent = '○ Noch nicht getestet'; return;
+            }
+            const s = this.tts.status;
+            if (s === 'ready') { statusEl.textContent = '● Piper/Thorsten bereit'; statusEl.classList.add('ready'); }
+            else if (s === 'downloading') statusEl.textContent = `⬇ Modell lädt … ${Math.round((this.tts.progress || 0) * 100)}%`;
+            else if (s === 'fallback') { statusEl.textContent = '○ Nicht verfügbar – Browser-Stimme aktiv'; statusEl.classList.add('fallback'); }
+            else statusEl.textContent = '○ Initialisiert …';
+        };
+        renderStatus();
+        statusTimer = setInterval(renderStatus, 500);
+
+        const googleConfig = document.getElementById('parent-google-config');
+        overlay.querySelectorAll('input[name="parent-voice"]').forEach(r => {
+            r.addEventListener('change', () => {
+                newBackend = r.value;
+                if (googleConfig) googleConfig.toggleAttribute('hidden', newBackend !== 'google');
+                renderStatus();
+            });
+        });
+        const keyInput = document.getElementById('parent-google-key');
+        const voiceInput = document.getElementById('parent-google-voice');
+        keyInput.addEventListener('input', () => { newGoogleKey = keyInput.value.trim(); renderStatus(); });
+        voiceInput.addEventListener('input', () => { newGoogleVoice = voiceInput.value.trim() || 'de-DE-Chirp3-HD-Leda'; });
+        document.getElementById('parent-google-test').addEventListener('click', async () => {
+            const saved = this.tts.backend;
+            this.tts.setGoogleKey(newGoogleKey);
+            this.tts.setGoogleVoice(newGoogleVoice);
+            this.tts.backend = 'google';
+            await this.tts.speak('Hallo, ich bin deine neue Stimme.');
+            this.tts.backend = saved;
+            renderStatus();
+        });
+
         document.getElementById('parent-menu-apply').addEventListener('click', () => {
             this.state.level = newLevel;
             this.state.maxObjectsOverride = newMaxOverride;
+            this.tts.setGoogleKey(newGoogleKey);
+            this.tts.setGoogleVoice(newGoogleVoice);
+            this.tts.setBackend(newBackend);
             this.ui.updateLevelIndicator();
             this.ui.updateStars();
             this.logic.createNewChallenge();

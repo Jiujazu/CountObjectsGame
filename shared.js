@@ -133,9 +133,34 @@ class PiperTTSManager {
         this.ready = false;
         this.enabled = true; // kann per Eltern-Menue deaktiviert werden
         this.progress = 0;   // 0..1 Modell-Download-Fortschritt
-        this.status = 'init'; // init | downloading | ready | fallback
+        this.status = 'init'; // init | downloading | ready | fallback (gilt nur fuer piper-Backend)
         this._currentAudio = null;
+        // Backend-Wahl: 'piper' (default, lokal) | 'google' (Chirp 3 HD, API-Key) | 'browser'
+        this.backend = this._loadSetting('tts-backend', 'piper');
+        this.googleKey = this._loadSetting('google-tts-key', '');
+        this.googleVoice = this._loadSetting('google-tts-voice', 'de-DE-Chirp3-HD-Leda');
+        this.googleStatus = this.googleKey ? 'ready' : 'no-key'; // ready | no-key | error
         this.initPromise = this._init();
+    }
+    _loadSetting(k, def) {
+        try { const v = localStorage.getItem(k); return v === null ? def : v; } catch (e) { return def; }
+    }
+    _saveSetting(k, v) {
+        try { localStorage.setItem(k, v); } catch (e) {}
+    }
+    setBackend(b) {
+        if (!['piper', 'google', 'browser'].includes(b)) return;
+        this.backend = b;
+        this._saveSetting('tts-backend', b);
+    }
+    setGoogleKey(k) {
+        this.googleKey = (k || '').trim();
+        this._saveSetting('google-tts-key', this.googleKey);
+        this.googleStatus = this.googleKey ? 'ready' : 'no-key';
+    }
+    setGoogleVoice(v) {
+        this.googleVoice = v || 'de-DE-Chirp3-HD-Leda';
+        this._saveSetting('google-tts-voice', this.googleVoice);
     }
     async _waitForPiperModule(timeoutMs = 5000) {
         if (window._piper) return true;
@@ -163,9 +188,13 @@ class PiperTTSManager {
     async speak(text) {
         this._stop();
         if (window.speechSynthesis) window.speechSynthesis.cancel();
-        if (!this.enabled || !this.ready) {
+        if (!this.enabled || this.backend === 'browser') {
             return this.fallback.speak(text);
         }
+        if (this.backend === 'google') {
+            return this._speakGoogle(text);
+        }
+        if (!this.ready) return this.fallback.speak(text);
         try {
             const wav = await Promise.race([
                 window._piper.predict({ text, voiceId: this.voiceId }),
@@ -182,6 +211,42 @@ class PiperTTSManager {
             });
         } catch (e) {
             console.warn('[PiperTTS] Synthese fehlgeschlagen, Fallback:', e);
+            return this.fallback.speak(text);
+        }
+    }
+    async _speakGoogle(text) {
+        if (!this.googleKey) { this.googleStatus = 'no-key'; return this.fallback.speak(text); }
+        try {
+            const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.googleKey)}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    input: { text },
+                    voice: { languageCode: 'de-DE', name: this.googleVoice },
+                    audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95, pitch: 0 }
+                })
+            });
+            if (!res.ok) {
+                const body = await res.text().catch(() => '');
+                console.warn('[GoogleTTS] HTTP', res.status, body.slice(0, 200));
+                this.googleStatus = 'error';
+                return this.fallback.speak(text);
+            }
+            const data = await res.json();
+            if (!data.audioContent) { this.googleStatus = 'error'; return this.fallback.speak(text); }
+            this.googleStatus = 'ready';
+            const audio = new Audio('data:audio/mp3;base64,' + data.audioContent);
+            this._currentAudio = audio;
+            return new Promise((resolve) => {
+                const cleanup = () => { this._currentAudio = null; resolve(); };
+                audio.onended = cleanup;
+                audio.onerror = cleanup;
+                audio.play().catch(cleanup);
+            });
+        } catch (e) {
+            console.warn('[GoogleTTS] Fehler:', e);
+            this.googleStatus = 'error';
             return this.fallback.speak(text);
         }
     }

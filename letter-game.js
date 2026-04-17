@@ -412,8 +412,10 @@ class LetterGame {
         let newShowVirtualKeyboard = this.state.showVirtualKeyboard;
         let newShowWord = this.state.showWord;
         let newLevel = this.state.level;
-        let newPiperEnabled = this.tts.enabled;
-        const currentVolPct = Math.round((this.music.volume ?? 0.5) * 100);
+        let newBackend = this.tts.backend;
+        let newGoogleKey = this.tts.googleKey;
+        let newGoogleVoice = this.tts.googleVoice;
+        const currentVolPct = Math.round((this.music.volume ?? 0.25) * 100);
 
         const presetHTML = Object.entries(presets).map(([name, letters]) => {
             const active = JSON.stringify(letters) === JSON.stringify(selectedLetters) ? ' active' : '';
@@ -481,14 +483,43 @@ class LetterGame {
                         </div>
                         <input type="range" id="lp-vol-slider" min="0" max="100" value="${currentVolPct}">
                     </div>
-                    <label class="parent-toggle">
-                        <span class="parent-toggle-control"><input type="checkbox" id="lp-piper" ${newPiperEnabled ? 'checked' : ''}></span>
-                        <span class="parent-toggle-text">
-                            <span class="parent-toggle-label">Piper-Stimme (Thorsten)</span>
-                            <span class="parent-helper">Natürlichere deutsche Sprachausgabe. Aus: Browser-Stimme.</span>
-                        </span>
-                    </label>
-                    <div class="parent-status" id="lp-piper-status"></div>
+                    <div class="parent-field">
+                        <div class="parent-field-head">
+                            <span class="parent-field-label">Stimme</span>
+                        </div>
+                        <div class="parent-voice-options">
+                            <label class="parent-voice-option">
+                                <input type="radio" name="lp-voice" value="piper" ${newBackend === 'piper' ? 'checked' : ''}>
+                                <span class="parent-voice-text">
+                                    <span class="parent-voice-label">Piper / Thorsten</span>
+                                    <span class="parent-helper">Offline, gratis. ~63 MB Download beim ersten Start.</span>
+                                </span>
+                            </label>
+                            <label class="parent-voice-option">
+                                <input type="radio" name="lp-voice" value="google" ${newBackend === 'google' ? 'checked' : ''}>
+                                <span class="parent-voice-text">
+                                    <span class="parent-voice-label">Google Chirp 3 HD</span>
+                                    <span class="parent-helper">Premium-Qualität. Eigener API-Key nötig (100k Zeichen/Monat gratis).</span>
+                                </span>
+                            </label>
+                            <label class="parent-voice-option">
+                                <input type="radio" name="lp-voice" value="browser" ${newBackend === 'browser' ? 'checked' : ''}>
+                                <span class="parent-voice-text">
+                                    <span class="parent-voice-label">Browser-Stimme</span>
+                                    <span class="parent-helper">Eingebaut, Qualität variiert je nach Gerät.</span>
+                                </span>
+                            </label>
+                        </div>
+                        <div class="parent-voice-google" id="lp-google-config" ${newBackend === 'google' ? '' : 'hidden'}>
+                            <input type="password" id="lp-google-key" class="parent-text-input" placeholder="Google API-Key" value="${newGoogleKey}" autocomplete="off">
+                            <input type="text" id="lp-google-voice" class="parent-text-input" placeholder="Stimmen-Name" value="${newGoogleVoice}">
+                            <button type="button" class="parent-btn parent-btn-secondary parent-btn-slim" id="lp-google-test">Testen</button>
+                            <div class="parent-helper">
+                                Key auf <code>console.cloud.google.com</code> erstellen, „Text-to-Speech API" aktivieren. Key per HTTP-Referrer auf deine Domain beschränken, damit er nicht missbraucht werden kann. Wird nur im Browser gespeichert.
+                            </div>
+                        </div>
+                        <div class="parent-status" id="lp-tts-status"></div>
+                    </div>
                 </section>
             </div>
             <div class="parent-panel-footer">
@@ -547,12 +578,25 @@ class LetterGame {
             newLevel++; levelVal.textContent = newLevel;
         });
 
-        const statusEl = document.getElementById('lp-piper-status');
+        const statusEl = document.getElementById('lp-tts-status');
         const renderStatus = () => {
             if (!statusEl) return;
-            const s = this.tts.status;
             statusEl.classList.remove('ready', 'fallback');
-            if (s === 'ready') { statusEl.textContent = '● Stimme bereit'; statusEl.classList.add('ready'); }
+            if (newBackend === 'browser') {
+                statusEl.textContent = '● Browser-Stimme aktiv';
+                statusEl.classList.add('ready');
+                return;
+            }
+            if (newBackend === 'google') {
+                const gs = this.tts.googleStatus;
+                if (!newGoogleKey) { statusEl.textContent = '○ Kein API-Key eingetragen'; statusEl.classList.add('fallback'); return; }
+                if (gs === 'ready') { statusEl.textContent = '● Google-Stimme bereit'; statusEl.classList.add('ready'); return; }
+                if (gs === 'error') { statusEl.textContent = '○ API-Fehler – Browser-Fallback aktiv'; statusEl.classList.add('fallback'); return; }
+                statusEl.textContent = '○ Noch nicht getestet';
+                return;
+            }
+            const s = this.tts.status;
+            if (s === 'ready') { statusEl.textContent = '● Piper/Thorsten bereit'; statusEl.classList.add('ready'); }
             else if (s === 'downloading') statusEl.textContent = `⬇ Modell lädt … ${Math.round((this.tts.progress || 0) * 100)}%`;
             else if (s === 'fallback') { statusEl.textContent = '○ Nicht verfügbar – Browser-Stimme aktiv'; statusEl.classList.add('fallback'); }
             else statusEl.textContent = '○ Initialisiert …';
@@ -586,8 +630,34 @@ class LetterGame {
             this.music.setVolume(pct / 100);
         });
 
-        document.getElementById('lp-piper').addEventListener('change', (e) => {
-            newPiperEnabled = e.target.checked;
+        const googleConfig = document.getElementById('lp-google-config');
+        overlay.querySelectorAll('input[name="lp-voice"]').forEach(r => {
+            r.addEventListener('change', () => {
+                newBackend = r.value;
+                if (googleConfig) googleConfig.toggleAttribute('hidden', newBackend !== 'google');
+                renderStatus();
+            });
+        });
+
+        const keyInput = document.getElementById('lp-google-key');
+        const voiceInput = document.getElementById('lp-google-voice');
+        keyInput.addEventListener('input', () => {
+            newGoogleKey = keyInput.value.trim();
+            renderStatus();
+        });
+        voiceInput.addEventListener('input', () => {
+            newGoogleVoice = voiceInput.value.trim() || 'de-DE-Chirp3-HD-Leda';
+        });
+
+        document.getElementById('lp-google-test').addEventListener('click', async () => {
+            // Fuer den Test die aktuellen Eingaben uebernehmen, Backend auf google zwingen
+            const savedBackend = this.tts.backend;
+            this.tts.setGoogleKey(newGoogleKey);
+            this.tts.setGoogleVoice(newGoogleVoice);
+            this.tts.backend = 'google';
+            await this.tts.speak('Hallo, ich bin deine neue Stimme.');
+            this.tts.backend = savedBackend;
+            renderStatus();
         });
 
         document.getElementById('lp-apply').addEventListener('click', () => {
@@ -596,7 +666,9 @@ class LetterGame {
             this.state.level = newLevel;
             this.state.showVirtualKeyboard = newShowVirtualKeyboard;
             this.state.showWord = newShowWord;
-            this.tts.setEnabled(newPiperEnabled);
+            this.tts.setGoogleKey(newGoogleKey);
+            this.tts.setGoogleVoice(newGoogleVoice);
+            this.tts.setBackend(newBackend);
             this._buildKeyboard();
             this._updateLevelIndicator();
             this._updateStars();
