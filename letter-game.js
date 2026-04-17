@@ -83,6 +83,7 @@ class LetterGame {
             isProcessing: false,
             activeLetters: [...ALL_LETTERS], // Eltern-Presets koennen das aendern
             showVirtualKeyboard: false, // Kind soll physische Tastatur lernen; im Eltern-Menue umschaltbar
+            showWord: false, // Wort als Spoiler ausblenden; wird bei richtiger Antwort eingeblendet
         };
         this.soundEnabled = true;
         this.speechEnabled = true;
@@ -235,11 +236,12 @@ class LetterGame {
         this.state.wrongStreak = 0;
         this.state.isProcessing = false;
         const entry = ANLAUT_TABLE[this.state.currentLetter];
-        // Display aktualisieren
+        // Display aktualisieren. Wort wird zunaechst versteckt, damit der Anfangsbuchstabe nicht verraten wird.
         const display = document.getElementById('letter-display');
+        const wordClass = this.state.showWord ? 'letter-word' : 'letter-word hidden';
         display.innerHTML = `
             <div class="letter-emoji">${entry.emoji}</div>
-            <div class="letter-word">${entry.word}</div>
+            <div class="${wordClass}">${entry.word}</div>
         `;
         // Antwort-Slot
         const answerArea = document.getElementById('letter-answer-area');
@@ -269,6 +271,9 @@ class LetterGame {
             // Richtig!
             this.state.wrongStreak = 0;
             slot.classList.add('correct');
+            // Wort zeigen (falls zuvor versteckt), damit das Kind sieht, welches Wort es war
+            const wordEl = document.querySelector('.letter-word');
+            if (wordEl) wordEl.classList.remove('hidden');
             // Key markieren
             const key = document.querySelector(`.letter-key[data-letter="${letter}"]`);
             if (key) key.classList.add('correct');
@@ -335,6 +340,9 @@ class LetterGame {
     _showHint() {
         const letter = this.state.currentLetter;
         const entry = ANLAUT_TABLE[letter];
+        // Bei Hinweis immer das Wort zeigen (haeufige Fehlversuche → volle Unterstuetzung)
+        const wordEl = document.querySelector('.letter-word');
+        if (wordEl) wordEl.classList.remove('hidden');
         // TTS Hinweis nur wenn Sprache aktiviert
         if (this.speechEnabled) {
             this.tts.speak(_pickTTS('hint', { word: entry.word, letter }));
@@ -418,6 +426,7 @@ class LetterGame {
         };
         let selectedLetters = [...this.state.activeLetters];
         let newShowVirtualKeyboard = this.state.showVirtualKeyboard;
+        let newShowWord = this.state.showWord;
 
         let presetHTML = Object.entries(presets).map(([name, letters]) => {
             const active = JSON.stringify(letters) === JSON.stringify(selectedLetters) ? ' style="background:#FFD166;color:#fff;"' : '';
@@ -458,6 +467,12 @@ class LetterGame {
                 <label style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:1rem;color:#232946;cursor:pointer;">
                     <input type="checkbox" id="lp-vkb" ${newShowVirtualKeyboard ? 'checked' : ''} style="width:20px;height:20px;"> Virtuelle Tastatur anzeigen
                 </label>
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:1rem;color:#232946;cursor:pointer;">
+                    <input type="checkbox" id="lp-showword" ${newShowWord ? 'checked' : ''} style="width:20px;height:20px;"> Wort von Anfang an zeigen
+                </label>
+                <div style="font-size:0.85rem;color:#666;margin-top:4px;">Ausgeschaltet: Wort erscheint erst nach der richtigen Antwort.</div>
             </div>
             <div style="margin-bottom:16px;">
                 <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Musik-Lautstärke: <span id="lp-vol-val">${Math.round((this.music.volume ?? 0.5) * 100)}%</span></div>
@@ -555,6 +570,11 @@ class LetterGame {
             newShowVirtualKeyboard = vkbCheckbox.checked;
         });
 
+        const showWordCheckbox = document.getElementById('lp-showword');
+        showWordCheckbox.addEventListener('change', () => {
+            newShowWord = showWordCheckbox.checked;
+        });
+
         // Musik-Lautstaerke: live anwenden, damit man sofort prueft, wie laut ueber dem Sprecher liegt
         const volSlider = document.getElementById('lp-vol-slider');
         const volVal = document.getElementById('lp-vol-val');
@@ -577,6 +597,7 @@ class LetterGame {
             this.state.activeLetters = selectedLetters;
             this.state.level = newLevel;
             this.state.showVirtualKeyboard = newShowVirtualKeyboard;
+            this.state.showWord = newShowWord;
             this.tts.setEnabled(newPiperEnabled);
             this._buildKeyboard();
             this._updateLevelIndicator();
