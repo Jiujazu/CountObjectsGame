@@ -1266,3 +1266,243 @@ html, body {
         width: 150px; height: 180px; font-size: 7.5rem;
     }
 }
+
+/* === Eltern-Menü (shared) === */
+.parent-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15, 18, 32, 0.55);
+    z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    animation: parentOverlayFadeIn 0.18s ease-out;
+}
+@keyframes parentOverlayFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.parent-panel {
+    background: #fff;
+    border-radius: 24px;
+    width: 100%;
+    max-width: 460px;
+    max-height: min(85vh, 780px);
+    display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+    overflow: hidden;
+    animation: parentPanelIn 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes parentPanelIn {
+    from { opacity: 0; transform: scale(0.94) translateY(12px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.parent-panel-header {
+    padding: 22px 26px 14px;
+    border-bottom: 1px solid #eef0f4;
+}
+.parent-panel-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #232946;
+    letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 10px;
+    margin: 0;
+}
+.parent-panel-subtitle {
+    font-size: 0.82rem;
+    color: #8a8fa3;
+    margin-top: 6px;
+}
+.parent-panel-body {
+    padding: 18px 26px;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    display: flex; flex-direction: column;
+    gap: 20px;
+}
+.parent-section {
+    display: flex; flex-direction: column;
+    gap: 12px;
+}
+.parent-section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #8a8fa3;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 0 0 -2px 0;
+}
+.parent-field {
+    display: flex; flex-direction: column;
+    gap: 8px;
+}
+.parent-field-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+}
+.parent-field-label {
+    font-size: 0.95rem;
+    color: #232946;
+    font-weight: 600;
+}
+.parent-field-value {
+    color: #6AD1E3;
+    font-weight: 800;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+}
+.parent-helper {
+    font-size: 0.78rem;
+    color: #8a8fa3;
+    line-height: 1.35;
+}
+.parent-panel input[type="range"] {
+    width: 100%;
+    accent-color: #6AD1E3;
+}
+.parent-stepper {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+    background: #f7f8fa;
+    border-radius: 12px;
+    padding: 6px;
+}
+.parent-stepper button {
+    background: #fff; border: none;
+    border-radius: 10px;
+    width: 38px; height: 38px;
+    font-size: 1.3rem; font-weight: 700;
+    color: #232946;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.12s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.parent-stepper button:hover { background: #FFD166; color: #fff; }
+.parent-stepper button:active { transform: scale(0.92); }
+.parent-stepper-value {
+    flex: 1;
+    text-align: center;
+    font-size: 1.25rem; font-weight: 800;
+    color: #232946;
+    font-variant-numeric: tabular-nums;
+}
+.parent-presets {
+    display: flex; flex-wrap: wrap; gap: 8px;
+}
+.parent-preset {
+    background: #f0f2f5;
+    border: none; border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 0.86rem; font-weight: 600;
+    color: #232946;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, transform 0.12s;
+}
+.parent-preset:hover { background: #e6e9f0; }
+.parent-preset.active {
+    background: #FFD166; color: #fff;
+}
+.parent-letters {
+    background: #f7f8fa;
+    border-radius: 12px;
+    padding: 4px 12px;
+}
+.parent-letters summary {
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: #232946;
+    font-weight: 700;
+    padding: 10px 0;
+    list-style: none;
+    display: flex; align-items: center; gap: 8px;
+    user-select: none;
+}
+.parent-letters summary::-webkit-details-marker { display: none; }
+.parent-letters summary::before {
+    content: '▸';
+    font-size: 0.8rem;
+    color: #8a8fa3;
+    transition: transform 0.18s;
+}
+.parent-letters[open] summary::before {
+    transform: rotate(90deg);
+}
+.parent-letters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+    gap: 4px;
+    padding: 4px 0 12px;
+}
+.parent-letters-grid label {
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    font-size: 0.92rem; font-weight: 700;
+    color: #232946;
+    cursor: pointer;
+    padding: 6px 4px;
+    border-radius: 8px;
+    transition: background 0.12s;
+}
+.parent-letters-grid label:hover { background: #fff; }
+.parent-letters-grid input {
+    width: 16px; height: 16px;
+    accent-color: #6AD1E3;
+    cursor: pointer;
+    margin: 0;
+}
+.parent-toggle {
+    display: flex; align-items: flex-start; gap: 10px;
+    cursor: pointer;
+    padding: 4px 0;
+}
+.parent-toggle-control {
+    flex: 0 0 auto;
+    margin-top: 2px;
+}
+.parent-toggle input[type="checkbox"] {
+    width: 20px; height: 20px;
+    accent-color: #6AD1E3;
+    cursor: pointer;
+    margin: 0;
+}
+.parent-toggle-text {
+    display: flex; flex-direction: column; gap: 2px;
+    min-width: 0;
+}
+.parent-toggle-label {
+    font-size: 0.95rem;
+    color: #232946;
+    font-weight: 600;
+}
+.parent-status {
+    font-size: 0.78rem;
+    color: #8a8fa3;
+    margin-left: 30px;
+    margin-top: -2px;
+}
+.parent-status.ready { color: #4CAF50; }
+.parent-status.fallback { color: #FF6F91; }
+.parent-panel-footer {
+    display: flex; gap: 10px; justify-content: flex-end;
+    padding: 14px 26px 18px;
+    border-top: 1px solid #eef0f4;
+    background: #fafbfc;
+}
+.parent-btn {
+    border: none; border-radius: 14px;
+    padding: 12px 24px;
+    font-size: 0.98rem; font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.12s, background 0.15s, color 0.15s;
+    font-family: inherit;
+}
+.parent-btn:active { transform: scale(0.97); }
+.parent-btn-primary { background: #6AD1E3; color: #fff; }
+.parent-btn-primary:hover { background: #52c3d8; }
+.parent-btn-secondary { background: transparent; color: #8a8fa3; }
+.parent-btn-secondary:hover { background: #f0f2f5; color: #232946; }
+
+@media (max-width: 480px) {
+    .parent-panel-header { padding: 18px 20px 12px; }
+    .parent-panel-body { padding: 14px 20px; gap: 16px; }
+    .parent-panel-footer { padding: 12px 20px 14px; }
+    .parent-panel-title { font-size: 1.2rem; }
+}

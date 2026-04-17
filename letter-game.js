@@ -394,11 +394,10 @@ class LetterGame {
     _showParentMenu() {
         const overlay = document.createElement('div');
         overlay.id = 'letter-parent-menu-overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-        const dialog = document.createElement('div');
-        dialog.style.cssText = 'background:#fff;border-radius:24px;padding:32px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.2);max-width:400px;width:90vw;max-height:80vh;overflow-y:auto;';
+        overlay.className = 'parent-overlay';
+        const panel = document.createElement('div');
+        panel.className = 'parent-panel';
 
-        // Buchstaben-Presets
         const presets = {
             'Alle': ALL_LETTERS,
             'Einfach (A-M)': ALL_LETTERS.slice(0, 13),
@@ -409,112 +408,134 @@ class LetterGame {
         let selectedLetters = [...this.state.activeLetters];
         let newShowVirtualKeyboard = this.state.showVirtualKeyboard;
         let newShowWord = this.state.showWord;
+        let newLevel = this.state.level;
+        let newPiperEnabled = this.tts.enabled;
+        const currentVolPct = Math.round((this.music.volume ?? 0.5) * 100);
 
-        let presetHTML = Object.entries(presets).map(([name, letters]) => {
-            const active = JSON.stringify(letters) === JSON.stringify(selectedLetters) ? ' style="background:#FFD166;color:#fff;"' : '';
-            return `<button class="preset-btn" data-preset="${name}"${active}>${name}</button>`;
+        const presetHTML = Object.entries(presets).map(([name, letters]) => {
+            const active = JSON.stringify(letters) === JSON.stringify(selectedLetters) ? ' active' : '';
+            return `<button class="parent-preset${active}" data-preset="${name}">${name}</button>`;
         }).join('');
 
-        let letterCheckboxes = ALL_LETTERS.map(l => {
+        const letterCheckboxes = ALL_LETTERS.map(l => {
             const checked = selectedLetters.includes(l) ? 'checked' : '';
-            return `<label style="display:inline-flex;align-items:center;gap:2px;margin:3px;font-weight:700;font-size:1.1rem;cursor:pointer;">
-                <input type="checkbox" data-letter-check="${l}" ${checked} style="width:18px;height:18px;"> ${l}
-            </label>`;
+            return `<label><input type="checkbox" data-letter-check="${l}" ${checked}> ${l}</label>`;
         }).join('');
 
-        dialog.innerHTML = `
-            <div style="font-size:1.4rem;font-weight:700;color:#232946;margin-bottom:8px;">\u2699\uFE0F Eltern-Einstellungen</div>
-            <div style="font-size:0.9rem;color:#666;margin-bottom:16px;">Lange auf Level-Zahl drücken zum Öffnen</div>
-            <div style="margin-bottom:16px;">
-                <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Buchstaben-Presets:</div>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;" id="preset-buttons">
-                    ${presetHTML}
-                </div>
+        panel.innerHTML = `
+            <div class="parent-panel-header">
+                <h2 class="parent-panel-title">⚙️ Eltern-Einstellungen</h2>
+                <div class="parent-panel-subtitle">Lange auf die Level-Zahl drücken zum Öffnen.</div>
             </div>
-            <div style="margin-bottom:16px;">
-                <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Einzelne Buchstaben:</div>
-                <div style="display:flex;flex-wrap:wrap;justify-content:center;" id="letter-checkboxes">
-                    ${letterCheckboxes}
-                </div>
+            <div class="parent-panel-body">
+                <section class="parent-section">
+                    <div class="parent-section-label">Inhalt</div>
+                    <div class="parent-field">
+                        <div class="parent-field-head">
+                            <span class="parent-field-label">Buchstaben-Auswahl</span>
+                            <span class="parent-field-value" id="lp-letter-count">${selectedLetters.length}/${ALL_LETTERS.length}</span>
+                        </div>
+                        <div class="parent-presets">${presetHTML}</div>
+                        <details class="parent-letters">
+                            <summary>Einzelne Buchstaben bearbeiten</summary>
+                            <div class="parent-letters-grid">${letterCheckboxes}</div>
+                        </details>
+                    </div>
+                    <div class="parent-field">
+                        <div class="parent-field-head">
+                            <span class="parent-field-label">Level</span>
+                        </div>
+                        <div class="parent-stepper">
+                            <button type="button" id="lp-level-down" aria-label="Level runter">−</button>
+                            <span class="parent-stepper-value" id="lp-level-val">${this.state.level}</span>
+                            <button type="button" id="lp-level-up" aria-label="Level hoch">+</button>
+                        </div>
+                    </div>
+                </section>
+                <section class="parent-section">
+                    <div class="parent-section-label">Anzeige</div>
+                    <label class="parent-toggle">
+                        <span class="parent-toggle-control"><input type="checkbox" id="lp-showword" ${newShowWord ? 'checked' : ''}></span>
+                        <span class="parent-toggle-text">
+                            <span class="parent-toggle-label">Wort von Anfang an zeigen</span>
+                            <span class="parent-helper">Aus: Wort erscheint erst nach der richtigen Antwort.</span>
+                        </span>
+                    </label>
+                    <label class="parent-toggle">
+                        <span class="parent-toggle-control"><input type="checkbox" id="lp-vkb" ${newShowVirtualKeyboard ? 'checked' : ''}></span>
+                        <span class="parent-toggle-text">
+                            <span class="parent-toggle-label">Virtuelle Tastatur anzeigen</span>
+                            <span class="parent-helper">Zusätzliche Tasten am Bildschirm für Geräte ohne Tastatur.</span>
+                        </span>
+                    </label>
+                </section>
+                <section class="parent-section">
+                    <div class="parent-section-label">Audio</div>
+                    <div class="parent-field">
+                        <div class="parent-field-head">
+                            <span class="parent-field-label">Musik-Lautstärke</span>
+                            <span class="parent-field-value" id="lp-vol-val">${currentVolPct}%</span>
+                        </div>
+                        <input type="range" id="lp-vol-slider" min="0" max="100" value="${currentVolPct}">
+                    </div>
+                    <label class="parent-toggle">
+                        <span class="parent-toggle-control"><input type="checkbox" id="lp-piper" ${newPiperEnabled ? 'checked' : ''}></span>
+                        <span class="parent-toggle-text">
+                            <span class="parent-toggle-label">Piper-Stimme (Thorsten)</span>
+                            <span class="parent-helper">Natürlichere deutsche Sprachausgabe. Aus: Browser-Stimme.</span>
+                        </span>
+                    </label>
+                    <div class="parent-status" id="lp-piper-status"></div>
+                </section>
             </div>
-            <div style="margin-bottom:16px;">
-                <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Level anpassen:</div>
-                <div style="display:flex;gap:8px;justify-content:center;align-items:center;">
-                    <button id="lp-level-down" style="background:#f0f2f5;border:none;border-radius:12px;width:40px;height:40px;font-size:1.4rem;font-weight:700;cursor:pointer;">\u2212</button>
-                    <span id="lp-level-val" style="font-size:1.6rem;font-weight:700;color:#232946;min-width:40px;">${this.state.level}</span>
-                    <button id="lp-level-up" style="background:#f0f2f5;border:none;border-radius:12px;width:40px;height:40px;font-size:1.4rem;font-weight:700;cursor:pointer;">+</button>
-                </div>
-            </div>
-            <div style="margin-bottom:16px;">
-                <label style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:1rem;color:#232946;cursor:pointer;">
-                    <input type="checkbox" id="lp-vkb" ${newShowVirtualKeyboard ? 'checked' : ''} style="width:20px;height:20px;"> Virtuelle Tastatur anzeigen
-                </label>
-            </div>
-            <div style="margin-bottom:16px;">
-                <label style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:1rem;color:#232946;cursor:pointer;">
-                    <input type="checkbox" id="lp-showword" ${newShowWord ? 'checked' : ''} style="width:20px;height:20px;"> Wort von Anfang an zeigen
-                </label>
-                <div style="font-size:0.85rem;color:#666;margin-top:4px;">Ausgeschaltet: Wort erscheint erst nach der richtigen Antwort.</div>
-            </div>
-            <div style="margin-bottom:16px;">
-                <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Musik-Lautstärke: <span id="lp-vol-val">${Math.round((this.music.volume ?? 0.5) * 100)}%</span></div>
-                <input type="range" id="lp-vol-slider" min="0" max="100" value="${Math.round((this.music.volume ?? 0.5) * 100)}" style="width:100%;accent-color:#6AD1E3;">
-            </div>
-            <div style="margin-bottom:16px;">
-                <label style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:1rem;color:#232946;cursor:pointer;">
-                    <input type="checkbox" id="lp-piper" ${this.tts.enabled ? 'checked' : ''} style="width:20px;height:20px;"> Piper-Stimme (Thorsten)
-                </label>
-                <div id="lp-piper-status" style="font-size:0.85rem;color:#666;margin-top:4px;"></div>
-            </div>
-            <div style="display:flex;gap:12px;justify-content:center;">
-                <button id="lp-apply" style="background:#6AD1E3;color:#fff;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Übernehmen</button>
-                <button id="lp-close" style="background:#f0f2f5;color:#232946;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Abbrechen</button>
+            <div class="parent-panel-footer">
+                <button type="button" class="parent-btn parent-btn-secondary" id="lp-close">Abbrechen</button>
+                <button type="button" class="parent-btn parent-btn-primary" id="lp-apply">Übernehmen</button>
             </div>
         `;
-        overlay.appendChild(dialog);
+        overlay.appendChild(panel);
         document.body.appendChild(overlay);
 
-        // Style preset buttons
-        overlay.querySelectorAll('.preset-btn').forEach(btn => {
-            btn.style.cssText = 'background:#f0f2f5;border:none;border-radius:10px;padding:8px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;transition:background 0.18s;';
-        });
+        const countEl = document.getElementById('lp-letter-count');
+        const updateCount = () => {
+            if (countEl) countEl.textContent = `${selectedLetters.length}/${ALL_LETTERS.length}`;
+        };
+        const syncPresetActive = () => {
+            overlay.querySelectorAll('.parent-preset').forEach(b => {
+                const preset = presets[b.dataset.preset];
+                const match = preset && JSON.stringify(preset) === JSON.stringify([...selectedLetters].sort((a, b) => a.localeCompare(b, 'de')));
+                b.classList.toggle('active', !!match);
+            });
+        };
 
-        let newLevel = this.state.level;
-
-        // Preset-Buttons
-        overlay.querySelectorAll('.preset-btn').forEach(btn => {
+        overlay.querySelectorAll('.parent-preset').forEach(btn => {
             btn.addEventListener('click', () => {
                 const preset = presets[btn.dataset.preset];
-                if (preset) {
-                    selectedLetters = [...preset];
-                    overlay.querySelectorAll('[data-letter-check]').forEach(cb => {
-                        cb.checked = selectedLetters.includes(cb.dataset.letterCheck);
-                    });
-                    overlay.querySelectorAll('.preset-btn').forEach(b => {
-                        b.style.background = '#f0f2f5';
-                        b.style.color = '#232946';
-                    });
-                    btn.style.background = '#FFD166';
-                    btn.style.color = '#fff';
-                }
+                if (!preset) return;
+                selectedLetters = [...preset];
+                overlay.querySelectorAll('[data-letter-check]').forEach(cb => {
+                    cb.checked = selectedLetters.includes(cb.dataset.letterCheck);
+                });
+                overlay.querySelectorAll('.parent-preset').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                updateCount();
             });
         });
 
-        // Checkboxen
         overlay.querySelectorAll('[data-letter-check]').forEach(cb => {
             cb.addEventListener('change', () => {
+                const l = cb.dataset.letterCheck;
                 if (cb.checked) {
-                    if (!selectedLetters.includes(cb.dataset.letterCheck)) {
-                        selectedLetters.push(cb.dataset.letterCheck);
-                        selectedLetters.sort((a, b) => a.localeCompare(b, 'de'));
-                    }
+                    if (!selectedLetters.includes(l)) selectedLetters.push(l);
+                    selectedLetters.sort((a, b) => a.localeCompare(b, 'de'));
                 } else {
-                    selectedLetters = selectedLetters.filter(l => l !== cb.dataset.letterCheck);
+                    selectedLetters = selectedLetters.filter(x => x !== l);
                 }
+                updateCount();
+                syncPresetActive();
             });
         });
 
-        // Level
         const levelVal = document.getElementById('lp-level-val');
         document.getElementById('lp-level-down').addEventListener('click', () => {
             if (newLevel > 1) { newLevel--; levelVal.textContent = newLevel; }
@@ -527,10 +548,11 @@ class LetterGame {
         const renderStatus = () => {
             if (!statusEl) return;
             const s = this.tts.status;
-            if (s === 'ready') statusEl.textContent = 'Bereit';
-            else if (s === 'downloading') statusEl.textContent = `Modell lädt … ${Math.round((this.tts.progress || 0) * 100)}%`;
-            else if (s === 'fallback') statusEl.textContent = 'Nicht verfügbar – Browser-Stimme aktiv';
-            else statusEl.textContent = 'Initialisiert …';
+            statusEl.classList.remove('ready', 'fallback');
+            if (s === 'ready') { statusEl.textContent = '● Stimme bereit'; statusEl.classList.add('ready'); }
+            else if (s === 'downloading') statusEl.textContent = `⬇ Modell lädt … ${Math.round((this.tts.progress || 0) * 100)}%`;
+            else if (s === 'fallback') { statusEl.textContent = '○ Nicht verfügbar – Browser-Stimme aktiv'; statusEl.classList.add('fallback'); }
+            else statusEl.textContent = '○ Initialisiert …';
         };
         renderStatus();
         const statusTimer = setInterval(renderStatus, 500);
@@ -542,22 +564,17 @@ class LetterGame {
             this._parentMenuCleanup = null;
         };
         this._parentMenuCleanup = cleanup;
-        const keyHandler = (e) => {
-            if (e.key === 'Escape') cleanup();
-        };
+        const keyHandler = (e) => { if (e.key === 'Escape') cleanup(); };
         document.addEventListener('keydown', keyHandler);
 
-        const vkbCheckbox = document.getElementById('lp-vkb');
-        vkbCheckbox.addEventListener('change', () => {
-            newShowVirtualKeyboard = vkbCheckbox.checked;
+        document.getElementById('lp-vkb').addEventListener('change', (e) => {
+            newShowVirtualKeyboard = e.target.checked;
+        });
+        document.getElementById('lp-showword').addEventListener('change', (e) => {
+            newShowWord = e.target.checked;
         });
 
-        const showWordCheckbox = document.getElementById('lp-showword');
-        showWordCheckbox.addEventListener('change', () => {
-            newShowWord = showWordCheckbox.checked;
-        });
-
-        // Musik-Lautstaerke: live anwenden, damit man sofort prueft, wie laut ueber dem Sprecher liegt
+        // Musik-Lautstaerke live anwenden, damit man sofort den Unterschied hoert
         const volSlider = document.getElementById('lp-vol-slider');
         const volVal = document.getElementById('lp-vol-val');
         volSlider.addEventListener('input', () => {
@@ -566,16 +583,12 @@ class LetterGame {
             this.music.setVolume(pct / 100);
         });
 
-        let newPiperEnabled = this.tts.enabled;
-        const piperCheckbox = document.getElementById('lp-piper');
-        piperCheckbox.addEventListener('change', () => {
-            newPiperEnabled = piperCheckbox.checked;
+        document.getElementById('lp-piper').addEventListener('change', (e) => {
+            newPiperEnabled = e.target.checked;
         });
 
         document.getElementById('lp-apply').addEventListener('click', () => {
-            if (selectedLetters.length < 2) {
-                selectedLetters = [...ALL_LETTERS];
-            }
+            if (selectedLetters.length < 2) selectedLetters = [...ALL_LETTERS];
             this.state.activeLetters = selectedLetters;
             this.state.level = newLevel;
             this.state.showVirtualKeyboard = newShowVirtualKeyboard;

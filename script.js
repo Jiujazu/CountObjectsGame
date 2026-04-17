@@ -385,53 +385,70 @@ class CountingGame {
     }
 
     _showParentMenu() {
-        // Overlay erstellen
         const overlay = document.createElement('div');
         overlay.id = 'parent-menu-overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-        const dialog = document.createElement('div');
-        dialog.style.cssText = 'background:#fff;border-radius:24px;padding:32px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.2);max-width:340px;width:90vw;';
+        overlay.className = 'parent-overlay';
+        const panel = document.createElement('div');
+        panel.className = 'parent-panel';
 
         const currentMax = this._getCurrentMaxObjects();
         const currentVolPct = Math.round((this.music.volume ?? 0.5) * 100);
-        dialog.innerHTML = `
-            <div style="font-size:1.4rem;font-weight:700;color:#232946;margin-bottom:8px;">⚙️ Eltern-Einstellungen</div>
-            <div style="font-size:0.9rem;color:#666;margin-bottom:20px;">Lange auf Level-Zahl drücken zum Öffnen</div>
-            <div style="margin-bottom:20px;">
-                <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Startschwierigkeit (max. Objekte): <span id="parent-diff-val">${currentMax}</span></div>
-                <input type="range" id="parent-diff-slider" min="2" max="9" value="${currentMax}" style="width:100%;accent-color:#FFD166;">
-            </div>
-            <div style="margin-bottom:20px;">
-                <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Musik-Lautstärke: <span id="parent-vol-val">${currentVolPct}%</span></div>
-                <input type="range" id="parent-vol-slider" min="0" max="100" value="${currentVolPct}" style="width:100%;accent-color:#6AD1E3;">
-            </div>
-            <div style="margin-bottom:20px;">
-                <div style="font-size:1rem;font-weight:700;color:#232946;margin-bottom:8px;">Level anpassen:</div>
-                <div style="display:flex;gap:8px;justify-content:center;align-items:center;">
-                    <button id="parent-level-down" style="background:#f0f2f5;border:none;border-radius:12px;width:40px;height:40px;font-size:1.4rem;font-weight:700;cursor:pointer;">−</button>
-                    <span id="parent-level-val" style="font-size:1.6rem;font-weight:700;color:#232946;min-width:40px;">${this.state.level}</span>
-                    <button id="parent-level-up" style="background:#f0f2f5;border:none;border-radius:12px;width:40px;height:40px;font-size:1.4rem;font-weight:700;cursor:pointer;">+</button>
-                </div>
-            </div>
-            <div style="display:flex;gap:12px;justify-content:center;">
-                <button id="parent-menu-apply" style="background:#6AD1E3;color:#fff;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Übernehmen</button>
-                <button id="parent-menu-close" style="background:#f0f2f5;color:#232946;border:none;border-radius:14px;padding:12px 24px;font-size:1rem;font-weight:700;cursor:pointer;">Abbrechen</button>
-            </div>
-        `;
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-
         let newLevel = this.state.level;
         let newMaxOverride = currentMax;
+
+        panel.innerHTML = `
+            <div class="parent-panel-header">
+                <h2 class="parent-panel-title">⚙️ Eltern-Einstellungen</h2>
+                <div class="parent-panel-subtitle">Lange auf die Level-Zahl drücken zum Öffnen.</div>
+            </div>
+            <div class="parent-panel-body">
+                <section class="parent-section">
+                    <div class="parent-section-label">Inhalt</div>
+                    <div class="parent-field">
+                        <div class="parent-field-head">
+                            <span class="parent-field-label">Startschwierigkeit</span>
+                            <span class="parent-field-value" id="parent-diff-val">max. ${currentMax}</span>
+                        </div>
+                        <input type="range" id="parent-diff-slider" min="2" max="9" value="${currentMax}">
+                        <div class="parent-helper">Maximale Anzahl an Objekten, die gezeigt werden.</div>
+                    </div>
+                    <div class="parent-field">
+                        <div class="parent-field-head">
+                            <span class="parent-field-label">Level</span>
+                        </div>
+                        <div class="parent-stepper">
+                            <button type="button" id="parent-level-down" aria-label="Level runter">−</button>
+                            <span class="parent-stepper-value" id="parent-level-val">${this.state.level}</span>
+                            <button type="button" id="parent-level-up" aria-label="Level hoch">+</button>
+                        </div>
+                    </div>
+                </section>
+                <section class="parent-section">
+                    <div class="parent-section-label">Audio</div>
+                    <div class="parent-field">
+                        <div class="parent-field-head">
+                            <span class="parent-field-label">Musik-Lautstärke</span>
+                            <span class="parent-field-value" id="parent-vol-val">${currentVolPct}%</span>
+                        </div>
+                        <input type="range" id="parent-vol-slider" min="0" max="100" value="${currentVolPct}">
+                    </div>
+                </section>
+            </div>
+            <div class="parent-panel-footer">
+                <button type="button" class="parent-btn parent-btn-secondary" id="parent-menu-close">Abbrechen</button>
+                <button type="button" class="parent-btn parent-btn-primary" id="parent-menu-apply">Übernehmen</button>
+            </div>
+        `;
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
 
         const slider = document.getElementById('parent-diff-slider');
         const diffVal = document.getElementById('parent-diff-val');
         slider.addEventListener('input', () => {
             newMaxOverride = parseInt(slider.value);
-            diffVal.textContent = newMaxOverride;
+            diffVal.textContent = 'max. ' + newMaxOverride;
         });
 
-        // Musik-Lautstaerke: live anwenden, damit man sofort den Unterschied hoert
         const volSlider = document.getElementById('parent-vol-slider');
         const volVal = document.getElementById('parent-vol-val');
         volSlider.addEventListener('input', () => {
