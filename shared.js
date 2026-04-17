@@ -213,7 +213,7 @@ class MusicManager {
                 if (!Number.isNaN(n) && n >= 0 && n <= 1) return n;
             }
         } catch (e) {}
-        return 0.5;
+        return 0.25;
     }
     setVolume(v) {
         v = Math.max(0, Math.min(1, v));

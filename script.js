@@ -247,9 +247,13 @@ class GameLogic {
             // Sound und Shake sofort; TTS fire-and-forget parallel
             this.game.playSound('wrong');
             this.game.shakeObjects();
-            this.game.speakWrong(number);
+            const willHint = this.game.state.wrongStreak >= 3;
+            // Phrasen wie "Zähl nochmal nach!" brauchen die Aufgabe danach wirklich wieder
+            Promise.resolve(this.game.speakWrong(number)).then(() => {
+                if (!willHint) this.game.speakInstruction();
+            });
             // Nach 3 Fehlversuchen: Hinweis geben
-            if (this.game.state.wrongStreak >= 3) {
+            if (willHint) {
                 this.game.state.wrongStreak = 0;
                 setTimeout(() => {
                     this.game._showHint();

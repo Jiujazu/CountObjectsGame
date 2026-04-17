@@ -292,21 +292,24 @@ class LetterGame {
             if (key) key.classList.add('wrong');
             if (this.soundEnabled) SharedAudio.playWrongSound();
             document.body.classList.add('flash-wrong');
-            if (this.speechEnabled) {
-                await this.tts.speak(_pickTTS('wrong', {}));
-            }
             this._setTimeout(() => {
                 slot.classList.remove('wrong', 'filled');
                 slot.textContent = '';
                 document.body.classList.remove('flash-wrong');
                 if (key) key.classList.remove('wrong');
-                // Nach 3 Fehlversuchen: Hinweis
-                if (this.state.wrongStreak >= 3) {
-                    this.state.wrongStreak = 0;
-                    this._showHint();
-                }
-                this.state.isProcessing = false;
             }, 800);
+            if (this.speechEnabled) {
+                await this.tts.speak(_pickTTS('wrong', {}));
+                // Phrasen wie "Hör nochmal gut hin!" brauchen eine Wiederholung
+                if (this.state.wrongStreak < 3) {
+                    await this._speakInstruction();
+                }
+            }
+            if (this.state.wrongStreak >= 3) {
+                this.state.wrongStreak = 0;
+                this._showHint();
+            }
+            this.state.isProcessing = false;
         }
     }
 
