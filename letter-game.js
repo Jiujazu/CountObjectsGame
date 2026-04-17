@@ -35,6 +35,41 @@ const ANLAUT_TABLE = {
 
 const ALL_LETTERS = Object.keys(ANLAUT_TABLE);
 
+// Lautier-Mapping (Silbenmethode): Buchstabe -> Text, den TTS als Laut spricht.
+// Vokale klingen ohnehin wie ihr Laut. Plosive (B/D/G/K/P/T) brauchen einen
+// Kurzvokal-Anker, sonst nicht isoliert sprechbar. Dauerlaute werden verlaengert.
+const LAUTIERT_MAP = {
+    'A': 'A',
+    'B': 'Buh',
+    'C': 'Kuh',   // C wie in Clown = [k]
+    'D': 'Duh',
+    'E': 'E',
+    'F': 'Fff',
+    'G': 'Guh',
+    'H': 'Ha',
+    'I': 'I',
+    'J': 'Ja',    // J wie in Jojo = [j]
+    'K': 'Kuh',
+    'L': 'Lll',
+    'M': 'Mmm',
+    'N': 'Nnn',
+    'O': 'O',
+    'P': 'Puh',
+    'Q': 'Ku',    // Qu wie in Qualle = [kv], meist einfach [k]
+    'R': 'Rrr',
+    'S': 'Sss',
+    'T': 'Tuh',
+    'U': 'U',
+    'V': 'Fff',   // V wie in Vogel = [f]
+    'W': 'Www',   // W = [v]
+    'X': 'Iks',
+    'Y': 'Ja',    // Y wie in Yoga = [j]
+    'Z': 'Tsss',  // Z = [ts]
+    'Ä': 'Ä',
+    'Ö': 'Ö',
+    'Ü': 'Ü',
+};
+
 // Kindgerechte, variierende TTS-Phrasen. Platzhalter: {word}, {letter}.
 const TTS_PHRASES = {
     instruction: [
@@ -84,6 +119,7 @@ class LetterGame {
             activeLetters: [...ALL_LETTERS], // Eltern-Presets koennen das aendern
             showVirtualKeyboard: false, // Kind soll physische Tastatur lernen; im Eltern-Menue umschaltbar
             showWord: false, // Wort als Spoiler ausblenden; wird bei richtiger Antwort eingeblendet
+            lautierEnabled: localStorage.getItem('letter-lautiert') === 'true', // Silbenmethode: TTS spricht Laut statt Buchstabenname
         };
         this.soundEnabled = true;
         this.speechEnabled = true;
@@ -245,6 +281,11 @@ class LetterGame {
         await this._speakInstruction();
     }
 
+    _letterForSpeech(letter) {
+        if (!this.state.lautierEnabled) return letter;
+        return LAUTIERT_MAP[letter] || letter;
+    }
+
     async _speakInstruction() {
         if (!this.speechEnabled) return;
         const entry = ANLAUT_TABLE[this.state.currentLetter];
@@ -271,7 +312,7 @@ class LetterGame {
             // Sound & TTS
             if (this.soundEnabled) SharedAudio.playSuccessMelody();
             if (this.speechEnabled) {
-                await this.tts.speak(_pickTTS('correct', { letter, word: ANLAUT_TABLE[letter].word }));
+                await this.tts.speak(_pickTTS('correct', { letter: this._letterForSpeech(letter), word: ANLAUT_TABLE[letter].word }));
             }
             // Puzzle Fortschritt
             this.puzzle.revealNextPiece();
@@ -339,7 +380,7 @@ class LetterGame {
         if (wordEl) wordEl.classList.remove('hidden');
         // TTS Hinweis nur wenn Sprache aktiviert
         if (this.speechEnabled) {
-            this.tts.speak(_pickTTS('hint', { word: entry.word, letter }));
+            this.tts.speak(_pickTTS('hint', { word: entry.word, letter: this._letterForSpeech(letter) }));
         }
         // Visueller Hinweis: richtigen Key blinken lassen
         const key = document.querySelector(`.letter-key[data-letter="${letter}"]`);
@@ -424,6 +465,7 @@ class LetterGame {
         let newBackend = this.tts.backend;
         let newGoogleKey = this.tts.googleKey;
         let newGoogleVoice = this.tts.googleVoice;
+        let newLautierEnabled = this.state.lautierEnabled;
         const currentVolPct = Math.round((this.music.volume ?? 0.25) * 100);
 
         const presetHTML = Object.entries(presets).map(([name, letters]) => {
@@ -531,6 +573,13 @@ class LetterGame {
                         </div>
                         <div class="parent-status" id="lp-tts-status"></div>
                     </div>
+                    <label class="parent-toggle">
+                        <span class="parent-toggle-control"><input type="checkbox" id="lp-lautiert" ${newLautierEnabled ? 'checked' : ''}></span>
+                        <span class="parent-toggle-text">
+                            <span class="parent-toggle-label">Lautiert aussprechen</span>
+                            <span class="parent-helper">Silbenmethode: „Fff" statt „Eff", „Mmm" statt „Emm". So wie in der Schule.</span>
+                        </span>
+                    </label>
                 </section>
             </div>
             <div class="parent-panel-footer">
@@ -631,6 +680,9 @@ class LetterGame {
         document.getElementById('lp-showword').addEventListener('change', (e) => {
             newShowWord = e.target.checked;
         });
+        document.getElementById('lp-lautiert').addEventListener('change', (e) => {
+            newLautierEnabled = e.target.checked;
+        });
 
         // Musik-Lautstaerke live anwenden, damit man sofort den Unterschied hoert
         const volSlider = document.getElementById('lp-vol-slider');
@@ -677,6 +729,8 @@ class LetterGame {
             this.state.level = newLevel;
             this.state.showVirtualKeyboard = newShowVirtualKeyboard;
             this.state.showWord = newShowWord;
+            this.state.lautierEnabled = newLautierEnabled;
+            localStorage.setItem('letter-lautiert', newLautierEnabled ? 'true' : 'false');
             this.tts.setGoogleKey(newGoogleKey);
             this.tts.setGoogleVoice(newGoogleVoice);
             this.tts.setBackend(newBackend);
