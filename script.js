@@ -497,7 +497,6 @@ class CountingGame {
             {id: 'next-level-btn', fn: async () => await this.logic.nextLevel()},
             {id: 'music-toggle', fn: () => this.toggleMusic()},
             {id: 'tracklist-toggle', fn: () => this.music.showOverlay()},
-            {id: 'sound-toggle', fn: () => this.toggleSound()},
             {id: 'close-btn', fn: () => this.closeGame()},
             {id: 'numbers-toggle', fn: () => this.toggleNumbers()},
             {id: 'prev-track', fn: () => this.music.prevTrack()},
@@ -521,14 +520,6 @@ class CountingGame {
 
     async startGame() {
         console.log('Spiel wird gestartet...');
-        // Fullscreen aktivieren (falls vom Browser erlaubt)
-        try {
-            if (document.documentElement.requestFullscreen) {
-                await document.documentElement.requestFullscreen();
-            } else if (document.documentElement.webkitRequestFullscreen) {
-                await document.documentElement.webkitRequestFullscreen();
-            }
-        } catch(e) { /* Fullscreen nicht verfügbar oder abgelehnt — kein Problem */ }
         // Trail-Animation stoppen
         if (window._trailControl) window._trailControl.stop();
         // Verstecke Startscreen
@@ -577,11 +568,6 @@ class CountingGame {
         if (key.toLowerCase() === 'n') {
             e.preventDefault();
             this.toggleNumbers();
-            return;
-        }
-        if (key.toLowerCase() === 's') {
-            e.preventDefault();
-            this.toggleSound();
             return;
         }
         // Zahlentasten: Input-Lock beachten
@@ -726,16 +712,6 @@ class CountingGame {
         this.music.toggleMusic();
     }
 
-    toggleSound() {
-        this.soundEnabled = !this.soundEnabled;
-        this.speechEnabled = !this.speechEnabled;
-        const btn = document.getElementById('sound-toggle');
-        if (btn) {
-            btn.textContent = this.soundEnabled ? '🔊' : '🔇';
-            btn.title = this.soundEnabled ? 'Soundeffekte an/aus (S)' : 'Soundeffekte aus (S)';
-        }
-    }
-
     closeGame() {
         // Bestätigung nur wenn Fortschritt vorhanden
         if (this.state.level > 1) {
@@ -778,11 +754,6 @@ class CountingGame {
     }
 
     _doCloseGame() {
-        // Fullscreen beenden
-        try {
-            if (document.fullscreenElement) document.exitFullscreen();
-            else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
-        } catch(e) {}
         // Stoppe Hintergrundmusik
         this.music.stopBackgroundMusic();
 
@@ -960,7 +931,6 @@ class CountingGame {
             'next-level-btn',
             'music-toggle',
             'tracklist-toggle',
-            'sound-toggle',
             'close-btn',
             'numbers-toggle',
             'prev-track',

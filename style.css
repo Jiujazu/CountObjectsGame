@@ -1135,13 +1135,14 @@ html, body {
 }
 
 .letter-display .letter-word {
-    font-size: 1.8rem;
+    font-size: 4.5rem;
     font-weight: 700;
     color: #666;
+    letter-spacing: 0.05em;
     font-family: 'Roboto', 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     animation: objectAppear 0.5s ease-out 0.3s both;
     text-transform: uppercase;
-    min-height: 1.8rem;
+    min-height: 4.5rem;
 }
 
 .letter-display .letter-word.hidden {
@@ -1251,7 +1252,7 @@ html, body {
 @media (max-width: 480px) {
     .letter-display .letter-big { font-size: 7rem; }
     .letter-display .letter-emoji { font-size: 10.5rem; }
-    .letter-display .letter-word { font-size: 1.3rem; }
+    .letter-display .letter-word { font-size: 3rem; min-height: 3rem; }
     .letter-keyboard {
         grid-template-columns: repeat(7, 1fr);
         gap: 5px;

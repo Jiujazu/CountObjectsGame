@@ -138,14 +138,6 @@ class LetterGame {
     }
 
     async startGame() {
-        // Fullscreen
-        try {
-            if (document.documentElement.requestFullscreen) {
-                await document.documentElement.requestFullscreen();
-            } else if (document.documentElement.webkitRequestFullscreen) {
-                await document.documentElement.webkitRequestFullscreen();
-            }
-        } catch(e) {}
         // Trail-Animation stoppen
         if (window._trailControl) window._trailControl.stop();
         // Startscreen verstecken
@@ -196,7 +188,6 @@ class LetterGame {
             { id: 'letter-close-btn', fn: () => this.closeGame() },
             { id: 'letter-music-toggle', fn: () => this.music.toggleMusic() },
             { id: 'letter-tracklist-toggle', fn: () => this.music.showOverlay() },
-            { id: 'letter-sound-toggle', fn: () => this._toggleSound() },
             { id: 'letter-prev-track', fn: () => this.music.prevTrack() },
             { id: 'letter-next-track', fn: () => this.music.nextTrack() },
             { id: 'letter-hint-btn', fn: () => this._showHint() },
@@ -220,7 +211,7 @@ class LetterGame {
             this._keydownHandler = null;
         }
         const ids = ['letter-close-btn', 'letter-music-toggle', 'letter-tracklist-toggle',
-                     'letter-sound-toggle', 'letter-prev-track', 'letter-next-track', 'letter-hint-btn'];
+                     'letter-prev-track', 'letter-next-track', 'letter-hint-btn'];
         ids.forEach(id => {
             const el = document.getElementById(id);
             if (el && el._clickHandler) {
@@ -379,15 +370,6 @@ class LetterGame {
             star.className = 'star' + (i < earnedStars ? ' earned' : '');
             star.textContent = '\u2B50';
             container.appendChild(star);
-        }
-    }
-
-    _toggleSound() {
-        this.soundEnabled = !this.soundEnabled;
-        this.speechEnabled = !this.speechEnabled;
-        const btn = document.getElementById('letter-sound-toggle');
-        if (btn) {
-            btn.textContent = this.soundEnabled ? '\uD83D\uDD0A' : '\uD83D\uDD07';
         }
     }
 
@@ -659,11 +641,6 @@ class LetterGame {
         document.querySelectorAll('.letter-key').forEach(k => k.classList.remove('hint-flash', 'correct', 'wrong'));
         const hint = document.getElementById('big-key-hint');
         if (hint) hint.classList.remove('show');
-        // Fullscreen beenden
-        try {
-            if (document.fullscreenElement) document.exitFullscreen();
-            else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
-        } catch(e) {}
         this.music.stopBackgroundMusic();
         // Puzzle zuruecksetzen
         this.puzzle.currentPuzzle = 0;
