@@ -118,6 +118,17 @@ class TTSManager {
 // Laedt das Modell beim ersten Start von Hugging Face (~63MB) und cached es
 // via OPFS. Bis das Modell bereit ist oder falls etwas scheitert, wird
 // transparent auf den SpeechSynthesis-TTSManager zurueckgefallen.
+
+// Google Chirp 3 HD Stimmen fuer de-DE. Namen nach Mond/Stern-Konvention.
+const GOOGLE_CHIRP_VOICES = [
+    { id: 'de-DE-Chirp3-HD-Leda',    label: 'Leda (weiblich, warm)' },
+    { id: 'de-DE-Chirp3-HD-Aoede',   label: 'Aoede (weiblich, klar)' },
+    { id: 'de-DE-Chirp3-HD-Kore',    label: 'Kore (weiblich, freundlich)' },
+    { id: 'de-DE-Chirp3-HD-Charon',  label: 'Charon (männlich, ruhig)' },
+    { id: 'de-DE-Chirp3-HD-Puck',    label: 'Puck (männlich, energisch)' },
+    { id: 'de-DE-Chirp3-HD-Orus',    label: 'Orus (männlich, sonor)' },
+];
+
 class PiperTTSManager {
     static _shared = null;
     static getShared(voiceId = 'de_DE-thorsten-medium') {

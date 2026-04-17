@@ -388,6 +388,15 @@ class CountingGame {
         indicator.addEventListener('touchend', cancelPress);
     }
 
+    _buildVoiceOptions(current) {
+        const opts = GOOGLE_CHIRP_VOICES.map(v =>
+            `<option value="${v.id}" ${v.id === current ? 'selected' : ''}>${v.label}</option>`);
+        if (!GOOGLE_CHIRP_VOICES.find(v => v.id === current)) {
+            opts.unshift(`<option value="${current}" selected>${current} (eigene)</option>`);
+        }
+        return opts.join('');
+    }
+
     _showParentMenu() {
         const overlay = document.createElement('div');
         overlay.id = 'parent-menu-overlay';
@@ -468,7 +477,9 @@ class CountingGame {
                         </div>
                         <div class="parent-voice-google" id="parent-google-config" ${newBackend === 'google' ? '' : 'hidden'}>
                             <input type="password" id="parent-google-key" class="parent-text-input" placeholder="Google API-Key" value="${newGoogleKey}" autocomplete="off">
-                            <input type="text" id="parent-google-voice" class="parent-text-input" placeholder="Stimmen-Name" value="${newGoogleVoice}">
+                            <select id="parent-google-voice" class="parent-text-input">
+                                ${this._buildVoiceOptions(newGoogleVoice)}
+                            </select>
                             <button type="button" class="parent-btn parent-btn-secondary parent-btn-slim" id="parent-google-test">Testen</button>
                             <div class="parent-helper">
                                 Key auf <code>console.cloud.google.com</code> erstellen, „Text-to-Speech API" aktivieren. Key per HTTP-Referrer auf deine Domain beschränken. Wird nur im Browser gespeichert.
@@ -555,7 +566,7 @@ class CountingGame {
         const keyInput = document.getElementById('parent-google-key');
         const voiceInput = document.getElementById('parent-google-voice');
         keyInput.addEventListener('input', () => { newGoogleKey = keyInput.value.trim(); renderStatus(); });
-        voiceInput.addEventListener('input', () => { newGoogleVoice = voiceInput.value.trim() || 'de-DE-Chirp3-HD-Leda'; });
+        voiceInput.addEventListener('change', () => { newGoogleVoice = voiceInput.value || 'de-DE-Chirp3-HD-Leda'; });
         document.getElementById('parent-google-test').addEventListener('click', async () => {
             const saved = this.tts.backend;
             this.tts.setGoogleKey(newGoogleKey);

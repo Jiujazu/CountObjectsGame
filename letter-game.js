@@ -394,6 +394,15 @@ class LetterGame {
         indicator.addEventListener('touchend', cancelPress);
     }
 
+    _buildVoiceOptions(current) {
+        const opts = GOOGLE_CHIRP_VOICES.map(v =>
+            `<option value="${v.id}" ${v.id === current ? 'selected' : ''}>${v.label}</option>`);
+        if (!GOOGLE_CHIRP_VOICES.find(v => v.id === current)) {
+            opts.unshift(`<option value="${current}" selected>${current} (eigene)</option>`);
+        }
+        return opts.join('');
+    }
+
     _showParentMenu() {
         const overlay = document.createElement('div');
         overlay.id = 'letter-parent-menu-overlay';
@@ -512,7 +521,9 @@ class LetterGame {
                         </div>
                         <div class="parent-voice-google" id="lp-google-config" ${newBackend === 'google' ? '' : 'hidden'}>
                             <input type="password" id="lp-google-key" class="parent-text-input" placeholder="Google API-Key" value="${newGoogleKey}" autocomplete="off">
-                            <input type="text" id="lp-google-voice" class="parent-text-input" placeholder="Stimmen-Name" value="${newGoogleVoice}">
+                            <select id="lp-google-voice" class="parent-text-input">
+                                ${this._buildVoiceOptions(newGoogleVoice)}
+                            </select>
                             <button type="button" class="parent-btn parent-btn-secondary parent-btn-slim" id="lp-google-test">Testen</button>
                             <div class="parent-helper">
                                 Key auf <code>console.cloud.google.com</code> erstellen, „Text-to-Speech API" aktivieren. Key per HTTP-Referrer auf deine Domain beschränken, damit er nicht missbraucht werden kann. Wird nur im Browser gespeichert.
@@ -645,8 +656,8 @@ class LetterGame {
             newGoogleKey = keyInput.value.trim();
             renderStatus();
         });
-        voiceInput.addEventListener('input', () => {
-            newGoogleVoice = voiceInput.value.trim() || 'de-DE-Chirp3-HD-Leda';
+        voiceInput.addEventListener('change', () => {
+            newGoogleVoice = voiceInput.value || 'de-DE-Chirp3-HD-Leda';
         });
 
         document.getElementById('lp-google-test').addEventListener('click', async () => {

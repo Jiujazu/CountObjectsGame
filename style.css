@@ -1575,6 +1575,14 @@ html, body {
     outline: none;
     border-color: #6AD1E3;
 }
+select.parent-text-input {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238a8fa3' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+    cursor: pointer;
+}
 
 @media (max-width: 480px) {
     .parent-panel-header { padding: 18px 20px 12px; }
