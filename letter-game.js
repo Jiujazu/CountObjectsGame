@@ -1,8 +1,10 @@
 // === letter-game.js: Buchstabenspiel (nutzt shared.js) ===
 
 // Deutsche Anlauttabelle: Buchstabe -> Emoji + Wort
+// Wortwahl kindgerecht: kurze, bekannte Substantive; lange Vokale vor Plosiven,
+// damit der Anlaut nicht vom Folgekonsonanten ueberdeckt wird.
 const ANLAUT_TABLE = {
-    'A': { emoji: '🐒', word: 'Affe' },
+    'A': { emoji: '🐜', word: 'Ameise' },
     'B': { emoji: '🐻', word: 'Bär' },
     'C': { emoji: '🤡', word: 'Clown' },
     'D': { emoji: '🐬', word: 'Delfin' },
@@ -15,8 +17,8 @@ const ANLAUT_TABLE = {
     'K': { emoji: '🐱', word: 'Katze' },
     'L': { emoji: '🦁', word: 'Löwe' },
     'M': { emoji: '🐭', word: 'Maus' },
-    'N': { emoji: '🦏', word: 'Nashorn' },
-    'O': { emoji: '🦦', word: 'Otter' },
+    'N': { emoji: '👃', word: 'Nase' },
+    'O': { emoji: '👂', word: 'Ohr' },
     'P': { emoji: '🐧', word: 'Pinguin' },
     'Q': { emoji: '🪼', word: 'Qualle' },
     'R': { emoji: '🚀', word: 'Rakete' },
@@ -28,43 +30,71 @@ const ANLAUT_TABLE = {
     'X': { emoji: '🎸', word: 'Xylophon' },
     'Y': { emoji: '🧘', word: 'Yoga' },
     'Z': { emoji: '🦓', word: 'Zebra' },
-    'Ä': { emoji: '🌾', word: 'Ähre' },
+    'Ä': { emoji: '🍏', word: 'Äpfel' },
     'Ö': { emoji: '🛢️', word: 'Öl' },
     'Ü': { emoji: '🎁', word: 'Überraschung' }
 };
 
 const ALL_LETTERS = Object.keys(ANLAUT_TABLE);
 
+// Tier-basierte Presets nach Schwierigkeit fuer 3-4jaehrige (siehe UX-Review):
+// - Starter (Tier 1): eindeutige, haeufige Konsonanten + klare Laute
+// - Leicht (Tier 1+2): + einfache Vokale (Default fuer Erstkontakt)
+// - Kern (Tier 1-3): + stimmhaft/stimmlos-Paare, E, Z, J
+// - Komplett: alle 29 inkl. Homophon-Buchstaben (C/V/Y/Q/X) und Umlaute
+const LETTER_PRESETS = {
+    'Starter': ['F','H','K','L','M','N','P','R','T','W'],
+    'Leicht':  ['A','F','H','I','K','L','M','N','O','P','R','S','T','U','W'],
+    'Kern':    ['A','B','D','E','F','G','H','I','J','K','L','M','N','O','P','R','S','T','U','W','Z'],
+    'Komplett': [...ALL_LETTERS],
+};
+const DEFAULT_PRESET = 'Leicht';
+
+const IS_TOUCH_DEVICE = (typeof window !== 'undefined') &&
+    (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+
+// Zentrale Timing-Konstanten (statt Magic Numbers verstreut im Code)
+const TIMING = {
+    NEXT_CHALLENGE_MS: 1200,   // Pause nach richtiger Antwort bevor naechster Buchstabe kommt
+    WRONG_RESET_MS: 800,       // Rote Markierung des Falsch-Tipps sichtbar lassen
+    HINT_SHOW_MS: 2000,        // Grosser Buchstaben-Hint fadet nach dieser Zeit
+    START_TRANSITION_MS: 600,  // Startscreen -> Spiel Fade-Dauer
+    STATUS_POLL_MS: 500,       // Eltern-Menue: TTS-Status-Refresh
+};
+
 // Lautier-Mapping (Silbenmethode): Buchstabe -> Text, den TTS als Laut spricht.
 // Vokale klingen ohnehin wie ihr Laut. Plosive (B/D/G/K/P/T) brauchen einen
 // Kurzvokal-Anker, sonst nicht isoliert sprechbar. Dauerlaute werden verlaengert.
+// Fuer C/V/Y/Q wird bewusst der Buchstaben-Name statt des Phonems verwendet,
+// weil ihre Phoneme mit K/F/J kollidieren wuerden. Das Kind soll beim Hint
+// nicht dieselbe Lautfolge hoeren wie beim falschen Buchstaben.
 const LAUTIERT_MAP = {
     'A': 'A',
     'B': 'Buh',
-    'C': 'Kuh',   // C wie in Clown = [k]
+    'C': 'Zeh',    // Buchstaben-Name [tseː] - Phonem [k] wuerde mit K kollidieren
     'D': 'Duh',
     'E': 'E',
     'F': 'Fff',
     'G': 'Guh',
     'H': 'Ha',
     'I': 'I',
-    'J': 'Ja',    // J wie in Jojo = [j]
+    'J': 'Ja',     // J wie in Jojo = [j] - Y nutzt 'Ypsilon', daher keine Kollision
     'K': 'Kuh',
     'L': 'Lll',
     'M': 'Mmm',
     'N': 'Nnn',
     'O': 'O',
     'P': 'Puh',
-    'Q': 'Ku',    // Qu wie in Qualle = [kv], meist einfach [k]
+    'Q': 'Kuh',    // Q fast nur in Qu-Kombi [kv] - fuer Kind wie K anfuehlen
     'R': 'Rrr',
     'S': 'Sss',
     'T': 'Tuh',
     'U': 'U',
-    'V': 'Fff',   // V wie in Vogel = [f]
-    'W': 'Www',   // W = [v]
+    'V': 'Vau',    // Buchstaben-Name [faʊ̯] - Phonem [f] wuerde mit F kollidieren
+    'W': 'Www',
     'X': 'Iks',
-    'Y': 'Ja',    // Y wie in Yoga = [j]
-    'Z': 'Tsss',  // Z = [ts]
+    'Y': 'Ypsilon', // Buchstaben-Name - Phonem [j] wuerde mit J/Jot kollidieren
+    'Z': 'Tsss',
     'Ä': 'Ä',
     'Ö': 'Ö',
     'Ü': 'Ü',
@@ -116,10 +146,20 @@ class LetterGame {
             currentLetter: '',
             wrongStreak: 0,
             isProcessing: false,
-            activeLetters: [...ALL_LETTERS], // Eltern-Presets koennen das aendern
-            showVirtualKeyboard: false, // Kind soll physische Tastatur lernen; im Eltern-Menue umschaltbar
-            showWord: false, // Wort als Spoiler ausblenden; wird bei richtiger Antwort eingeblendet
-            lautierEnabled: localStorage.getItem('letter-lautiert') === 'true', // Silbenmethode: TTS spricht Laut statt Buchstabenname
+            activeLetters: LetterGame._loadActiveLetters(),
+            // Virtuelle Tastatur: auf Touch-Geraeten standardmaessig AN (sonst keine Eingabe moeglich),
+            // am Desktop AUS (physische Tastatur verfuegbar). Elternmenue ueberschreibt das persistent.
+            // Touch-Geraete brauchen die virtuelle Tastatur IMMER (ohne sie gibt
+             // es keine Eingabemoeglichkeit). Gespeicherten "false"-Wert daher
+             // dort ignorieren - sonst erbt das Handy eine Desktop-Einstellung
+             // und das Kind sieht keine Eingabe.
+            showVirtualKeyboard: IS_TOUCH_DEVICE ? true : LetterGame._loadFlag('letter-vkb', false),
+            // Wort als Spoiler ausblenden; wird bei richtiger Antwort eingeblendet.
+            // Persistiert, damit Eltern-Einstellung nach Reload erhalten bleibt.
+            showWord: LetterGame._loadFlag('letter-showword', false),
+            // Silbenmethode standardmaessig AN: Vorschulkinder lernen Buchstaben ueber Laute ("Buh"),
+            // nicht ueber Namen ("Be"). Nur AUS, wenn Eltern explizit deaktivieren.
+            lautierEnabled: LetterGame._loadFlag('letter-lautiert', true),
         };
         this.soundEnabled = true;
         this.speechEnabled = true;
@@ -130,6 +170,28 @@ class LetterGame {
         this._eventsBound = false;
         this._pendingTimeouts = new Set();
         this._parentMenuCleanup = null;
+        // Sammelt Long-Press-Listener, damit _unbindGameEvents sie wieder
+        // entfernen kann. Sonst wuerden sich beim erneuten Oeffnen des Spiels
+        // Listener auf Level-Indikator und Zahnrad-Button vervielfachen.
+        this._parentMenuBindings = [];
+    }
+
+    static _loadFlag(key, defaultValue) {
+        const saved = localStorage.getItem(key);
+        if (saved === null) return defaultValue;
+        return saved === 'true';
+    }
+
+    static _loadActiveLetters() {
+        const saved = localStorage.getItem('letter-active');
+        if (saved) {
+            try {
+                const arr = JSON.parse(saved);
+                const valid = Array.isArray(arr) && arr.every(l => ALL_LETTERS.includes(l));
+                if (valid && arr.length >= 2) return arr;
+            } catch (e) { /* fallthrough to default */ }
+        }
+        return [...LETTER_PRESETS[DEFAULT_PRESET]];
     }
 
     _setTimeout(fn, ms) {
@@ -153,7 +215,7 @@ class LetterGame {
         setTimeout(() => {
             this.startGame();
             startscreen.classList.remove('hide');
-        }, 600);
+        }, TIMING.START_TRANSITION_MS);
     }
 
     init() {
@@ -226,6 +288,7 @@ class LetterGame {
             { id: 'letter-tracklist-toggle', fn: () => this.music.showOverlay() },
             { id: 'letter-prev-track', fn: () => this.music.prevTrack() },
             { id: 'letter-next-track', fn: () => this.music.nextTrack() },
+            { id: 'letter-replay-btn', fn: () => this._speakInstruction() },
             { id: 'letter-hint-btn', fn: () => this._showHint() },
         ];
         controls.forEach(({ id, fn }) => {
@@ -247,13 +310,14 @@ class LetterGame {
             this._keydownHandler = null;
         }
         const ids = ['letter-close-btn', 'letter-music-toggle', 'letter-tracklist-toggle',
-                     'letter-prev-track', 'letter-next-track', 'letter-hint-btn'];
+                     'letter-prev-track', 'letter-next-track', 'letter-replay-btn', 'letter-hint-btn'];
         ids.forEach(id => {
             const el = document.getElementById(id);
             if (el && el._clickHandler) {
                 el.removeEventListener('click', el._clickHandler);
             }
         });
+        this._teardownParentMenu();
     }
 
     async _createChallenge() {
@@ -324,7 +388,7 @@ class LetterGame {
                 this._updateLevelIndicator();
                 this._updateStars();
                 await this._createChallenge();
-            }, 1200);
+            }, TIMING.NEXT_CHALLENGE_MS);
         } else {
             // Falsch
             this.state.wrongStreak++;
@@ -332,21 +396,23 @@ class LetterGame {
             const key = document.querySelector(`.letter-key[data-letter="${letter}"]`);
             if (key) key.classList.add('wrong');
             if (this.soundEnabled) SharedAudio.playWrongSound();
-            document.body.classList.add('flash-wrong');
+            // Kein Full-Screen-Pink-Flash: fuer sensible Kinder zu abschreckend.
+            // Slot und Key werden ohnehin rot markiert - das reicht als visuelles Feedback.
             this._setTimeout(() => {
                 slot.classList.remove('wrong', 'filled');
                 slot.textContent = '';
-                document.body.classList.remove('flash-wrong');
                 if (key) key.classList.remove('wrong');
-            }, 800);
+            }, TIMING.WRONG_RESET_MS);
             if (this.speechEnabled) {
                 await this.tts.speak(_pickTTS('wrong', {}));
-                // Phrasen wie "Hör nochmal gut hin!" brauchen eine Wiederholung
-                if (this.state.wrongStreak < 3) {
+                // Phrasen wie "Hör nochmal gut hin!" brauchen eine Wiederholung,
+                // solange wir noch nicht beim Hint sind.
+                if (this.state.wrongStreak < 2) {
                     await this._speakInstruction();
                 }
             }
-            if (this.state.wrongStreak >= 3) {
+            // 3-4jaehrige brechen nach 2 Fehlversuchen emotional ab, nicht erst nach 3.
+            if (this.state.wrongStreak >= 2) {
                 this.state.wrongStreak = 0;
                 this._showHint();
             }
@@ -375,9 +441,8 @@ class LetterGame {
     _showHint() {
         const letter = this.state.currentLetter;
         const entry = ANLAUT_TABLE[letter];
-        // Bei Hinweis immer das Wort zeigen (haeufige Fehlversuche → volle Unterstuetzung)
-        const wordEl = document.querySelector('.letter-word');
-        if (wordEl) wordEl.classList.remove('hidden');
+        // Wort NICHT automatisch einblenden: Pre-Reader kann es nicht lesen,
+        // und der visuelle Gross-Buchstaben-Hint + die TTS-Ansage reichen.
         // TTS Hinweis nur wenn Sprache aktiviert
         if (this.speechEnabled) {
             this.tts.speak(_pickTTS('hint', { word: entry.word, letter: this._letterForSpeech(letter) }));
@@ -392,9 +457,9 @@ class LetterGame {
         // Grossen Buchstaben anzeigen
         const hint = document.getElementById('big-key-hint');
         if (hint) {
-            hint.innerHTML = `<span style="color:rgba(106,209,227,0.6);">${letter}</span>`;
+            hint.innerHTML = `<span class="hint-letter">${letter}</span>`;
             hint.classList.add('show');
-            this._setTimeout(() => hint.classList.remove('show'), 2000);
+            this._setTimeout(() => hint.classList.remove('show'), TIMING.HINT_SHOW_MS);
         }
     }
 
@@ -418,21 +483,28 @@ class LetterGame {
     }
 
     _initParentMenu() {
-        const indicator = document.getElementById('letter-level-indicator');
-        if (!indicator) return;
-        let pressTimer = null;
-        indicator.style.cursor = 'pointer';
-        const startPress = () => {
-            pressTimer = setTimeout(() => this._showParentMenu(), 800);
-        };
-        const cancelPress = () => {
-            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-        };
-        indicator.addEventListener('mousedown', startPress);
-        indicator.addEventListener('mouseup', cancelPress);
-        indicator.addEventListener('mouseleave', cancelPress);
-        indicator.addEventListener('touchstart', startPress, { passive: true });
-        indicator.addEventListener('touchend', cancelPress);
+        // Einfacher Tap auf Level-Anzeige ODER Zahnrad-Button oeffnet das Eltern-Menue.
+        // Beide Targets sind fuer ein 3-4jaehriges Kind uninteressant (eine Zahl und
+        // ein Zahnrad), und das Menue selbst ist rein textbasiert - Nichtleser
+        // kommen nicht an die Einstellungen. Versehentliche Oeffnungen sind
+        // schnell ueber "Abbrechen" zurueckzunehmen.
+        const targets = [
+            document.getElementById('letter-level-indicator'),
+            document.getElementById('letter-parent-btn'),
+        ].filter(Boolean);
+        targets.forEach(el => {
+            el.style.cursor = 'pointer';
+            const onTap = () => this._showParentMenu();
+            el.addEventListener('click', onTap);
+            this._parentMenuBindings.push({ el, onTap });
+        });
+    }
+
+    _teardownParentMenu() {
+        this._parentMenuBindings.forEach(({ el, onTap }) => {
+            el.removeEventListener('click', onTap);
+        });
+        this._parentMenuBindings = [];
     }
 
     _buildVoiceOptions(current) {
@@ -451,12 +523,16 @@ class LetterGame {
         const panel = document.createElement('div');
         panel.className = 'parent-panel';
 
+        // Presets nach Schwierigkeit (Anlauttabellen-UX-Review). Die Default-
+        // Reihenfolge entspricht den Tiers aus dem Review: je weiter rechts,
+        // desto mehr homophone/seltene Buchstaben enthalten.
         const presets = {
-            'Alle': ALL_LETTERS,
-            'Einfach (A-M)': ALL_LETTERS.slice(0, 13),
+            'Starter': LETTER_PRESETS['Starter'],
+            'Leicht': LETTER_PRESETS['Leicht'],
+            'Kern': LETTER_PRESETS['Kern'],
+            'Komplett': LETTER_PRESETS['Komplett'],
             'Vokale': ['A', 'E', 'I', 'O', 'U'],
             'Umlaute': ['Ä', 'Ö', 'Ü'],
-            'Erste 10': ALL_LETTERS.slice(0, 10),
         };
         let selectedLetters = [...this.state.activeLetters];
         let newShowVirtualKeyboard = this.state.showVirtualKeyboard;
@@ -481,7 +557,7 @@ class LetterGame {
         panel.innerHTML = `
             <div class="parent-panel-header">
                 <h2 class="parent-panel-title">⚙️ Eltern-Einstellungen</h2>
-                <div class="parent-panel-subtitle">Lange auf die Level-Zahl drücken zum Öffnen.</div>
+                <div class="parent-panel-subtitle">Tipp auf die Level-Zahl oder das Zahnrad zum Öffnen.</div>
             </div>
             <div class="parent-panel-body">
                 <section class="parent-section">
@@ -662,7 +738,7 @@ class LetterGame {
             else statusEl.textContent = '○ Initialisiert …';
         };
         renderStatus();
-        const statusTimer = setInterval(renderStatus, 500);
+        const statusTimer = setInterval(renderStatus, TIMING.STATUS_POLL_MS);
 
         const cleanup = () => {
             clearInterval(statusTimer);
@@ -724,13 +800,16 @@ class LetterGame {
         });
 
         document.getElementById('lp-apply').addEventListener('click', () => {
-            if (selectedLetters.length < 2) selectedLetters = [...ALL_LETTERS];
+            if (selectedLetters.length < 2) selectedLetters = [...LETTER_PRESETS[DEFAULT_PRESET]];
             this.state.activeLetters = selectedLetters;
             this.state.level = newLevel;
             this.state.showVirtualKeyboard = newShowVirtualKeyboard;
             this.state.showWord = newShowWord;
             this.state.lautierEnabled = newLautierEnabled;
             localStorage.setItem('letter-lautiert', newLautierEnabled ? 'true' : 'false');
+            localStorage.setItem('letter-vkb', newShowVirtualKeyboard ? 'true' : 'false');
+            localStorage.setItem('letter-showword', newShowWord ? 'true' : 'false');
+            localStorage.setItem('letter-active', JSON.stringify(selectedLetters));
             this.tts.setGoogleKey(newGoogleKey);
             this.tts.setGoogleVoice(newGoogleVoice);
             this.tts.setBackend(newBackend);
@@ -745,28 +824,33 @@ class LetterGame {
     }
 
     closeGame() {
-        if (this.state.level > 1) {
-            this._showCloseConfirmation();
-            return;
-        }
-        this._doClose();
+        // Immer Bestaetigung zeigen - auch in Level 1 koennte ein Kind versehentlich
+        // das X getroffen haben. Dank Audio-Dialog muss es nichts lesen koennen.
+        this._showCloseConfirmation();
     }
 
     _showCloseConfirmation() {
+        // Nicht-Leser: grosse Emoji-Buttons (gruener Pfeil weiterspielen, rotes Stop aufhoeren)
+        // plus gesprochene Frage - der Text bleibt fuer Eltern sichtbar, ist aber nicht
+        // die primaere Informationsquelle.
         const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        overlay.className = 'close-confirm-overlay';
         const dialog = document.createElement('div');
-        dialog.style.cssText = 'background:#fff;border-radius:24px;padding:32px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.2);max-width:320px;';
+        dialog.className = 'close-confirm-dialog';
         dialog.innerHTML = `
-            <div style="font-size:2.5rem;margin-bottom:16px;">\uD83D\uDED1</div>
-            <div style="font-size:1.2rem;font-weight:700;color:#232946;margin-bottom:24px;">Spiel wirklich beenden?</div>
-            <div style="display:flex;gap:16px;justify-content:center;">
-                <button id="letter-close-yes" style="background:#FF6F91;color:#fff;border:none;border-radius:14px;padding:12px 28px;font-size:1.1rem;font-weight:700;cursor:pointer;">Ja</button>
-                <button id="letter-close-no" style="background:#6AD1E3;color:#fff;border:none;border-radius:14px;padding:12px 28px;font-size:1.1rem;font-weight:700;cursor:pointer;">Nein</button>
+            <div class="close-confirm-emoji">\uD83E\uDD14</div>
+            <div class="close-confirm-text">Weiterspielen oder aufhören?</div>
+            <div class="close-confirm-actions">
+                <button id="letter-close-no" class="close-confirm-btn continue" title="Weiterspielen" aria-label="Weiterspielen">\u25B6\uFE0F</button>
+                <button id="letter-close-yes" class="close-confirm-btn stop" title="Aufhören" aria-label="Aufhören">\uD83D\uDED1</button>
             </div>
         `;
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
+        // Frage vorlesen, damit das Kind ohne Lesen entscheiden kann
+        if (this.speechEnabled && this.tts) {
+            this.tts.speak('Möchtest du weiterspielen oder aufhören?');
+        }
         const cleanup = () => {
             overlay.remove();
             document.removeEventListener('keydown', kh);

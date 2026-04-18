@@ -106,7 +106,9 @@ class TTSManager {
     _speakNow(text, onEnd = null) {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'de-DE';
-        utterance.rate = 0.8;
+        // Langsamer fuer Vorschulkinder: kuerzere Hoer-Pausen, damit der
+        // Anfangslaut noch im Gedaechtnis ist, wenn die Frage endet.
+        utterance.rate = 0.75;
         utterance.pitch = 1.1;
         utterance.onend = () => { if (onEnd) onEnd(); };
         utterance.onerror = () => { window.speechSynthesis.cancel(); if (onEnd) onEnd(); };
@@ -213,6 +215,10 @@ class PiperTTSManager {
             ]);
             const url = URL.createObjectURL(wav);
             const audio = new Audio(url);
+            // Piper-Thorsten spricht fuer Vorschulkinder etwas zu schnell.
+            // preservesPitch verhindert den Chipmunk-Effekt beim Verlangsamen.
+            audio.preservesPitch = true;
+            audio.playbackRate = 0.9;
             this._currentAudio = audio;
             return new Promise((resolve) => {
                 const cleanup = () => { URL.revokeObjectURL(url); this._currentAudio = null; resolve(); };
@@ -235,7 +241,7 @@ class PiperTTSManager {
                 body: JSON.stringify({
                     input: { text },
                     voice: { languageCode: 'de-DE', name: this.googleVoice },
-                    audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95, pitch: 0 }
+                    audioConfig: { audioEncoding: 'MP3', speakingRate: 0.85, pitch: 0 }
                 })
             });
             if (!res.ok) {
@@ -248,6 +254,7 @@ class PiperTTSManager {
             if (!data.audioContent) { this.googleStatus = 'error'; return this.fallback.speak(text); }
             this.googleStatus = 'ready';
             const audio = new Audio('data:audio/mp3;base64,' + data.audioContent);
+            audio.preservesPitch = true;
             this._currentAudio = audio;
             return new Promise((resolve) => {
                 const cleanup = () => { this._currentAudio = null; resolve(); };
@@ -691,6 +698,12 @@ class PuzzleManager {
                 0% { opacity: 0; transform: scale(0); }
                 50% { opacity: 1; transform: scale(1.2); }
                 100% { opacity: 0; transform: scale(2); }
+            }
+            /* Hochkant-Handys haben zu wenig Platz fuer das Puzzle - es
+               ueberdeckt Tastatur und Controls. Puzzle ist nur Belohnung,
+               nicht Kernfunktion; deshalb dort ausblenden. */
+            @media (max-width: 700px), (orientation: portrait) and (max-width: 900px) {
+                .puzzle-container { display: none !important; }
             }
         `;
         document.head.appendChild(style);
