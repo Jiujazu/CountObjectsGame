@@ -243,7 +243,7 @@ class LetterGame {
         startscreen.style.display = 'none';
         startscreen.style.pointerEvents = 'none';
         // Buchstabenspiel anzeigen
-        document.getElementById('letter-game-container').style.display = 'block';
+        document.getElementById('letter-game-container').style.display = '';
         // Puzzle zeigen
         this.puzzle.show();
         // On-Screen Keyboard aufbauen
