@@ -1826,3 +1826,143 @@ select.parent-text-input {
     /* Toggles: groesserer Tap-Bereich */
     .parent-toggle { padding: 8px 0; }
 }
+
+/* === Mobile Top/Bottom-Bar-Architektur =====================================
+   Ziel: Auf Handys klemmen alle schwebenden UI-Elemente (Schliessen, Level,
+   Sterne, Zahnrad; Musik-/Replay-/Tipp-Buttons) auf feste Balken oben & unten.
+   Das Spielfeld dazwischen passt sich dynamisch an die verbleibende Hoehe an,
+   statt dass Elemente das Keyboard/die Zahlen ueberlappen.
+   Dieses Block ueberschreibt die aelteren Mobile-Regeln (spaetere Quelle ->
+   hoehere Kaskadenprioritaet), damit die alten :top:x;right:x;-Werte neutral
+   gesetzt werden koennen. */
+@media (max-width: 700px) {
+    /* Top-Bar- und Bottom-Bar-Hintergrund via Pseudo-Elementen. Sie werden
+       nur gerendert, wenn der jeweilige Container sichtbar ist (display:none
+       unterdrueckt auch Pseudos). */
+    #letter-game-container::before,
+    #game-container::before {
+        content: '';
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        height: 64px;
+        background: #fff;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+        z-index: 50;
+        pointer-events: none;
+    }
+    #letter-game-container::after,
+    #game-container::after {
+        content: '';
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        height: 56px;
+        background: #fff;
+        box-shadow: 0 -1px 6px rgba(0,0,0,0.08);
+        z-index: 50;
+        pointer-events: none;
+    }
+
+    /* Schliessen-Button in der Top-Bar */
+    .close-button {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        width: 44px;
+        height: 44px;
+        font-size: 1.5rem;
+        z-index: 55;
+    }
+
+    /* Eltern-Zahnrad links vom Level-Block */
+    .parent-discover-btn {
+        position: fixed;
+        top: 16px;
+        left: auto;
+        right: 96px;
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+        z-index: 55;
+    }
+
+    /* Level-Block oben rechts, kompakt */
+    .level-label {
+        position: fixed;
+        top: 6px;
+        right: 14px;
+        font-size: 0.7rem;
+        width: auto;
+        text-align: right;
+        z-index: 55;
+    }
+    .level-indicator {
+        position: fixed;
+        top: 18px;
+        right: 14px;
+        width: auto;
+        height: auto;
+        padding: 0;
+        font-size: 1.4rem;
+        line-height: 1;
+        z-index: 55;
+    }
+    .star-progress {
+        position: fixed;
+        top: 42px;
+        right: 14px;
+        max-width: none;
+        flex-wrap: nowrap;
+        gap: 1px;
+        z-index: 55;
+    }
+    .star-progress .star { font-size: 0.7rem; }
+
+    /* Bottom-Controls fest in der Bottom-Bar zentriert */
+    .controls-bottom-left {
+        position: fixed;
+        left: 50%;
+        right: auto;
+        bottom: 8px;
+        transform: translateX(-50%);
+        gap: 6px;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+        max-width: calc(100vw - 20px);
+        background: none;
+        box-shadow: none;
+        z-index: 55;
+    }
+    .controls-bottom-left .game-button.small {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        min-height: 40px;
+        font-size: 1.3rem;
+        border-radius: 10px;
+    }
+    .controls-bottom-left #numbers-toggle { margin-left: 4px; }
+
+    /* Spiel-Container: reservierter Platz fuer Top- und Bottom-Bar.
+       Inhalt fliesst dynamisch dazwischen; scrollt, falls das Keyboard
+       (z. B. Komplett-Preset mit 29 Buchstaben) nicht in die Hoehe passt. */
+    #letter-game-container,
+    #game-container {
+        padding-top: 72px;
+        padding-bottom: 68px;
+        min-height: 100vh;
+        box-sizing: border-box;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    /* Content kompakt ausrichten (Bar-Padding uebernimmt die Abstaende). */
+    .objects-display {
+        padding: 8px 0 8px 0;
+        min-height: 0;
+    }
+    .letter-display {
+        padding: 8px 0 4px 0;
+        min-height: 0;
+    }
+    .game-area { padding: 0 8px; }
+}
