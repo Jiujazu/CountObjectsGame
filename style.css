@@ -277,6 +277,29 @@ body {
     font-size: 2.2rem;
 }
 
+/* Bottom-Controls auf Handys: 6 Buttons (Buchstabenspiel) oder 5 (Zahlen)
+   a 54px + Gaps passen nicht auf 360px Screens. Wir verkleinern sie auf
+   44px (Apple-Touch-Minimum) und reduzieren den Gap, und zentrieren sie. */
+@media (max-width: 600px) {
+    .controls-bottom-left {
+        left: 50%;
+        transform: translateX(-50%);
+        gap: 6px;
+        bottom: 12px;
+    }
+    .controls-bottom-left .game-button.small {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 1.5rem;
+        border-radius: 12px;
+    }
+    .controls-bottom-left #numbers-toggle {
+        margin-left: 6px;
+    }
+}
+
 .celebration {
     position: fixed;
     top: 0;
@@ -496,10 +519,10 @@ body {
     transform: scale(0.97);
 }
 
-/* Dezenter Zahnrad-Button fuer Eltern-Einstellungen. Absichtlich transparent,
-   damit er Kindern nicht auffaellt, aber fuer Eltern auffindbar ist.
-   Links neben dem Level-Indikator (der 80px breit ist + 24px right), um
-   Ueberlappung auf schmalen Handys zu vermeiden. */
+/* Zahnrad-Button fuer Eltern-Einstellungen. Links neben dem Level-Indikator,
+   um Ueberlappung auf schmalen Handys zu vermeiden. Einfacher Tap oeffnet
+   das Eltern-Menue - die Einstellungen sind rein textbasiert, Nichtleser
+   koennen daraus nichts kaputtmachen. */
 .parent-discover-btn {
     position: absolute;
     top: 36px;
@@ -511,7 +534,7 @@ body {
     border-radius: 50%;
     font-size: 1.3rem;
     cursor: pointer;
-    opacity: 0.22;
+    opacity: 0.45;
     transition: opacity 0.18s, transform 0.18s, background 0.18s;
     z-index: 11;
     user-select: none;
@@ -524,7 +547,7 @@ body {
 
 .parent-discover-btn:hover,
 .parent-discover-btn:focus {
-    opacity: 0.9;
+    opacity: 1;
     background: rgba(255,255,255,0.6);
     outline: none;
 }
@@ -1690,8 +1713,32 @@ select.parent-text-input {
 }
 
 @media (max-width: 480px) {
-    .parent-panel-header { padding: 18px 20px 12px; }
-    .parent-panel-body { padding: 14px 20px; gap: 16px; }
-    .parent-panel-footer { padding: 12px 20px 14px; }
+    .parent-overlay { padding: 8px; }
+    .parent-panel {
+        max-height: 94vh;
+        border-radius: 18px;
+    }
+    .parent-panel-header { padding: 16px 18px 10px; }
+    .parent-panel-body { padding: 14px 18px; gap: 14px; }
+    .parent-panel-footer {
+        padding: 12px 18px 14px;
+        gap: 8px;
+        flex-direction: column-reverse;
+    }
+    .parent-panel-footer .parent-btn {
+        width: 100%;
+        padding: 14px 20px;
+        font-size: 1rem;
+    }
     .parent-panel-title { font-size: 1.2rem; }
+    /* Groessere Touch-Targets fuer Stepper (44px Apple-Mindestmass) */
+    .parent-stepper button { width: 44px; height: 44px; font-size: 1.4rem; }
+    .parent-stepper-value { font-size: 1.3rem; }
+    /* Presets bekommen etwas mehr Hoehe, damit sie gut greifbar sind */
+    .parent-preset { padding: 10px 14px; font-size: 0.9rem; }
+    /* Letter-Grid: etwas groessere Zellen fuer Finger */
+    .parent-letters-grid { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
+    .parent-letters-grid label { padding: 10px 4px; font-size: 1rem; }
+    /* Toggles: groesserer Tap-Bereich */
+    .parent-toggle { padding: 8px 0; }
 }

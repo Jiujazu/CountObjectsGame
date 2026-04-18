@@ -57,7 +57,6 @@ const IS_TOUCH_DEVICE = (typeof window !== 'undefined') &&
 const TIMING = {
     NEXT_CHALLENGE_MS: 1200,   // Pause nach richtiger Antwort bevor naechster Buchstabe kommt
     WRONG_RESET_MS: 800,       // Rote Markierung des Falsch-Tipps sichtbar lassen
-    LONG_PRESS_MS: 800,        // Eltern-Menue: Long-Press-Schwelle
     HINT_SHOW_MS: 2000,        // Grosser Buchstaben-Hint fadet nach dieser Zeit
     START_TRANSITION_MS: 600,  // Startscreen -> Spiel Fade-Dauer
     STATUS_POLL_MS: 500,       // Eltern-Menue: TTS-Status-Refresh
@@ -150,7 +149,11 @@ class LetterGame {
             activeLetters: LetterGame._loadActiveLetters(),
             // Virtuelle Tastatur: auf Touch-Geraeten standardmaessig AN (sonst keine Eingabe moeglich),
             // am Desktop AUS (physische Tastatur verfuegbar). Elternmenue ueberschreibt das persistent.
-            showVirtualKeyboard: LetterGame._loadFlag('letter-vkb', IS_TOUCH_DEVICE),
+            // Touch-Geraete brauchen die virtuelle Tastatur IMMER (ohne sie gibt
+             // es keine Eingabemoeglichkeit). Gespeicherten "false"-Wert daher
+             // dort ignorieren - sonst erbt das Handy eine Desktop-Einstellung
+             // und das Kind sieht keine Eingabe.
+            showVirtualKeyboard: IS_TOUCH_DEVICE ? true : LetterGame._loadFlag('letter-vkb', false),
             // Wort als Spoiler ausblenden; wird bei richtiger Antwort eingeblendet.
             // Persistiert, damit Eltern-Einstellung nach Reload erhalten bleibt.
             showWord: LetterGame._loadFlag('letter-showword', false),
@@ -480,39 +483,26 @@ class LetterGame {
     }
 
     _initParentMenu() {
-        // Long-Press auf Level-Anzeige ODER Zahnrad-Button oeffnet das Eltern-Menue.
-        // Zahnrad ist dezent sichtbar, damit Eltern es finden; Long-Press verhindert,
-        // dass ein Kind versehentlich die Einstellungen aendert.
+        // Einfacher Tap auf Level-Anzeige ODER Zahnrad-Button oeffnet das Eltern-Menue.
+        // Beide Targets sind fuer ein 3-4jaehriges Kind uninteressant (eine Zahl und
+        // ein Zahnrad), und das Menue selbst ist rein textbasiert - Nichtleser
+        // kommen nicht an die Einstellungen. Versehentliche Oeffnungen sind
+        // schnell ueber "Abbrechen" zurueckzunehmen.
         const targets = [
             document.getElementById('letter-level-indicator'),
             document.getElementById('letter-parent-btn'),
         ].filter(Boolean);
         targets.forEach(el => {
-            let pressTimer = null;
             el.style.cursor = 'pointer';
-            const startPress = () => {
-                pressTimer = setTimeout(() => this._showParentMenu(), TIMING.LONG_PRESS_MS);
-            };
-            const cancelPress = () => {
-                if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-            };
-            el.addEventListener('mousedown', startPress);
-            el.addEventListener('mouseup', cancelPress);
-            el.addEventListener('mouseleave', cancelPress);
-            el.addEventListener('touchstart', startPress, { passive: true });
-            el.addEventListener('touchend', cancelPress);
-            // Refs merken fuer _unbindGameEvents
-            this._parentMenuBindings.push({ el, startPress, cancelPress });
+            const onTap = () => this._showParentMenu();
+            el.addEventListener('click', onTap);
+            this._parentMenuBindings.push({ el, onTap });
         });
     }
 
     _teardownParentMenu() {
-        this._parentMenuBindings.forEach(({ el, startPress, cancelPress }) => {
-            el.removeEventListener('mousedown', startPress);
-            el.removeEventListener('mouseup', cancelPress);
-            el.removeEventListener('mouseleave', cancelPress);
-            el.removeEventListener('touchstart', startPress);
-            el.removeEventListener('touchend', cancelPress);
+        this._parentMenuBindings.forEach(({ el, onTap }) => {
+            el.removeEventListener('click', onTap);
         });
         this._parentMenuBindings = [];
     }
@@ -567,7 +557,7 @@ class LetterGame {
         panel.innerHTML = `
             <div class="parent-panel-header">
                 <h2 class="parent-panel-title">⚙️ Eltern-Einstellungen</h2>
-                <div class="parent-panel-subtitle">Lange auf die Level-Zahl drücken zum Öffnen.</div>
+                <div class="parent-panel-subtitle">Tipp auf die Level-Zahl oder das Zahnrad zum Öffnen.</div>
             </div>
             <div class="parent-panel-body">
                 <section class="parent-section">

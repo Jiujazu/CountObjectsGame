@@ -699,6 +699,12 @@ class PuzzleManager {
                 50% { opacity: 1; transform: scale(1.2); }
                 100% { opacity: 0; transform: scale(2); }
             }
+            /* Hochkant-Handys haben zu wenig Platz fuer das Puzzle - es
+               ueberdeckt Tastatur und Controls. Puzzle ist nur Belohnung,
+               nicht Kernfunktion; deshalb dort ausblenden. */
+            @media (max-width: 700px), (orientation: portrait) and (max-width: 900px) {
+                .puzzle-container { display: none !important; }
+            }
         `;
         document.head.appendChild(style);
     }
