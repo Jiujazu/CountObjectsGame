@@ -13,7 +13,7 @@ const ANLAUT_TABLE = {
     'G': { emoji: '🦒', word: 'Giraffe' },
     'H': { emoji: '🐶', word: 'Hund' },
     'I': { emoji: '🦔', word: 'Igel' },
-    'J': { emoji: '🪁', word: 'Jojo' },
+    'J': { emoji: '🪀', word: 'Jojo' },
     'K': { emoji: '🐱', word: 'Katze' },
     'L': { emoji: '🦁', word: 'Löwe' },
     'M': { emoji: '🐭', word: 'Maus' },
