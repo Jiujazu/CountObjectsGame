@@ -279,24 +279,29 @@ body {
 
 /* Bottom-Controls auf Handys: 6 Buttons (Buchstabenspiel) oder 5 (Zahlen)
    a 54px + Gaps passen nicht auf 360px Screens. Wir verkleinern sie auf
-   44px (Apple-Touch-Minimum) und reduzieren den Gap, und zentrieren sie. */
+   40px, nowrap (damit 🔊/💡 nicht unter die Musik-Row fallen) und
+   zentrieren sie. */
 @media (max-width: 600px) {
     .controls-bottom-left {
         left: 50%;
+        right: auto;
         transform: translateX(-50%);
         gap: 6px;
         bottom: 12px;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+        max-width: calc(100vw - 16px);
     }
     .controls-bottom-left .game-button.small {
-        width: 44px;
-        height: 44px;
-        min-width: 44px;
-        min-height: 44px;
-        font-size: 1.5rem;
-        border-radius: 12px;
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        min-height: 40px;
+        font-size: 1.3rem;
+        border-radius: 10px;
     }
     .controls-bottom-left #numbers-toggle {
-        margin-left: 6px;
+        margin-left: 4px;
     }
 }
 
@@ -1378,22 +1383,67 @@ html, body {
 }
 
 @media (max-width: 480px) {
-    .letter-display .letter-big { font-size: 7rem; }
-    .letter-display .letter-emoji { font-size: 10.5rem; }
-    .letter-display .letter-word { font-size: 3rem; min-height: 3rem; }
-    .letter-keyboard {
-        grid-template-columns: repeat(7, 1fr);
-        gap: 5px;
-        max-width: 350px;
+    /* Top-Bar kompakter: Level-Zahl kleiner, Stars als zweite Zeile
+       mit kleinerer Schrift, damit sie nicht ueber das Emoji laufen. */
+    .level-label { font-size: 0.9rem; top: 4px; width: 64px; right: 16px; }
+    .level-indicator { font-size: 2.2rem; width: 64px; height: 64px; top: 18px; right: 16px; padding: 6px; }
+    .star-progress {
+        top: 86px;
+        right: 12px;
+        gap: 1px;
+        max-width: 140px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
     }
-    .letter-key { font-size: 1.3rem; border-radius: 10px; }
-    .letter-answer-area {
-        min-height: 180px;
+    .star-progress .star { font-size: 0.95rem; }
+
+    /* Letter-Display: kompakter, Abstaende reduziert. Emoji ist klick-
+       barer Replay-Trigger; Fingerabdruck zeigen + dezenter Hover-Effekt. */
+    .letter-display {
+        padding: 16px 0 4px 0;
+        min-height: 0;
+        gap: 4px;
     }
+    .letter-display .letter-big { font-size: 6rem; }
+    .letter-display .letter-emoji { font-size: 9rem; }
+    .letter-display .letter-word { font-size: 2.2rem; min-height: 2.2rem; }
+
+    /* Antwort-Slot schlanker auf Hochkant-Handys */
+    .letter-answer-area { min-height: 0; padding: 4px 0; }
     .letter-answer-area .answer-slot {
-        width: 150px; height: 180px; font-size: 7.5rem;
+        width: 110px; height: 130px; font-size: 5.5rem;
+        border-radius: 22px; border-width: 2px;
     }
+
+    /* Keyboard: 5 Spalten statt 7 - 15 Buchstaben ergeben 3 volle Reihen,
+       keine einsame Zeile mehr. Groessere Tasten auf Handy ergonomischer. */
+    .letter-keyboard {
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+        max-width: 320px;
+        padding: 4px 8px 8px;
+    }
+    .letter-key { font-size: 1.5rem; border-radius: 10px; }
+
+    /* Game-Container: Platz unten fuer die zentrierten Controls */
+    .letter-game-container { padding-bottom: 72px; }
 }
+
+/* Emoji als Replay-Trigger: visuelles Affordance (Pointer + Hover).
+   Gilt global, damit auch auf Desktop klar ist, dass es klickbar ist. */
+.letter-display .letter-emoji {
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    transition: transform 0.18s;
+}
+.letter-display .letter-emoji:hover,
+.letter-display .letter-emoji:focus {
+    transform: scale(1.06);
+    outline: none;
+}
+.letter-display .letter-emoji:active { transform: scale(0.96); }
 
 /* === Eltern-Menü (shared) === */
 .parent-overlay {
