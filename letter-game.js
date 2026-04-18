@@ -331,9 +331,16 @@ class LetterGame {
         const display = document.getElementById('letter-display');
         const wordClass = this.state.showWord ? 'letter-word' : 'letter-word hidden';
         display.innerHTML = `
-            <div class="letter-emoji">${entry.emoji}</div>
+            <button type="button" class="letter-emoji" id="letter-emoji-btn" aria-label="Nochmal hören">${entry.emoji}</button>
             <div class="${wordClass}">${entry.word}</div>
         `;
+        // Emoji ist Haupt-Replay-Trigger: ein Kind, das die Sprachausgabe
+        // verpasst hat, versucht instinktiv das Bild anzutippen. Der Mini-
+        // 🔊-Button unten bleibt als redundanter Weg, ist aber sekundaer.
+        const emojiBtn = document.getElementById('letter-emoji-btn');
+        if (emojiBtn) {
+            emojiBtn.addEventListener('click', () => this._speakInstruction());
+        }
         // Antwort-Slot
         const answerArea = document.getElementById('letter-answer-area');
         answerArea.innerHTML = '<div class="answer-slot" id="answer-slot"></div>';
