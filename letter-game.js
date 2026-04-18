@@ -4,7 +4,7 @@
 // Wortwahl kindgerecht: kurze, bekannte Substantive; lange Vokale vor Plosiven,
 // damit der Anlaut nicht vom Folgekonsonanten ueberdeckt wird.
 const ANLAUT_TABLE = {
-    'A': { emoji: '🍎', word: 'Apfel' },
+    'A': { emoji: '🐜', word: 'Ameise' },
     'B': { emoji: '🐻', word: 'Bär' },
     'C': { emoji: '🤡', word: 'Clown' },
     'D': { emoji: '🐬', word: 'Delfin' },
@@ -18,7 +18,7 @@ const ANLAUT_TABLE = {
     'L': { emoji: '🦁', word: 'Löwe' },
     'M': { emoji: '🐭', word: 'Maus' },
     'N': { emoji: '👃', word: 'Nase' },
-    'O': { emoji: '🦦', word: 'Otter' },
+    'O': { emoji: '👂', word: 'Ohr' },
     'P': { emoji: '🐧', word: 'Pinguin' },
     'Q': { emoji: '🪼', word: 'Qualle' },
     'R': { emoji: '🚀', word: 'Rakete' },
@@ -44,8 +44,8 @@ const ALL_LETTERS = Object.keys(ANLAUT_TABLE);
 // - Komplett: alle 29 inkl. Homophon-Buchstaben (C/V/Y/Q/X) und Umlaute
 const LETTER_PRESETS = {
     'Starter': ['F','H','K','L','M','N','P','R','T','W'],
-    'Leicht':  ['A','F','H','I','K','L','M','N','O','P','R','T','U','W'],
-    'Kern':    ['A','B','D','E','F','G','H','I','J','K','L','M','N','O','P','R','T','U','W','Z'],
+    'Leicht':  ['A','F','H','I','K','L','M','N','O','P','R','S','T','U','W'],
+    'Kern':    ['A','B','D','E','F','G','H','I','J','K','L','M','N','O','P','R','S','T','U','W','Z'],
     'Komplett': [...ALL_LETTERS],
 };
 const DEFAULT_PRESET = 'Leicht';
@@ -376,21 +376,23 @@ class LetterGame {
             const key = document.querySelector(`.letter-key[data-letter="${letter}"]`);
             if (key) key.classList.add('wrong');
             if (this.soundEnabled) SharedAudio.playWrongSound();
-            document.body.classList.add('flash-wrong');
+            // Kein Full-Screen-Pink-Flash: fuer sensible Kinder zu abschreckend.
+            // Slot und Key werden ohnehin rot markiert - das reicht als visuelles Feedback.
             this._setTimeout(() => {
                 slot.classList.remove('wrong', 'filled');
                 slot.textContent = '';
-                document.body.classList.remove('flash-wrong');
                 if (key) key.classList.remove('wrong');
             }, 800);
             if (this.speechEnabled) {
                 await this.tts.speak(_pickTTS('wrong', {}));
-                // Phrasen wie "Hör nochmal gut hin!" brauchen eine Wiederholung
-                if (this.state.wrongStreak < 3) {
+                // Phrasen wie "Hör nochmal gut hin!" brauchen eine Wiederholung,
+                // solange wir noch nicht beim Hint sind.
+                if (this.state.wrongStreak < 2) {
                     await this._speakInstruction();
                 }
             }
-            if (this.state.wrongStreak >= 3) {
+            // 3-4jaehrige brechen nach 2 Fehlversuchen emotional ab, nicht erst nach 3.
+            if (this.state.wrongStreak >= 2) {
                 this.state.wrongStreak = 0;
                 this._showHint();
             }
@@ -419,9 +421,8 @@ class LetterGame {
     _showHint() {
         const letter = this.state.currentLetter;
         const entry = ANLAUT_TABLE[letter];
-        // Bei Hinweis immer das Wort zeigen (haeufige Fehlversuche → volle Unterstuetzung)
-        const wordEl = document.querySelector('.letter-word');
-        if (wordEl) wordEl.classList.remove('hidden');
+        // Wort NICHT automatisch einblenden: Pre-Reader kann es nicht lesen,
+        // und der visuelle Gross-Buchstaben-Hint + die TTS-Ansage reichen.
         // TTS Hinweis nur wenn Sprache aktiviert
         if (this.speechEnabled) {
             this.tts.speak(_pickTTS('hint', { word: entry.word, letter: this._letterForSpeech(letter) }));
@@ -462,21 +463,28 @@ class LetterGame {
     }
 
     _initParentMenu() {
-        const indicator = document.getElementById('letter-level-indicator');
-        if (!indicator) return;
-        let pressTimer = null;
-        indicator.style.cursor = 'pointer';
-        const startPress = () => {
-            pressTimer = setTimeout(() => this._showParentMenu(), 800);
-        };
-        const cancelPress = () => {
-            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-        };
-        indicator.addEventListener('mousedown', startPress);
-        indicator.addEventListener('mouseup', cancelPress);
-        indicator.addEventListener('mouseleave', cancelPress);
-        indicator.addEventListener('touchstart', startPress, { passive: true });
-        indicator.addEventListener('touchend', cancelPress);
+        // Long-Press auf Level-Anzeige ODER Zahnrad-Button oeffnet das Eltern-Menue.
+        // Zahnrad ist dezent sichtbar, damit Eltern es finden; Long-Press verhindert,
+        // dass ein Kind versehentlich die Einstellungen aendert.
+        const targets = [
+            document.getElementById('letter-level-indicator'),
+            document.getElementById('letter-parent-btn'),
+        ].filter(Boolean);
+        targets.forEach(el => {
+            let pressTimer = null;
+            el.style.cursor = 'pointer';
+            const startPress = () => {
+                pressTimer = setTimeout(() => this._showParentMenu(), 800);
+            };
+            const cancelPress = () => {
+                if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+            };
+            el.addEventListener('mousedown', startPress);
+            el.addEventListener('mouseup', cancelPress);
+            el.addEventListener('mouseleave', cancelPress);
+            el.addEventListener('touchstart', startPress, { passive: true });
+            el.addEventListener('touchend', cancelPress);
+        });
     }
 
     _buildVoiceOptions(current) {
@@ -795,11 +803,9 @@ class LetterGame {
     }
 
     closeGame() {
-        if (this.state.level > 1) {
-            this._showCloseConfirmation();
-            return;
-        }
-        this._doClose();
+        // Immer Bestaetigung zeigen - auch in Level 1 koennte ein Kind versehentlich
+        // das X getroffen haben. Dank Audio-Dialog muss es nichts lesen koennen.
+        this._showCloseConfirmation();
     }
 
     _showCloseConfirmation() {

@@ -496,6 +496,37 @@ body {
     transform: scale(0.97);
 }
 
+/* Dezenter Zahnrad-Button fuer Eltern-Einstellungen. Absichtlich transparent,
+   damit er Kindern nicht auffaellt, aber fuer Eltern auffindbar ist. */
+.parent-discover-btn {
+    position: absolute;
+    top: 28px;
+    right: 28px;
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.4rem;
+    cursor: pointer;
+    opacity: 0.25;
+    transition: opacity 0.18s, transform 0.18s, background 0.18s;
+    z-index: 10;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+    padding: 0;
+}
+
+.parent-discover-btn:hover,
+.parent-discover-btn:focus {
+    opacity: 0.9;
+    background: rgba(255,255,255,0.6);
+    outline: none;
+}
+
 /* Startscreen */
 .startscreen {
     position: relative;
