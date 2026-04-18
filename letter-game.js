@@ -1,39 +1,272 @@
 // === letter-game.js: Buchstabenspiel (nutzt shared.js) ===
 
-// Deutsche Anlauttabelle: Buchstabe -> Emoji + Wort
+// Deutsche Anlauttabelle: Buchstabe -> Liste aus { emoji, word }.
+// Mehrere Worte pro Buchstabe sorgen fuer Abwechslung. Beim Spielen wird zufaellig
+// einer der Eintraege gewaehlt. Bilder werden via OpenMoji (CDN) gerendert; bei
+// Ladefehler faellt das UI auf das native Emoji-Glyph zurueck.
 const ANLAUT_TABLE = {
-    'A': { emoji: '🐒', word: 'Affe' },
-    'B': { emoji: '🐻', word: 'Bär' },
-    'C': { emoji: '🤡', word: 'Clown' },
-    'D': { emoji: '🐬', word: 'Delfin' },
-    'E': { emoji: '🐘', word: 'Elefant' },
-    'F': { emoji: '🐟', word: 'Fisch' },
-    'G': { emoji: '🦒', word: 'Giraffe' },
-    'H': { emoji: '🐶', word: 'Hund' },
-    'I': { emoji: '🦔', word: 'Igel' },
-    'J': { emoji: '🪁', word: 'Jojo' },
-    'K': { emoji: '🐱', word: 'Katze' },
-    'L': { emoji: '🦁', word: 'Löwe' },
-    'M': { emoji: '🐭', word: 'Maus' },
-    'N': { emoji: '🦏', word: 'Nashorn' },
-    'O': { emoji: '🦦', word: 'Otter' },
-    'P': { emoji: '🐧', word: 'Pinguin' },
-    'Q': { emoji: '🪼', word: 'Qualle' },
-    'R': { emoji: '🚀', word: 'Rakete' },
-    'S': { emoji: '☀️', word: 'Sonne' },
-    'T': { emoji: '🐯', word: 'Tiger' },
-    'U': { emoji: '🦉', word: 'Uhu' },
-    'V': { emoji: '🐦', word: 'Vogel' },
-    'W': { emoji: '🐋', word: 'Wal' },
-    'X': { emoji: '🎸', word: 'Xylophon' },
-    'Y': { emoji: '🧘', word: 'Yoga' },
-    'Z': { emoji: '🦓', word: 'Zebra' },
-    'Ä': { emoji: '🌾', word: 'Ähre' },
-    'Ö': { emoji: '🛢️', word: 'Öl' },
-    'Ü': { emoji: '🎁', word: 'Überraschung' }
+    'A': [
+        { emoji: '🐒', word: 'Affe' },
+        { emoji: '🍎', word: 'Apfel' },
+        { emoji: '🐜', word: 'Ameise' },
+        { emoji: '🍍', word: 'Ananas' },
+        { emoji: '🚗', word: 'Auto' },
+        { emoji: '🦅', word: 'Adler' },
+        { emoji: '⚓', word: 'Anker' },
+        { emoji: '👁️', word: 'Auge' },
+        { emoji: '🪗', word: 'Akkordeon' },
+    ],
+    'B': [
+        { emoji: '🐻', word: 'Bär' },
+        { emoji: '🍌', word: 'Banane' },
+        { emoji: '⚽', word: 'Ball' },
+        { emoji: '📖', word: 'Buch' },
+        { emoji: '🌳', word: 'Baum' },
+        { emoji: '🌸', word: 'Blume' },
+        { emoji: '🍞', word: 'Brot' },
+        { emoji: '🐝', word: 'Biene' },
+        { emoji: '🏰', word: 'Burg' },
+        { emoji: '🚌', word: 'Bus' },
+    ],
+    'C': [
+        { emoji: '🤡', word: 'Clown' },
+        { emoji: '💻', word: 'Computer' },
+        { emoji: '🛋️', word: 'Couch' },
+        { emoji: '🤠', word: 'Cowboy' },
+    ],
+    'D': [
+        { emoji: '🐬', word: 'Delfin' },
+        { emoji: '🐉', word: 'Drache' },
+        { emoji: '🍩', word: 'Donut' },
+        { emoji: '🦖', word: 'Dinosaurier' },
+        { emoji: '🚿', word: 'Dusche' },
+        { emoji: '👍', word: 'Daumen' },
+        { emoji: '🎲', word: 'Würfel' },
+    ],
+    'E': [
+        { emoji: '🐘', word: 'Elefant' },
+        { emoji: '🦆', word: 'Ente' },
+        { emoji: '🍦', word: 'Eis' },
+        { emoji: '🍓', word: 'Erdbeere' },
+        { emoji: '🥚', word: 'Ei' },
+        { emoji: '🦉', word: 'Eule' },
+        { emoji: '🐿️', word: 'Eichhörnchen' },
+    ],
+    'F': [
+        { emoji: '🐟', word: 'Fisch' },
+        { emoji: '🐸', word: 'Frosch' },
+        { emoji: '🦊', word: 'Fuchs' },
+        { emoji: '🔥', word: 'Feuer' },
+        { emoji: '✈️', word: 'Flugzeug' },
+        { emoji: '🚲', word: 'Fahrrad' },
+        { emoji: '🍼', word: 'Flasche' },
+        { emoji: '🪶', word: 'Feder' },
+        { emoji: '🦶', word: 'Fuß' },
+    ],
+    'G': [
+        { emoji: '🦒', word: 'Giraffe' },
+        { emoji: '🎸', word: 'Gitarre' },
+        { emoji: '👻', word: 'Gespenst' },
+        { emoji: '🎁', word: 'Geschenk' },
+        { emoji: '🍴', word: 'Gabel' },
+        { emoji: '🔔', word: 'Glocke' },
+        { emoji: '🦍', word: 'Gorilla' },
+        { emoji: '🐐', word: 'Geiß' },
+    ],
+    'H': [
+        { emoji: '🐶', word: 'Hund' },
+        { emoji: '🐰', word: 'Hase' },
+        { emoji: '🏠', word: 'Haus' },
+        { emoji: '🐓', word: 'Hahn' },
+        { emoji: '🎩', word: 'Hut' },
+        { emoji: '❤️', word: 'Herz' },
+        { emoji: '✋', word: 'Hand' },
+        { emoji: '🦈', word: 'Hai' },
+        { emoji: '🍯', word: 'Honig' },
+        { emoji: '⛑️', word: 'Helm' },
+    ],
+    'I': [
+        { emoji: '🦔', word: 'Igel' },
+        { emoji: '🏝️', word: 'Insel' },
+        { emoji: '🛖', word: 'Iglu' },
+        { emoji: '🐛', word: 'Insekt' },
+    ],
+    'J': [
+        { emoji: '🪀', word: 'Jojo' },
+        { emoji: '👦', word: 'Junge' },
+        { emoji: '🧥', word: 'Jacke' },
+        { emoji: '🥛', word: 'Joghurt' },
+        { emoji: '🏹', word: 'Jäger' },
+    ],
+    'K': [
+        { emoji: '🐱', word: 'Katze' },
+        { emoji: '🐊', word: 'Krokodil' },
+        { emoji: '👑', word: 'Krone' },
+        { emoji: '🐄', word: 'Kuh' },
+        { emoji: '🧀', word: 'Käse' },
+        { emoji: '🎂', word: 'Kuchen' },
+        { emoji: '🐨', word: 'Koala' },
+        { emoji: '🕯️', word: 'Kerze' },
+        { emoji: '📷', word: 'Kamera' },
+        { emoji: '🌵', word: 'Kaktus' },
+    ],
+    'L': [
+        { emoji: '🦁', word: 'Löwe' },
+        { emoji: '💡', word: 'Lampe' },
+        { emoji: '🚛', word: 'Laster' },
+        { emoji: '🍭', word: 'Lutscher' },
+        { emoji: '🪜', word: 'Leiter' },
+        { emoji: '🚂', word: 'Lokomotive' },
+        { emoji: '🍋', word: 'Limone' },
+    ],
+    'M': [
+        { emoji: '🐭', word: 'Maus' },
+        { emoji: '🌙', word: 'Mond' },
+        { emoji: '🐞', word: 'Marienkäfer' },
+        { emoji: '👩', word: 'Mama' },
+        { emoji: '🌽', word: 'Mais' },
+        { emoji: '🍉', word: 'Melone' },
+        { emoji: '🥛', word: 'Milch' },
+        { emoji: '🧲', word: 'Magnet' },
+        { emoji: '🦟', word: 'Mücke' },
+    ],
+    'N': [
+        { emoji: '🦏', word: 'Nashorn' },
+        { emoji: '👃', word: 'Nase' },
+        { emoji: '🪺', word: 'Nest' },
+        { emoji: '🪡', word: 'Nadel' },
+        { emoji: '🥜', word: 'Nuss' },
+        { emoji: '🌃', word: 'Nacht' },
+    ],
+    'O': [
+        { emoji: '🦦', word: 'Otter' },
+        { emoji: '👵', word: 'Oma' },
+        { emoji: '👴', word: 'Opa' },
+        { emoji: '🍊', word: 'Orange' },
+        { emoji: '🐂', word: 'Ochse' },
+        { emoji: '👂', word: 'Ohr' },
+        { emoji: '🐙', word: 'Oktopus' },
+    ],
+    'P': [
+        { emoji: '🐧', word: 'Pinguin' },
+        { emoji: '🐴', word: 'Pferd' },
+        { emoji: '🍕', word: 'Pizza' },
+        { emoji: '🦜', word: 'Papagei' },
+        { emoji: '🚓', word: 'Polizei' },
+        { emoji: '🍄', word: 'Pilz' },
+        { emoji: '🪆', word: 'Puppe' },
+        { emoji: '📦', word: 'Paket' },
+        { emoji: '🌴', word: 'Palme' },
+    ],
+    'Q': [
+        { emoji: '🪼', word: 'Qualle' },
+        { emoji: '🟦', word: 'Quadrat' },
+    ],
+    'R': [
+        { emoji: '🚀', word: 'Rakete' },
+        { emoji: '🤖', word: 'Roboter' },
+        { emoji: '🌧️', word: 'Regen' },
+        { emoji: '🌈', word: 'Regenbogen' },
+        { emoji: '💍', word: 'Ring' },
+        { emoji: '🌹', word: 'Rose' },
+        { emoji: '🐀', word: 'Ratte' },
+    ],
+    'S': [
+        { emoji: '☀️', word: 'Sonne' },
+        { emoji: '⭐', word: 'Stern' },
+        { emoji: '🐑', word: 'Schaf' },
+        { emoji: '🦋', word: 'Schmetterling' },
+        { emoji: '🐍', word: 'Schlange' },
+        { emoji: '🚢', word: 'Schiff' },
+        { emoji: '🏫', word: 'Schule' },
+        { emoji: '🐌', word: 'Schnecke' },
+        { emoji: '👟', word: 'Schuh' },
+        { emoji: '⛄', word: 'Schneemann' },
+    ],
+    'T': [
+        { emoji: '🐯', word: 'Tiger' },
+        { emoji: '🍅', word: 'Tomate' },
+        { emoji: '☕', word: 'Tasse' },
+        { emoji: '📞', word: 'Telefon' },
+        { emoji: '🚜', word: 'Traktor' },
+        { emoji: '🎒', word: 'Tasche' },
+        { emoji: '🎄', word: 'Tannenbaum' },
+        { emoji: '🎺', word: 'Trompete' },
+    ],
+    'U': [
+        { emoji: '🦉', word: 'Uhu' },
+        { emoji: '⌚', word: 'Uhr' },
+        { emoji: '🛸', word: 'Ufo' },
+        { emoji: '🚇', word: 'U-Bahn' },
+    ],
+    'V': [
+        { emoji: '🐦', word: 'Vogel' },
+        { emoji: '🌋', word: 'Vulkan' },
+        { emoji: '🧛', word: 'Vampir' },
+    ],
+    'W': [
+        { emoji: '🐋', word: 'Wal' },
+        { emoji: '🐺', word: 'Wolf' },
+        { emoji: '☁️', word: 'Wolke' },
+        { emoji: '🍉', word: 'Wassermelone' },
+        { emoji: '🌭', word: 'Wurst' },
+        { emoji: '🪱', word: 'Wurm' },
+    ],
+    'X': [
+        { emoji: '🎸', word: 'Xylophon' },
+    ],
+    'Y': [
+        { emoji: '🧘', word: 'Yoga' },
+        { emoji: '🛥️', word: 'Yacht' },
+    ],
+    'Z': [
+        { emoji: '🦓', word: 'Zebra' },
+        { emoji: '🦷', word: 'Zahn' },
+        { emoji: '🧙', word: 'Zauberer' },
+        { emoji: '🍋', word: 'Zitrone' },
+        { emoji: '🚂', word: 'Zug' },
+        { emoji: '⛺', word: 'Zelt' },
+        { emoji: '🐐', word: 'Ziege' },
+    ],
+    'Ä': [
+        { emoji: '🌾', word: 'Ähre' },
+        { emoji: '🍏', word: 'Äpfel' },
+    ],
+    'Ö': [
+        { emoji: '🛢️', word: 'Öl' },
+        { emoji: '🔥', word: 'Ofen' },
+    ],
+    'Ü': [
+        { emoji: '🎁', word: 'Überraschung' },
+        { emoji: '🌉', word: 'Übergang' },
+    ],
 };
 
 const ALL_LETTERS = Object.keys(ANLAUT_TABLE);
+
+// OpenMoji-CDN. Datei-Namen entsprechen Unicode-Codepoints (hex, mit "-" verbunden,
+// Variation Selector U+FE0F wird weggelassen). z.B. 🐒 -> 1F412.svg, ☀️ -> 2600.svg.
+const OPENMOJI_BASE = 'https://cdn.jsdelivr.net/npm/openmoji@15.1.0/color/svg/';
+
+function _emojiToOpenMojiCode(emoji) {
+    const codes = [];
+    for (const ch of emoji) {
+        const cp = ch.codePointAt(0);
+        if (cp === 0xFE0F) continue; // Emoji-Variation-Selector ueberspringen
+        codes.push(cp.toString(16).toUpperCase());
+    }
+    return codes.join('-');
+}
+
+function _renderEmojiHTML(emoji, alt) {
+    const code = _emojiToOpenMojiCode(emoji);
+    const url = `${OPENMOJI_BASE}${code}.svg`;
+    const safeAlt = String(alt || emoji).replace(/"/g, '&quot;');
+    const safeEmoji = String(emoji).replace(/"/g, '&quot;');
+    // onerror: Bei Ladefehler das native Emoji-Zeichen anzeigen.
+    return `<img class="openmoji" src="${url}" alt="${safeAlt}" `
+         + `onerror="this.outerHTML='<span class=&quot;openmoji-fallback&quot;>${safeEmoji}</span>'">`;
+}
 
 // Lautier-Mapping (Silbenmethode): Buchstabe -> Text, den TTS als Laut spricht.
 // Vokale klingen ohnehin wie ihr Laut. Plosive (B/D/G/K/P/T) brauchen einen
@@ -114,6 +347,7 @@ class LetterGame {
         this.state = {
             level: 1,
             currentLetter: '',
+            currentEntry: null, // gewaehlter { emoji, word }-Eintrag fuer den aktuellen Buchstaben
             wrongStreak: 0,
             isProcessing: false,
             activeLetters: [...ALL_LETTERS], // Eltern-Presets koennen das aendern
@@ -262,12 +496,15 @@ class LetterGame {
         this.state.currentLetter = letters[Math.floor(Math.random() * letters.length)];
         this.state.wrongStreak = 0;
         this.state.isProcessing = false;
-        const entry = ANLAUT_TABLE[this.state.currentLetter];
+        // Aus den verfuegbaren Worten zu diesem Buchstaben einen zufaellig waehlen.
+        const entries = ANLAUT_TABLE[this.state.currentLetter];
+        const entry = entries[Math.floor(Math.random() * entries.length)];
+        this.state.currentEntry = entry;
         // Display aktualisieren. Wort wird zunaechst versteckt, damit der Anfangsbuchstabe nicht verraten wird.
         const display = document.getElementById('letter-display');
         const wordClass = this.state.showWord ? 'letter-word' : 'letter-word hidden';
         display.innerHTML = `
-            <div class="letter-emoji">${entry.emoji}</div>
+            <div class="letter-emoji">${_renderEmojiHTML(entry.emoji, entry.word)}</div>
             <div class="${wordClass}">${entry.word}</div>
         `;
         // Antwort-Slot
@@ -288,7 +525,8 @@ class LetterGame {
 
     async _speakInstruction() {
         if (!this.speechEnabled) return;
-        const entry = ANLAUT_TABLE[this.state.currentLetter];
+        const entry = this.state.currentEntry;
+        if (!entry) return;
         await this.tts.speak(_pickTTS('instruction', { word: entry.word, letter: this.state.currentLetter }));
     }
 
@@ -312,7 +550,8 @@ class LetterGame {
             // Sound & TTS
             if (this.soundEnabled) SharedAudio.playSuccessMelody();
             if (this.speechEnabled) {
-                await this.tts.speak(_pickTTS('correct', { letter: this._letterForSpeech(letter), word: ANLAUT_TABLE[letter].word }));
+                const word = (this.state.currentEntry && this.state.currentEntry.word) || letter;
+                await this.tts.speak(_pickTTS('correct', { letter: this._letterForSpeech(letter), word }));
             }
             // Puzzle Fortschritt
             this.puzzle.revealNextPiece();
@@ -374,12 +613,12 @@ class LetterGame {
 
     _showHint() {
         const letter = this.state.currentLetter;
-        const entry = ANLAUT_TABLE[letter];
+        const entry = this.state.currentEntry;
         // Bei Hinweis immer das Wort zeigen (haeufige Fehlversuche → volle Unterstuetzung)
         const wordEl = document.querySelector('.letter-word');
         if (wordEl) wordEl.classList.remove('hidden');
         // TTS Hinweis nur wenn Sprache aktiviert
-        if (this.speechEnabled) {
+        if (this.speechEnabled && entry) {
             this.tts.speak(_pickTTS('hint', { word: entry.word, letter: this._letterForSpeech(letter) }));
         }
         // Visueller Hinweis: richtigen Key blinken lassen

@@ -1131,7 +1131,22 @@ html, body {
 
 .letter-display .letter-emoji {
     font-size: 15rem;
+    line-height: 1;
     animation: objectAppear 0.5s ease-out 0.15s both;
+}
+
+.letter-display .letter-emoji .openmoji,
+.letter-display .letter-emoji .openmoji-fallback {
+    display: inline-block;
+    width: 15rem;
+    height: 15rem;
+    line-height: 1;
+    vertical-align: middle;
+    object-fit: contain;
+}
+
+.letter-display .letter-emoji .openmoji-fallback {
+    font-size: 15rem;
 }
 
 .letter-display .letter-word {
@@ -1252,6 +1267,9 @@ html, body {
 @media (max-width: 480px) {
     .letter-display .letter-big { font-size: 7rem; }
     .letter-display .letter-emoji { font-size: 10.5rem; }
+    .letter-display .letter-emoji .openmoji,
+    .letter-display .letter-emoji .openmoji-fallback { width: 10.5rem; height: 10.5rem; }
+    .letter-display .letter-emoji .openmoji-fallback { font-size: 10.5rem; }
     .letter-display .letter-word { font-size: 3rem; min-height: 3rem; }
     .letter-keyboard {
         grid-template-columns: repeat(7, 1fr);
