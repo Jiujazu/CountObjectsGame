@@ -53,6 +53,16 @@ const DEFAULT_PRESET = 'Leicht';
 const IS_TOUCH_DEVICE = (typeof window !== 'undefined') &&
     (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
 
+// Zentrale Timing-Konstanten (statt Magic Numbers verstreut im Code)
+const TIMING = {
+    NEXT_CHALLENGE_MS: 1200,   // Pause nach richtiger Antwort bevor naechster Buchstabe kommt
+    WRONG_RESET_MS: 800,       // Rote Markierung des Falsch-Tipps sichtbar lassen
+    LONG_PRESS_MS: 800,        // Eltern-Menue: Long-Press-Schwelle
+    HINT_SHOW_MS: 2000,        // Grosser Buchstaben-Hint fadet nach dieser Zeit
+    START_TRANSITION_MS: 600,  // Startscreen -> Spiel Fade-Dauer
+    STATUS_POLL_MS: 500,       // Eltern-Menue: TTS-Status-Refresh
+};
+
 // Lautier-Mapping (Silbenmethode): Buchstabe -> Text, den TTS als Laut spricht.
 // Vokale klingen ohnehin wie ihr Laut. Plosive (B/D/G/K/P/T) brauchen einen
 // Kurzvokal-Anker, sonst nicht isoliert sprechbar. Dauerlaute werden verlaengert.
@@ -141,7 +151,9 @@ class LetterGame {
             // Virtuelle Tastatur: auf Touch-Geraeten standardmaessig AN (sonst keine Eingabe moeglich),
             // am Desktop AUS (physische Tastatur verfuegbar). Elternmenue ueberschreibt das persistent.
             showVirtualKeyboard: LetterGame._loadFlag('letter-vkb', IS_TOUCH_DEVICE),
-            showWord: false, // Wort als Spoiler ausblenden; wird bei richtiger Antwort eingeblendet
+            // Wort als Spoiler ausblenden; wird bei richtiger Antwort eingeblendet.
+            // Persistiert, damit Eltern-Einstellung nach Reload erhalten bleibt.
+            showWord: LetterGame._loadFlag('letter-showword', false),
             // Silbenmethode standardmaessig AN: Vorschulkinder lernen Buchstaben ueber Laute ("Buh"),
             // nicht ueber Namen ("Be"). Nur AUS, wenn Eltern explizit deaktivieren.
             lautierEnabled: LetterGame._loadFlag('letter-lautiert', true),
@@ -155,6 +167,10 @@ class LetterGame {
         this._eventsBound = false;
         this._pendingTimeouts = new Set();
         this._parentMenuCleanup = null;
+        // Sammelt Long-Press-Listener, damit _unbindGameEvents sie wieder
+        // entfernen kann. Sonst wuerden sich beim erneuten Oeffnen des Spiels
+        // Listener auf Level-Indikator und Zahnrad-Button vervielfachen.
+        this._parentMenuBindings = [];
     }
 
     static _loadFlag(key, defaultValue) {
@@ -196,7 +212,7 @@ class LetterGame {
         setTimeout(() => {
             this.startGame();
             startscreen.classList.remove('hide');
-        }, 600);
+        }, TIMING.START_TRANSITION_MS);
     }
 
     init() {
@@ -298,6 +314,7 @@ class LetterGame {
                 el.removeEventListener('click', el._clickHandler);
             }
         });
+        this._teardownParentMenu();
     }
 
     async _createChallenge() {
@@ -368,7 +385,7 @@ class LetterGame {
                 this._updateLevelIndicator();
                 this._updateStars();
                 await this._createChallenge();
-            }, 1200);
+            }, TIMING.NEXT_CHALLENGE_MS);
         } else {
             // Falsch
             this.state.wrongStreak++;
@@ -382,7 +399,7 @@ class LetterGame {
                 slot.classList.remove('wrong', 'filled');
                 slot.textContent = '';
                 if (key) key.classList.remove('wrong');
-            }, 800);
+            }, TIMING.WRONG_RESET_MS);
             if (this.speechEnabled) {
                 await this.tts.speak(_pickTTS('wrong', {}));
                 // Phrasen wie "Hör nochmal gut hin!" brauchen eine Wiederholung,
@@ -437,9 +454,9 @@ class LetterGame {
         // Grossen Buchstaben anzeigen
         const hint = document.getElementById('big-key-hint');
         if (hint) {
-            hint.innerHTML = `<span style="color:rgba(106,209,227,0.6);">${letter}</span>`;
+            hint.innerHTML = `<span class="hint-letter">${letter}</span>`;
             hint.classList.add('show');
-            this._setTimeout(() => hint.classList.remove('show'), 2000);
+            this._setTimeout(() => hint.classList.remove('show'), TIMING.HINT_SHOW_MS);
         }
     }
 
@@ -474,7 +491,7 @@ class LetterGame {
             let pressTimer = null;
             el.style.cursor = 'pointer';
             const startPress = () => {
-                pressTimer = setTimeout(() => this._showParentMenu(), 800);
+                pressTimer = setTimeout(() => this._showParentMenu(), TIMING.LONG_PRESS_MS);
             };
             const cancelPress = () => {
                 if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
@@ -484,7 +501,20 @@ class LetterGame {
             el.addEventListener('mouseleave', cancelPress);
             el.addEventListener('touchstart', startPress, { passive: true });
             el.addEventListener('touchend', cancelPress);
+            // Refs merken fuer _unbindGameEvents
+            this._parentMenuBindings.push({ el, startPress, cancelPress });
         });
+    }
+
+    _teardownParentMenu() {
+        this._parentMenuBindings.forEach(({ el, startPress, cancelPress }) => {
+            el.removeEventListener('mousedown', startPress);
+            el.removeEventListener('mouseup', cancelPress);
+            el.removeEventListener('mouseleave', cancelPress);
+            el.removeEventListener('touchstart', startPress);
+            el.removeEventListener('touchend', cancelPress);
+        });
+        this._parentMenuBindings = [];
     }
 
     _buildVoiceOptions(current) {
@@ -718,7 +748,7 @@ class LetterGame {
             else statusEl.textContent = '○ Initialisiert …';
         };
         renderStatus();
-        const statusTimer = setInterval(renderStatus, 500);
+        const statusTimer = setInterval(renderStatus, TIMING.STATUS_POLL_MS);
 
         const cleanup = () => {
             clearInterval(statusTimer);
@@ -788,6 +818,7 @@ class LetterGame {
             this.state.lautierEnabled = newLautierEnabled;
             localStorage.setItem('letter-lautiert', newLautierEnabled ? 'true' : 'false');
             localStorage.setItem('letter-vkb', newShowVirtualKeyboard ? 'true' : 'false');
+            localStorage.setItem('letter-showword', newShowWord ? 'true' : 'false');
             localStorage.setItem('letter-active', JSON.stringify(selectedLetters));
             this.tts.setGoogleKey(newGoogleKey);
             this.tts.setGoogleVoice(newGoogleVoice);
@@ -813,15 +844,15 @@ class LetterGame {
         // plus gesprochene Frage - der Text bleibt fuer Eltern sichtbar, ist aber nicht
         // die primaere Informationsquelle.
         const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        overlay.className = 'close-confirm-overlay';
         const dialog = document.createElement('div');
-        dialog.style.cssText = 'background:#fff;border-radius:24px;padding:32px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.2);max-width:360px;';
+        dialog.className = 'close-confirm-dialog';
         dialog.innerHTML = `
-            <div style="font-size:3rem;margin-bottom:12px;">\uD83E\uDD14</div>
-            <div style="font-size:1.15rem;font-weight:700;color:#232946;margin-bottom:20px;">Weiterspielen oder aufhören?</div>
-            <div style="display:flex;gap:24px;justify-content:center;align-items:center;">
-                <button id="letter-close-no" title="Weiterspielen" aria-label="Weiterspielen" style="background:#6AD1E3;color:#fff;border:none;border-radius:20px;width:96px;height:96px;font-size:3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">\u25B6\uFE0F</button>
-                <button id="letter-close-yes" title="Aufhören" aria-label="Aufhören" style="background:#FF6F91;color:#fff;border:none;border-radius:20px;width:96px;height:96px;font-size:3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">\uD83D\uDED1</button>
+            <div class="close-confirm-emoji">\uD83E\uDD14</div>
+            <div class="close-confirm-text">Weiterspielen oder aufhören?</div>
+            <div class="close-confirm-actions">
+                <button id="letter-close-no" class="close-confirm-btn continue" title="Weiterspielen" aria-label="Weiterspielen">\u25B6\uFE0F</button>
+                <button id="letter-close-yes" class="close-confirm-btn stop" title="Aufhören" aria-label="Aufhören">\uD83D\uDED1</button>
             </div>
         `;
         overlay.appendChild(dialog);

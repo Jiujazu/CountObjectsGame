@@ -497,21 +497,23 @@ body {
 }
 
 /* Dezenter Zahnrad-Button fuer Eltern-Einstellungen. Absichtlich transparent,
-   damit er Kindern nicht auffaellt, aber fuer Eltern auffindbar ist. */
+   damit er Kindern nicht auffaellt, aber fuer Eltern auffindbar ist.
+   Links neben dem Level-Indikator (der 80px breit ist + 24px right), um
+   Ueberlappung auf schmalen Handys zu vermeiden. */
 .parent-discover-btn {
     position: absolute;
-    top: 28px;
-    right: 28px;
-    width: 44px;
-    height: 44px;
+    top: 36px;
+    right: 116px;
+    width: 40px;
+    height: 40px;
     background: transparent;
     border: none;
     border-radius: 50%;
-    font-size: 1.4rem;
+    font-size: 1.3rem;
     cursor: pointer;
-    opacity: 0.25;
+    opacity: 0.22;
     transition: opacity 0.18s, transform 0.18s, background 0.18s;
-    z-index: 10;
+    z-index: 11;
     user-select: none;
     display: flex;
     align-items: center;
@@ -526,6 +528,78 @@ body {
     background: rgba(255,255,255,0.6);
     outline: none;
 }
+
+@media (max-width: 480px) {
+    .parent-discover-btn {
+        right: 108px;
+        width: 36px;
+        height: 36px;
+        font-size: 1.1rem;
+    }
+}
+
+/* Hint-Buchstabe (grosser Fullscreen-Hint). Farbe per Klasse statt Inline-Style. */
+.big-key-hint .hint-letter {
+    color: rgba(106, 209, 227, 0.6);
+}
+
+/* Schliess-Bestaetigung: Overlay + Dialog (vorher inline-CSS). */
+.close-confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-confirm-dialog {
+    background: #fff;
+    border-radius: 24px;
+    padding: 32px;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2);
+    max-width: 360px;
+}
+
+.close-confirm-emoji {
+    font-size: 3rem;
+    margin-bottom: 12px;
+}
+
+.close-confirm-text {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #232946;
+    margin-bottom: 20px;
+}
+
+.close-confirm-actions {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    align-items: center;
+}
+
+.close-confirm-btn {
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    width: 96px;
+    height: 96px;
+    font-size: 3rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-confirm-btn.continue { background: #6AD1E3; }
+.close-confirm-btn.stop { background: #FF6F91; }
 
 /* Startscreen */
 .startscreen {
