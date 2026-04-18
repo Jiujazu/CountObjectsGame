@@ -1942,30 +1942,108 @@ select.parent-text-input {
     }
     .controls-bottom-left #numbers-toggle { margin-left: 4px; }
 
-    /* Spiel-Container: feste Viewport-Hoehe, interner Scroll.
-       Ohne height (nur min-height) wuerde der Seiten-Body scrollen und
-       Content hinter der fixen Bottom-Bar verschwinden. Jetzt scrollt
-       der Container selbst, die Balken bleiben drueber.
-       dvh statt vh, damit iOS-Browser-Chrome korrekt mitgezaehlt wird. */
+    /* Spiel-Container als Flex-Column: Top-/Bottom-Bar via Padding,
+       Content fliesst vertikal dazwischen. Keyboard/Objekte bekommen
+       flex:1 und fuellen den Rest. KEIN Scroll: alles muss ins Viewport
+       passen, damit 3-Jaehrige alle Buchstaben auf einen Blick sehen.
+       dvh statt vh, damit iOS-Browser-Chrome mitgezaehlt wird. */
     #letter-game-container,
     #game-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
         height: 100vh;
         height: 100dvh;
-        padding-top: 72px;
-        padding-bottom: 68px;
+        padding: 72px 8px 68px 8px;
         box-sizing: border-box;
-        overflow-y: auto;
-        overflow-x: hidden;
+        overflow: hidden;
+        gap: 4px;
     }
 
-    /* Content kompakt ausrichten (Bar-Padding uebernimmt die Abstaende). */
-    .objects-display {
-        padding: 8px 0 8px 0;
-        min-height: 0;
-    }
+    /* --- Buchstabenspiel --- */
     .letter-display {
-        padding: 8px 0 4px 0;
+        flex: 0 0 auto;
+        padding: 4px 0;
         min-height: 0;
+        gap: 2px;
     }
-    .game-area { padding: 0 8px; }
+    .letter-display .letter-emoji { font-size: min(28vmin, 9rem); }
+    .letter-display .letter-word { font-size: min(6vmin, 2.2rem); min-height: 0; }
+
+    .letter-answer-area {
+        flex: 0 0 auto;
+        min-height: 0;
+        padding: 0;
+    }
+    .letter-answer-area .answer-slot {
+        width: min(28vmin, 110px);
+        height: min(32vmin, 130px);
+        font-size: min(16vmin, 5.5rem);
+        border-radius: 18px;
+        border-width: 2px;
+    }
+
+    /* Tastatur fuellt den verbleibenden Raum. grid-auto-rows:1fr streckt
+       die Reihen auf gleiche Hoehe. Key-Inhalt skaliert per vmin. */
+    .letter-keyboard {
+        flex: 1 1 auto;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        grid-auto-rows: 1fr;
+        gap: 4px;
+        padding: 4px 0 0 0;
+        width: 100%;
+        max-width: 360px;
+        min-height: 0;
+        align-content: stretch;
+    }
+    .letter-key {
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        font-size: min(5.5vmin, 1.7rem);
+        padding: 0;
+        border-radius: 10px;
+    }
+
+    /* --- Zaehlenspiel --- */
+    .objects-display {
+        flex: 1 1 auto;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(4, 1fr);
+        gap: 6px;
+        width: 100%;
+        max-width: 300px;
+        min-height: 0;
+        padding: 0;
+        margin: 0 auto;
+    }
+    .objects-display.with-numbers { margin-bottom: 0; }
+    .object {
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        font-size: min(10vmin, 3rem);
+    }
+    .number-buttons {
+        flex: 0 0 auto;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        width: 100%;
+        max-width: 260px;
+        margin: 0 auto;
+    }
+    .number-btn {
+        min-width: 0;
+        max-width: none;
+        width: 100%;
+        font-size: min(8vmin, 2.2rem);
+        aspect-ratio: 1;
+    }
+
+    .game-area { padding: 0; }
 }

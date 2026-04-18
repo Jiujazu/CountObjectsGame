@@ -650,7 +650,7 @@ class CountingGame {
         startscreen.style.display = 'none';
         startscreen.style.pointerEvents = 'none';
         // Zeige Spiel
-        document.getElementById('game-container').style.display = 'block';
+        document.getElementById('game-container').style.display = '';
         // Zeige Puzzle
         this.puzzle.show();
         // Event-Listener für das Spiel aktivieren
