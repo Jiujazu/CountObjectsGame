@@ -1942,14 +1942,17 @@ select.parent-text-input {
     }
     .controls-bottom-left #numbers-toggle { margin-left: 4px; }
 
-    /* Spiel-Container: reservierter Platz fuer Top- und Bottom-Bar.
-       Inhalt fliesst dynamisch dazwischen; scrollt, falls das Keyboard
-       (z. B. Komplett-Preset mit 29 Buchstaben) nicht in die Hoehe passt. */
+    /* Spiel-Container: feste Viewport-Hoehe, interner Scroll.
+       Ohne height (nur min-height) wuerde der Seiten-Body scrollen und
+       Content hinter der fixen Bottom-Bar verschwinden. Jetzt scrollt
+       der Container selbst, die Balken bleiben drueber.
+       dvh statt vh, damit iOS-Browser-Chrome korrekt mitgezaehlt wird. */
     #letter-game-container,
     #game-container {
+        height: 100vh;
+        height: 100dvh;
         padding-top: 72px;
         padding-bottom: 68px;
-        min-height: 100vh;
         box-sizing: border-box;
         overflow-y: auto;
         overflow-x: hidden;
