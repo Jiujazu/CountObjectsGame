@@ -41,7 +41,6 @@ const ANLAUT_TABLE = {
         { emoji: '🦖', word: 'Dinosaurier' },
         { emoji: '🚿', word: 'Dusche' },
         { emoji: '👍', word: 'Daumen' },
-        { emoji: '🎲', word: 'Würfel' },
     ],
     'E': [
         { emoji: '🐘', word: 'Elefant' },
@@ -49,7 +48,6 @@ const ANLAUT_TABLE = {
         { emoji: '🍦', word: 'Eis' },
         { emoji: '🍓', word: 'Erdbeere' },
         { emoji: '🥚', word: 'Ei' },
-        { emoji: '🦉', word: 'Eule' },
         { emoji: '🐿️', word: 'Eichhörnchen' },
     ],
     'F': [
@@ -67,11 +65,10 @@ const ANLAUT_TABLE = {
         { emoji: '🦒', word: 'Giraffe' },
         { emoji: '🎸', word: 'Gitarre' },
         { emoji: '👻', word: 'Gespenst' },
-        { emoji: '🎁', word: 'Geschenk' },
         { emoji: '🍴', word: 'Gabel' },
         { emoji: '🔔', word: 'Glocke' },
         { emoji: '🦍', word: 'Gorilla' },
-        { emoji: '🐐', word: 'Geiß' },
+        { emoji: '🥒', word: 'Gurke' },
     ],
     'H': [
         { emoji: '🐶', word: 'Hund' },
@@ -95,7 +92,7 @@ const ANLAUT_TABLE = {
         { emoji: '🪀', word: 'Jojo' },
         { emoji: '👦', word: 'Junge' },
         { emoji: '🧥', word: 'Jacke' },
-        { emoji: '🥛', word: 'Joghurt' },
+        { emoji: '👖', word: 'Jeans' },
         { emoji: '🏹', word: 'Jäger' },
     ],
     'K': [
@@ -116,16 +113,15 @@ const ANLAUT_TABLE = {
         { emoji: '🚛', word: 'Laster' },
         { emoji: '🍭', word: 'Lutscher' },
         { emoji: '🪜', word: 'Leiter' },
-        { emoji: '🚂', word: 'Lokomotive' },
-        { emoji: '🍋', word: 'Limone' },
+        { emoji: '🎈', word: 'Luftballon' },
     ],
     'M': [
         { emoji: '🐭', word: 'Maus' },
         { emoji: '🌙', word: 'Mond' },
         { emoji: '🐞', word: 'Marienkäfer' },
-        { emoji: '👩', word: 'Mama' },
+        { emoji: '👧', word: 'Mädchen' },
         { emoji: '🌽', word: 'Mais' },
-        { emoji: '🍉', word: 'Melone' },
+        { emoji: '🍈', word: 'Melone' },
         { emoji: '🥛', word: 'Milch' },
         { emoji: '🧲', word: 'Magnet' },
         { emoji: '🦟', word: 'Mücke' },
@@ -160,7 +156,6 @@ const ANLAUT_TABLE = {
     ],
     'Q': [
         { emoji: '🪼', word: 'Qualle' },
-        { emoji: '🟦', word: 'Quadrat' },
     ],
     'R': [
         { emoji: '🚀', word: 'Rakete' },
@@ -213,7 +208,8 @@ const ANLAUT_TABLE = {
         { emoji: '🪱', word: 'Wurm' },
     ],
     'X': [
-        { emoji: '🎸', word: 'Xylophon' },
+        // Kein offizielles Xylophon-Emoji vorhanden; OpenMoji rendert die Note als Symbol-Bild.
+        { emoji: '🎵', word: 'Xylophon' },
     ],
     'Y': [
         { emoji: '🧘', word: 'Yoga' },
@@ -227,6 +223,7 @@ const ANLAUT_TABLE = {
         { emoji: '🚂', word: 'Zug' },
         { emoji: '⛺', word: 'Zelt' },
         { emoji: '🐐', word: 'Ziege' },
+        { emoji: '🎯', word: 'Zielscheibe' },
     ],
     'Ä': [
         { emoji: '🌾', word: 'Ähre' },
@@ -234,11 +231,9 @@ const ANLAUT_TABLE = {
     ],
     'Ö': [
         { emoji: '🛢️', word: 'Öl' },
-        { emoji: '🔥', word: 'Ofen' },
     ],
     'Ü': [
         { emoji: '🎁', word: 'Überraschung' },
-        { emoji: '🌉', word: 'Übergang' },
     ],
 };
 
@@ -258,14 +253,31 @@ function _emojiToOpenMojiCode(emoji) {
     return codes.join('-');
 }
 
-function _renderEmojiHTML(emoji, alt) {
+function _createEmojiNode(emoji, alt) {
     const code = _emojiToOpenMojiCode(emoji);
     const url = `${OPENMOJI_BASE}${code}.svg`;
-    const safeAlt = String(alt || emoji).replace(/"/g, '&quot;');
-    const safeEmoji = String(emoji).replace(/"/g, '&quot;');
-    // onerror: Bei Ladefehler das native Emoji-Zeichen anzeigen.
-    return `<img class="openmoji" src="${url}" alt="${safeAlt}" `
-         + `onerror="this.outerHTML='<span class=&quot;openmoji-fallback&quot;>${safeEmoji}</span>'">`;
+    const img = document.createElement('img');
+    img.className = 'openmoji';
+    img.src = url;
+    img.alt = alt || emoji;
+    img.draggable = false;
+    img.addEventListener('error', () => {
+        const span = document.createElement('span');
+        span.className = 'openmoji-fallback';
+        span.textContent = emoji;
+        img.replaceWith(span);
+    }, { once: true });
+    return img;
+}
+
+// Cache, damit dasselbe Bild nur einmal pro Session geladen wird.
+const _emojiPreloadCache = new Set();
+function _preloadEmoji(emoji) {
+    const code = _emojiToOpenMojiCode(emoji);
+    if (_emojiPreloadCache.has(code)) return;
+    _emojiPreloadCache.add(code);
+    const img = new Image();
+    img.src = `${OPENMOJI_BASE}${code}.svg`;
 }
 
 // Lautier-Mapping (Silbenmethode): Buchstabe -> Text, den TTS als Laut spricht.
@@ -422,6 +434,9 @@ class LetterGame {
         this._buildKeyboard();
         // Events binden
         this._bindGameEvents();
+        // SVGs aller aktiven Eintraege im Hintergrund vorladen,
+        // damit Folge-Challenges sofort erscheinen.
+        this._preloadActiveEmojis();
         // Erste Challenge
         await this._createChallenge();
         this._updateLevelIndicator();
@@ -430,6 +445,13 @@ class LetterGame {
         this.music.playBackgroundMusic();
         // TTS-Instanz global setzen
         window._sharedTTS = this.tts;
+    }
+
+    _preloadActiveEmojis() {
+        this.state.activeLetters.forEach(letter => {
+            const entries = ANLAUT_TABLE[letter] || [];
+            entries.forEach(e => _preloadEmoji(e.emoji));
+        });
     }
 
     _buildKeyboard() {
@@ -496,17 +518,30 @@ class LetterGame {
         this.state.currentLetter = letters[Math.floor(Math.random() * letters.length)];
         this.state.wrongStreak = 0;
         this.state.isProcessing = false;
-        // Aus den verfuegbaren Worten zu diesem Buchstaben einen zufaellig waehlen.
+        // Aus den verfuegbaren Worten zu diesem Buchstaben zufaellig waehlen.
+        // Direkte Wiederholung des letzten Wortes pro Buchstabe vermeiden, sofern
+        // mindestens zwei Alternativen existieren.
         const entries = ANLAUT_TABLE[this.state.currentLetter];
-        const entry = entries[Math.floor(Math.random() * entries.length)];
+        this._lastEntryByLetter = this._lastEntryByLetter || {};
+        const lastWord = this._lastEntryByLetter[this.state.currentLetter];
+        const candidates = (entries.length > 1 && lastWord)
+            ? entries.filter(e => e.word !== lastWord)
+            : entries;
+        const entry = candidates[Math.floor(Math.random() * candidates.length)];
+        this._lastEntryByLetter[this.state.currentLetter] = entry.word;
         this.state.currentEntry = entry;
-        // Display aktualisieren. Wort wird zunaechst versteckt, damit der Anfangsbuchstabe nicht verraten wird.
+        // Display per DOM-API aufbauen, damit der Fehler-Fallback der Bilder
+        // sicher als Listener (statt inline onerror) registriert wird.
         const display = document.getElementById('letter-display');
-        const wordClass = this.state.showWord ? 'letter-word' : 'letter-word hidden';
-        display.innerHTML = `
-            <div class="letter-emoji">${_renderEmojiHTML(entry.emoji, entry.word)}</div>
-            <div class="${wordClass}">${entry.word}</div>
-        `;
+        display.innerHTML = '';
+        const emojiDiv = document.createElement('div');
+        emojiDiv.className = 'letter-emoji';
+        emojiDiv.appendChild(_createEmojiNode(entry.emoji, entry.word));
+        display.appendChild(emojiDiv);
+        const wordDiv = document.createElement('div');
+        wordDiv.className = this.state.showWord ? 'letter-word' : 'letter-word hidden';
+        wordDiv.textContent = entry.word;
+        display.appendChild(wordDiv);
         // Antwort-Slot
         const answerArea = document.getElementById('letter-answer-area');
         answerArea.innerHTML = '<div class="answer-slot" id="answer-slot"></div>';
@@ -974,6 +1009,7 @@ class LetterGame {
             this.tts.setGoogleVoice(newGoogleVoice);
             this.tts.setBackend(newBackend);
             this._buildKeyboard();
+            this._preloadActiveEmojis();
             this._updateLevelIndicator();
             this._updateStars();
             this._createChallenge();

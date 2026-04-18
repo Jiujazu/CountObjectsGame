@@ -1132,6 +1132,10 @@ html, body {
 .letter-display .letter-emoji {
     font-size: 15rem;
     line-height: 1;
+    min-height: 15rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     animation: objectAppear 0.5s ease-out 0.15s both;
 }
 
@@ -1266,7 +1270,7 @@ html, body {
 
 @media (max-width: 480px) {
     .letter-display .letter-big { font-size: 7rem; }
-    .letter-display .letter-emoji { font-size: 10.5rem; }
+    .letter-display .letter-emoji { font-size: 10.5rem; min-height: 10.5rem; }
     .letter-display .letter-emoji .openmoji,
     .letter-display .letter-emoji .openmoji-fallback { width: 10.5rem; height: 10.5rem; }
     .letter-display .letter-emoji .openmoji-fallback { font-size: 10.5rem; }
