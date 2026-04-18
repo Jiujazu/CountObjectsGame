@@ -434,11 +434,15 @@ body {
         font-size: 2.2rem;
         max-width: 70px;
     }
+    /* Objects-Grid muss UNTERHALB des Top-Bars (Level + Stars) starten.
+       Stars enden ~ top:110px (mit kleiner Reserve), also padding-top 120px. */
     .objects-display {
         grid-template-columns: repeat(3, 1fr);
         grid-template-rows: repeat(4, 1fr);
         gap: 8px;
         max-width: 280px;
+        padding: 120px 0 12px 0;
+        min-height: 0;
     }
     .object {
         font-size: 2.4rem;
@@ -450,6 +454,12 @@ body {
         height: 36px;
         font-size: 1rem;
     }
+    /* Bottom-Controls sitzen absolut; Container braucht Platz, damit
+       die 7/8/9-Reihe der Number-Buttons nicht ueberlappt wird. */
+    .game-container { padding-bottom: 72px; }
+    /* Game-Area ohne breite Seiten-Padding, damit das Grid nicht noch
+       schmaler wird als noetig. */
+    .game-area { padding: 8px 8px 8px 8px; }
 }
 
 .number-btn.focus, .game-button.focus {
@@ -1014,9 +1024,30 @@ body {
     }
 }
 @media (max-width: 600px) {
+    /* Mobile: Modal als schlankes Sheet, 3 Spalten damit mehr Cover
+       sichtbar sind, kleinere Cover (72px) + kleine Gaps. */
+    .tracklist-content {
+        padding: 28px 10px 12px 10px;
+        min-width: 0;
+        width: 94vw;
+        max-width: 94vw;
+        max-height: 86vh;
+        border-radius: 18px;
+    }
     .tracklist-list {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 10px 6px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px 8px;
+        max-height: 74vh;
+    }
+    .tracklist-cover-btn {
+        width: 72px;
+        height: 72px;
+        border-radius: 14px;
+    }
+    .tracklist-cover-btn img { border-radius: 14px; }
+    .tracklist-close {
+        top: 6px; right: 6px;
+        width: 32px; height: 32px; font-size: 1.3rem;
     }
 }
 .tracklist-cover-btn {
@@ -1387,15 +1418,18 @@ html, body {
        mit kleinerer Schrift, damit sie nicht ueber das Emoji laufen. */
     .level-label { font-size: 0.9rem; top: 4px; width: 64px; right: 16px; }
     .level-indicator { font-size: 2.2rem; width: 64px; height: 64px; top: 18px; right: 16px; padding: 6px; }
+    /* Stars in einer Reihe (nowrap), damit sie nicht in die Content-
+       Zone rutschen und mit Emoji/Objekten kollidieren. */
     .star-progress {
         top: 86px;
         right: 12px;
         gap: 1px;
-        max-width: 140px;
-        flex-wrap: wrap;
+        max-width: none;
+        flex-wrap: nowrap;
         justify-content: flex-end;
+        white-space: nowrap;
     }
-    .star-progress .star { font-size: 0.95rem; }
+    .star-progress .star { font-size: 0.9rem; }
 
     /* Letter-Display: kompakter, Abstaende reduziert. Emoji ist klick-
        barer Replay-Trigger; Fingerabdruck zeigen + dezenter Hover-Effekt. */
