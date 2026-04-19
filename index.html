@@ -51,10 +51,10 @@
 
     <!-- Hauptspiel (anfangs versteckt) -->
     <div class="game-container" id="game-container" style="display: none;">
-        <button id="close-btn" class="close-button" title="Schließen" aria-label="Schließen">✕</button>
+        <button id="home-btn" class="home-button" title="Zurück zum Menü" aria-label="Zurück zum Menü">🏠</button>
+        <button id="parent-btn" class="parent-discover-btn" title="Eltern-Einstellungen" aria-label="Eltern-Einstellungen">⚙️</button>
         <div class="level-label">Level</div>
         <div class="level-indicator" id="level-indicator"></div>
-        <div class="star-progress" id="star-progress"></div>
         <div class="objects-display" id="objects-display">
             <!-- Objekte werden hier angezeigt -->
         </div>
@@ -70,11 +70,91 @@
             <button class="number-btn" data-number="9">9</button>
         </div>
         <div class="controls controls-bottom-left">
-            <button id="prev-track" class="game-button small" title="Vorheriger Track" aria-label="Vorheriger Track">⏮️</button>
-            <button id="music-toggle" class="game-button small" title="Musik Pause/Weiter (M)" aria-label="Musik Pause/Weiter (M)">⏸️</button>
-            <button id="next-track" class="game-button small" title="Nächster Track" aria-label="Nächster Track">⏭️</button>
             <button id="tracklist-toggle" class="game-button small" title="Musik-Auswahl" aria-label="Musik-Auswahl">🎵</button>
-            <button id="numbers-toggle" class="game-button small" title="Zahlenfeld an/aus (N)" aria-label="Zahlenfeld an/aus (N)">🔢</button>
+        </div>
+        <!-- Deklaratives Eltern-Menue (Single source of truth, siehe game-ui.js).
+             Felder identisch zu breakout.html/letter-game: Level-Stepper, Inhalt-
+             Slider, Audio-Sektion. Wird in script.js ueber IDs (pc-*) gebunden. -->
+        <div id="counting-parent-overlay" class="parent-overlay hidden">
+            <div class="parent-panel">
+                <div class="parent-panel-header">
+                    <h2 class="parent-panel-title">⚙️ Eltern-Einstellungen</h2>
+                    <div class="parent-panel-subtitle">Tipp auf das Zahnrad, um diese Einstellungen zu öffnen.</div>
+                </div>
+                <div class="parent-panel-body">
+                    <section class="parent-section">
+                        <div class="parent-section-label">Spiel</div>
+                        <div class="parent-field">
+                            <div class="parent-field-head">
+                                <span class="parent-field-label">Level</span>
+                                <span class="parent-field-value" id="pc-level-val">1</span>
+                            </div>
+                            <div class="parent-stepper">
+                                <button type="button" id="pc-level-down" aria-label="Level runter">−</button>
+                                <span class="parent-stepper-value" id="pc-level-display">1</span>
+                                <button type="button" id="pc-level-up" aria-label="Level hoch">+</button>
+                            </div>
+                        </div>
+                        <div class="parent-field">
+                            <div class="parent-field-head">
+                                <span class="parent-field-label">Startschwierigkeit</span>
+                                <span class="parent-field-value" id="pc-diff-val">max. 3</span>
+                            </div>
+                            <input type="range" id="pc-diff-slider" min="2" max="9" value="3">
+                            <div class="parent-helper">Maximale Anzahl an Objekten, die gezeigt werden.</div>
+                        </div>
+                    </section>
+                    <section class="parent-section">
+                        <div class="parent-section-label">Audio</div>
+                        <div class="parent-field">
+                            <div class="parent-field-head">
+                                <span class="parent-field-label">Musik-Lautstärke</span>
+                                <span class="parent-field-value" id="pc-vol-val">25%</span>
+                            </div>
+                            <input type="range" id="pc-vol-slider" min="0" max="100" value="25">
+                        </div>
+                        <label class="parent-toggle">
+                            <span class="parent-toggle-control"><input type="checkbox" id="pc-music-toggle" checked></span>
+                            <span class="parent-toggle-text">
+                                <span class="parent-toggle-label">Musik an</span>
+                                <span class="parent-helper">Schaltet die Hintergrundmusik ein oder aus.</span>
+                            </span>
+                        </label>
+                        <label class="parent-toggle">
+                            <span class="parent-toggle-control"><input type="checkbox" id="pc-sfx-toggle" checked></span>
+                            <span class="parent-toggle-text">
+                                <span class="parent-toggle-label">Effekte &amp; Stimme an</span>
+                                <span class="parent-helper">Soundeffekte und vorgelesene Aufgaben.</span>
+                            </span>
+                        </label>
+                        <div class="parent-field">
+                            <div class="parent-field-head">
+                                <span class="parent-field-label">Stimme</span>
+                            </div>
+                            <div class="parent-voice-options">
+                                <label class="parent-voice-option">
+                                    <input type="radio" name="pc-voice" value="piper">
+                                    <span class="parent-voice-text">
+                                        <span class="parent-voice-label">Thorsten (offline)</span>
+                                        <span class="parent-helper">Natürliche Kinderstimme. ~63 MB Download beim ersten Start.</span>
+                                    </span>
+                                </label>
+                                <label class="parent-voice-option">
+                                    <input type="radio" name="pc-voice" value="browser">
+                                    <span class="parent-voice-text">
+                                        <span class="parent-voice-label">Standard (Browser)</span>
+                                        <span class="parent-helper">Eingebaut, Qualität variiert je nach Gerät.</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="parent-status" id="pc-tts-status"></div>
+                        </div>
+                    </section>
+                </div>
+                <div class="parent-panel-footer">
+                    <button type="button" class="parent-btn parent-btn-primary" id="pc-parent-close">Fertig</button>
+                </div>
+            </div>
         </div>
     </div>
     <div class="celebration" id="celebration">
@@ -89,21 +169,135 @@
 
     <!-- Buchstabenspiel (anfangs versteckt) -->
     <div class="game-container letter-game-container" id="letter-game-container" style="display: none;">
-        <button id="letter-close-btn" class="close-button" title="Schließen" aria-label="Schließen">&#x2715;</button>
-        <button id="letter-parent-btn" class="parent-discover-btn" title="Eltern-Einstellungen" aria-label="Eltern-Einstellungen">&#x2699;&#xFE0F;</button>
+        <button id="letter-home-btn" class="home-button" title="Zurück zum Menü" aria-label="Zurück zum Menü">🏠</button>
+        <button id="letter-parent-btn" class="parent-discover-btn" title="Eltern-Einstellungen" aria-label="Eltern-Einstellungen">⚙️</button>
         <div class="level-label">Level</div>
         <div class="level-indicator" id="letter-level-indicator"></div>
-        <div class="star-progress" id="letter-star-progress"></div>
         <div class="letter-display" id="letter-display"></div>
         <div class="letter-answer-area" id="letter-answer-area"></div>
         <div class="letter-keyboard" id="letter-keyboard"></div>
         <div class="controls controls-bottom-left">
-            <button id="letter-prev-track" class="game-button small" title="Vorheriger Track" aria-label="Vorheriger Track">&#x23EE;&#xFE0F;</button>
-            <button id="letter-music-toggle" class="game-button small" title="Musik Pause/Weiter (M)" aria-label="Musik Pause/Weiter (M)">&#x23F8;&#xFE0F;</button>
-            <button id="letter-next-track" class="game-button small" title="Nächster Track" aria-label="Nächster Track">&#x23ED;&#xFE0F;</button>
             <button id="letter-tracklist-toggle" class="game-button small" title="Musik-Auswahl" aria-label="Musik-Auswahl">&#x1F3B5;</button>
             <button id="letter-replay-btn" class="game-button small" title="Nochmal hören" aria-label="Nochmal hören">&#x1F50A;</button>
             <button id="letter-hint-btn" class="game-button small" title="Tipp" aria-label="Tipp">&#x1F4A1;</button>
+        </div>
+        <!-- Deklaratives Eltern-Menue (Single source of truth, siehe game-ui.js).
+             Presets + Einzel-Auswahl + Anzeige-Optionen + Audio. In letter-game.js
+             ueber IDs (lp-*) gebunden. -->
+        <div id="letter-parent-overlay" class="parent-overlay hidden">
+            <div class="parent-panel">
+                <div class="parent-panel-header">
+                    <h2 class="parent-panel-title">⚙️ Eltern-Einstellungen</h2>
+                    <div class="parent-panel-subtitle">Tipp auf das Zahnrad, um diese Einstellungen zu öffnen.</div>
+                </div>
+                <div class="parent-panel-body">
+                    <section class="parent-section">
+                        <div class="parent-section-label">Inhalt</div>
+                        <div class="parent-field">
+                            <div class="parent-field-head">
+                                <span class="parent-field-label">Buchstaben-Auswahl</span>
+                                <span class="parent-field-value" id="lp-letter-count">0/29</span>
+                            </div>
+                            <div class="parent-presets" id="lp-presets">
+                                <button type="button" class="parent-preset" data-preset="Starter">Starter</button>
+                                <button type="button" class="parent-preset" data-preset="Leicht">Leicht</button>
+                                <button type="button" class="parent-preset" data-preset="Kern">Kern</button>
+                                <button type="button" class="parent-preset" data-preset="Komplett">Komplett</button>
+                                <button type="button" class="parent-preset" data-preset="Vokale">Vokale</button>
+                                <button type="button" class="parent-preset" data-preset="Umlaute">Umlaute</button>
+                            </div>
+                            <details class="parent-letters">
+                                <summary>Einzelne Buchstaben bearbeiten</summary>
+                                <div class="parent-letters-grid" id="lp-letter-grid"></div>
+                            </details>
+                        </div>
+                        <div class="parent-field">
+                            <div class="parent-field-head">
+                                <span class="parent-field-label">Level</span>
+                                <span class="parent-field-value" id="lp-level-val">1</span>
+                            </div>
+                            <div class="parent-stepper">
+                                <button type="button" id="lp-level-down" aria-label="Level runter">−</button>
+                                <span class="parent-stepper-value" id="lp-level-display">1</span>
+                                <button type="button" id="lp-level-up" aria-label="Level hoch">+</button>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="parent-section">
+                        <div class="parent-section-label">Anzeige</div>
+                        <label class="parent-toggle">
+                            <span class="parent-toggle-control"><input type="checkbox" id="lp-showword"></span>
+                            <span class="parent-toggle-text">
+                                <span class="parent-toggle-label">Wort von Anfang an zeigen</span>
+                                <span class="parent-helper">Aus: Wort erscheint erst nach der richtigen Antwort.</span>
+                            </span>
+                        </label>
+                        <label class="parent-toggle">
+                            <span class="parent-toggle-control"><input type="checkbox" id="lp-vkb"></span>
+                            <span class="parent-toggle-text">
+                                <span class="parent-toggle-label">Virtuelle Tastatur anzeigen</span>
+                                <span class="parent-helper">Zusätzliche Tasten am Bildschirm für Geräte ohne Tastatur.</span>
+                            </span>
+                        </label>
+                        <label class="parent-toggle">
+                            <span class="parent-toggle-control"><input type="checkbox" id="lp-lautiert"></span>
+                            <span class="parent-toggle-text">
+                                <span class="parent-toggle-label">Lautiert aussprechen</span>
+                                <span class="parent-helper">Silbenmethode: „Fff" statt „Eff", „Mmm" statt „Emm".</span>
+                            </span>
+                        </label>
+                    </section>
+                    <section class="parent-section">
+                        <div class="parent-section-label">Audio</div>
+                        <div class="parent-field">
+                            <div class="parent-field-head">
+                                <span class="parent-field-label">Musik-Lautstärke</span>
+                                <span class="parent-field-value" id="lp-vol-val">25%</span>
+                            </div>
+                            <input type="range" id="lp-vol-slider" min="0" max="100" value="25">
+                        </div>
+                        <label class="parent-toggle">
+                            <span class="parent-toggle-control"><input type="checkbox" id="lp-music-toggle" checked></span>
+                            <span class="parent-toggle-text">
+                                <span class="parent-toggle-label">Musik an</span>
+                                <span class="parent-helper">Schaltet die Hintergrundmusik ein oder aus.</span>
+                            </span>
+                        </label>
+                        <label class="parent-toggle">
+                            <span class="parent-toggle-control"><input type="checkbox" id="lp-sfx-toggle" checked></span>
+                            <span class="parent-toggle-text">
+                                <span class="parent-toggle-label">Effekte &amp; Stimme an</span>
+                                <span class="parent-helper">Soundeffekte und vorgelesene Aufgaben.</span>
+                            </span>
+                        </label>
+                        <div class="parent-field">
+                            <div class="parent-field-head">
+                                <span class="parent-field-label">Stimme</span>
+                            </div>
+                            <div class="parent-voice-options">
+                                <label class="parent-voice-option">
+                                    <input type="radio" name="lp-voice" value="piper">
+                                    <span class="parent-voice-text">
+                                        <span class="parent-voice-label">Thorsten (offline)</span>
+                                        <span class="parent-helper">Natürliche Kinderstimme. ~63 MB Download beim ersten Start.</span>
+                                    </span>
+                                </label>
+                                <label class="parent-voice-option">
+                                    <input type="radio" name="lp-voice" value="browser">
+                                    <span class="parent-voice-text">
+                                        <span class="parent-voice-label">Standard (Browser)</span>
+                                        <span class="parent-helper">Eingebaut, Qualität variiert je nach Gerät.</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="parent-status" id="lp-tts-status"></div>
+                        </div>
+                    </section>
+                </div>
+                <div class="parent-panel-footer">
+                    <button type="button" class="parent-btn parent-btn-primary" id="lp-parent-close">Fertig</button>
+                </div>
+            </div>
         </div>
     </div>
 

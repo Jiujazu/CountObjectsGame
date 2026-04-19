@@ -169,11 +169,9 @@ class LetterGame {
         this._keydownHandler = null;
         this._eventsBound = false;
         this._pendingTimeouts = new Set();
-        this._parentMenuCleanup = null;
-        // Sammelt Long-Press-Listener, damit _unbindGameEvents sie wieder
-        // entfernen kann. Sonst wuerden sich beim erneuten Oeffnen des Spiels
-        // Listener auf Level-Indikator und Zahnrad-Button vervielfachen.
-        this._parentMenuBindings = [];
+        // Transientes Eltern-Menue: gesetzt solange Overlay offen ist,
+        // gesammelte Listener + Poll-Timer werden bei _closeParentMenu entfernt.
+        this._parentMenuTransient = null;
     }
 
     static _loadFlag(key, defaultValue) {
@@ -238,6 +236,13 @@ class LetterGame {
     async startGame() {
         // Trail-Animation stoppen
         if (window._trailControl) window._trailControl.stop();
+        // Persistente Audio-/Stimmeinstellungen laden (vor Musik-Start anwenden,
+        // sonst spielt sie kurz auch bei deaktivierter Einstellung an).
+        this.soundEnabled = localStorage.getItem('letter-sfx') !== 'false';
+        this.speechEnabled = localStorage.getItem('letter-sfx') !== 'false';
+        if (localStorage.getItem('letter-music') === 'false') {
+            this.music.musicEnabled = false;
+        }
         // Startscreen verstecken
         const startscreen = document.getElementById('startscreen');
         startscreen.style.display = 'none';
@@ -253,7 +258,6 @@ class LetterGame {
         // Erste Challenge
         await this._createChallenge();
         this._updateLevelIndicator();
-        this._updateStars();
         // Musik starten
         this.music.playBackgroundMusic();
         // TTS-Instanz global setzen
@@ -281,13 +285,10 @@ class LetterGame {
         // Tastatur
         this._keydownHandler = (e) => this._handleKeyDown(e);
         document.addEventListener('keydown', this._keydownHandler);
-        // Control-Buttons
+        // Control-Buttons (einheitliche Bottom-Controls + Home + Zahnrad)
         const controls = [
-            { id: 'letter-close-btn', fn: () => this.closeGame() },
-            { id: 'letter-music-toggle', fn: () => this.music.toggleMusic() },
+            { id: 'letter-home-btn', fn: () => this.closeGame() },
             { id: 'letter-tracklist-toggle', fn: () => this.music.showOverlay() },
-            { id: 'letter-prev-track', fn: () => this.music.prevTrack() },
-            { id: 'letter-next-track', fn: () => this.music.nextTrack() },
             { id: 'letter-replay-btn', fn: () => this._speakInstruction() },
             { id: 'letter-hint-btn', fn: () => this._showHint() },
         ];
@@ -298,8 +299,8 @@ class LetterGame {
                 el.addEventListener('click', el._clickHandler);
             }
         });
-        // Eltern-Menu (Long-Press auf Level-Indikator)
-        this._initParentMenu();
+        // Eltern-Menu: Zahnrad oeffnet das deklarative Overlay (keine Long-Press mehr)
+        this._bindParentMenu();
     }
 
     _unbindGameEvents() {
@@ -309,15 +310,17 @@ class LetterGame {
             document.removeEventListener('keydown', this._keydownHandler);
             this._keydownHandler = null;
         }
-        const ids = ['letter-close-btn', 'letter-music-toggle', 'letter-tracklist-toggle',
-                     'letter-prev-track', 'letter-next-track', 'letter-replay-btn', 'letter-hint-btn'];
+        const ids = ['letter-home-btn', 'letter-tracklist-toggle',
+                     'letter-replay-btn', 'letter-hint-btn', 'letter-parent-btn'];
         ids.forEach(id => {
             const el = document.getElementById(id);
             if (el && el._clickHandler) {
                 el.removeEventListener('click', el._clickHandler);
+                delete el._clickHandler;
             }
         });
-        this._teardownParentMenu();
+        // Offenes Eltern-Menue mit aufraeumen
+        this._closeParentMenu();
     }
 
     async _createChallenge() {
@@ -397,24 +400,29 @@ class LetterGame {
             }
             // Puzzle Fortschritt
             this.puzzle.revealNextPiece();
-            // Naechstes Level nach kurzer Pause
-            this._setTimeout(async () => {
-                slot.classList.remove('correct', 'filled');
-                slot.textContent = '';
-                this.state.level++;
-                this._updateLevelIndicator();
-                this._updateStars();
-                await this._createChallenge();
-            }, TIMING.NEXT_CHALLENGE_MS);
+            // Kurzes Win-Overlay, dann Level hoch und neue Aufgabe. Einheitlich
+            // ueber GameUI, damit Zaehl-/Breakout-/Letter-Spiele denselben Flow
+            // haben.
+            slot.classList.remove('correct', 'filled');
+            slot.textContent = '';
+            GameUI.showWinOverlay({
+                level: this.state.level + 1,
+                tts: this.speechEnabled ? this.tts : null,
+                onNext: () => {
+                    this.state.level++;
+                    this._updateLevelIndicator();
+                    this._createChallenge();
+                }
+            });
         } else {
             // Falsch
             this.state.wrongStreak++;
-            slot.classList.add('wrong');
+            // Einheitliches Fehler-Feedback (Shake + Ton) ueber GameUI.
+            // TTS wird separat unten gesprochen (kontextabhaengig mit Re-Speak).
+            GameUI.shakeError(slot, { audio: SharedAudio });
             const key = document.querySelector(`.letter-key[data-letter="${letter}"]`);
             if (key) key.classList.add('wrong');
-            if (this.soundEnabled) SharedAudio.playWrongSound();
             // Kein Full-Screen-Pink-Flash: fuer sensible Kinder zu abschreckend.
-            // Slot und Key werden ohnehin rot markiert - das reicht als visuelles Feedback.
             this._setTimeout(() => {
                 slot.classList.remove('wrong', 'filled');
                 slot.textContent = '';
@@ -488,64 +496,34 @@ class LetterGame {
         if (indicator) indicator.textContent = this.state.level;
     }
 
-    _updateStars() {
-        const container = document.getElementById('letter-star-progress');
-        if (!container) return;
-        const earnedStars = Math.floor((this.state.level - 1) / 5);
-        const totalStars = 7;
-        container.innerHTML = '';
-        for (let i = 0; i < totalStars; i++) {
-            const star = document.createElement('span');
-            star.className = 'star' + (i < earnedStars ? ' earned' : '');
-            star.textContent = '\u2B50';
-            container.appendChild(star);
-        }
+    _bindParentMenu() {
+        // Eltern-Menue: nur das Zahnrad oeffnet das Overlay. Kein Long-Press
+        // mehr auf der Level-Anzeige (reduziert Verwirrung fuer Nutzer, die
+        // versehentlich lange tippen).
+        const btn = document.getElementById('letter-parent-btn');
+        if (!btn) return;
+        btn._clickHandler = () => this._openParentMenu();
+        btn.addEventListener('click', btn._clickHandler);
     }
 
-    _initParentMenu() {
-        // Einfacher Tap auf Level-Anzeige ODER Zahnrad-Button oeffnet das Eltern-Menue.
-        // Beide Targets sind fuer ein 3-4jaehriges Kind uninteressant (eine Zahl und
-        // ein Zahnrad), und das Menue selbst ist rein textbasiert - Nichtleser
-        // kommen nicht an die Einstellungen. Versehentliche Oeffnungen sind
-        // schnell ueber "Abbrechen" zurueckzunehmen.
-        const targets = [
-            document.getElementById('letter-level-indicator'),
-            document.getElementById('letter-parent-btn'),
-        ].filter(Boolean);
-        targets.forEach(el => {
-            el.style.cursor = 'pointer';
-            const onTap = () => this._showParentMenu();
-            el.addEventListener('click', onTap);
-            this._parentMenuBindings.push({ el, onTap });
-        });
-    }
+    _openParentMenu() {
+        const overlay = document.getElementById('letter-parent-overlay');
+        if (!overlay) return;
+        // Falls bereits offen: nichts tun (Doppeltaps abfangen).
+        if (this._parentMenuTransient) return;
+        overlay.classList.remove('hidden');
 
-    _teardownParentMenu() {
-        this._parentMenuBindings.forEach(({ el, onTap }) => {
-            el.removeEventListener('click', onTap);
-        });
-        this._parentMenuBindings = [];
-    }
+        // Eine Liste fuer Cleanup-Schritte; am Ende von _closeParentMenu
+        // werden alle Listener und Timer entfernt.
+        const cleanups = [];
+        const addListener = (el, ev, fn, opts) => {
+            if (!el) return;
+            el.addEventListener(ev, fn, opts);
+            cleanups.push(() => el.removeEventListener(ev, fn, opts));
+        };
 
-    _buildVoiceOptions(current) {
-        const opts = GOOGLE_CHIRP_VOICES.map(v =>
-            `<option value="${v.id}" ${v.id === current ? 'selected' : ''}>${v.label}</option>`);
-        if (!GOOGLE_CHIRP_VOICES.find(v => v.id === current)) {
-            opts.unshift(`<option value="${current}" selected>${current} (eigene)</option>`);
-        }
-        return opts.join('');
-    }
-
-    _showParentMenu() {
-        const overlay = document.createElement('div');
-        overlay.id = 'letter-parent-menu-overlay';
-        overlay.className = 'parent-overlay';
-        const panel = document.createElement('div');
-        panel.className = 'parent-panel';
-
-        // Presets nach Schwierigkeit (Anlauttabellen-UX-Review). Die Default-
-        // Reihenfolge entspricht den Tiers aus dem Review: je weiter rechts,
-        // desto mehr homophone/seltene Buchstaben enthalten.
+        // Preset-Definition (lokal zum Menu). Inhalt identisch zum alten Menue,
+        // Vokale/Umlaute waren vorher nur Shortcuts - hier ebenso.
         const presets = {
             'Starter': LETTER_PRESETS['Starter'],
             'Leicht': LETTER_PRESETS['Leicht'],
@@ -554,293 +532,234 @@ class LetterGame {
             'Vokale': ['A', 'E', 'I', 'O', 'U'],
             'Umlaute': ['Ä', 'Ö', 'Ü'],
         };
-        let selectedLetters = [...this.state.activeLetters];
-        let newShowVirtualKeyboard = this.state.showVirtualKeyboard;
-        let newShowWord = this.state.showWord;
-        let newLevel = this.state.level;
-        let newBackend = this.tts.backend;
-        let newGoogleKey = this.tts.googleKey;
-        let newGoogleVoice = this.tts.googleVoice;
-        let newLautierEnabled = this.state.lautierEnabled;
-        const currentVolPct = Math.round((this.music.volume ?? 0.25) * 100);
 
-        const presetHTML = Object.entries(presets).map(([name, letters]) => {
-            const active = JSON.stringify(letters) === JSON.stringify(selectedLetters) ? ' active' : '';
-            return `<button class="parent-preset${active}" data-preset="${name}">${name}</button>`;
-        }).join('');
-
-        const letterCheckboxes = ALL_LETTERS.map(l => {
-            const checked = selectedLetters.includes(l) ? 'checked' : '';
-            return `<label><input type="checkbox" data-letter-check="${l}" ${checked}> ${l}</label>`;
-        }).join('');
-
-        panel.innerHTML = `
-            <div class="parent-panel-header">
-                <h2 class="parent-panel-title">⚙️ Eltern-Einstellungen</h2>
-                <div class="parent-panel-subtitle">Tipp auf die Level-Zahl oder das Zahnrad zum Öffnen.</div>
-            </div>
-            <div class="parent-panel-body">
-                <section class="parent-section">
-                    <div class="parent-section-label">Inhalt</div>
-                    <div class="parent-field">
-                        <div class="parent-field-head">
-                            <span class="parent-field-label">Buchstaben-Auswahl</span>
-                            <span class="parent-field-value" id="lp-letter-count">${selectedLetters.length}/${ALL_LETTERS.length}</span>
-                        </div>
-                        <div class="parent-presets">${presetHTML}</div>
-                        <details class="parent-letters">
-                            <summary>Einzelne Buchstaben bearbeiten</summary>
-                            <div class="parent-letters-grid">${letterCheckboxes}</div>
-                        </details>
-                    </div>
-                    <div class="parent-field">
-                        <div class="parent-field-head">
-                            <span class="parent-field-label">Level</span>
-                        </div>
-                        <div class="parent-stepper">
-                            <button type="button" id="lp-level-down" aria-label="Level runter">−</button>
-                            <span class="parent-stepper-value" id="lp-level-val">${this.state.level}</span>
-                            <button type="button" id="lp-level-up" aria-label="Level hoch">+</button>
-                        </div>
-                    </div>
-                </section>
-                <section class="parent-section">
-                    <div class="parent-section-label">Anzeige</div>
-                    <label class="parent-toggle">
-                        <span class="parent-toggle-control"><input type="checkbox" id="lp-showword" ${newShowWord ? 'checked' : ''}></span>
-                        <span class="parent-toggle-text">
-                            <span class="parent-toggle-label">Wort von Anfang an zeigen</span>
-                            <span class="parent-helper">Aus: Wort erscheint erst nach der richtigen Antwort.</span>
-                        </span>
-                    </label>
-                    <label class="parent-toggle">
-                        <span class="parent-toggle-control"><input type="checkbox" id="lp-vkb" ${newShowVirtualKeyboard ? 'checked' : ''}></span>
-                        <span class="parent-toggle-text">
-                            <span class="parent-toggle-label">Virtuelle Tastatur anzeigen</span>
-                            <span class="parent-helper">Zusätzliche Tasten am Bildschirm für Geräte ohne Tastatur.</span>
-                        </span>
-                    </label>
-                </section>
-                <section class="parent-section">
-                    <div class="parent-section-label">Audio</div>
-                    <div class="parent-field">
-                        <div class="parent-field-head">
-                            <span class="parent-field-label">Musik-Lautstärke</span>
-                            <span class="parent-field-value" id="lp-vol-val">${currentVolPct}%</span>
-                        </div>
-                        <input type="range" id="lp-vol-slider" min="0" max="100" value="${currentVolPct}">
-                    </div>
-                    <div class="parent-field">
-                        <div class="parent-field-head">
-                            <span class="parent-field-label">Stimme</span>
-                        </div>
-                        <div class="parent-voice-options">
-                            <label class="parent-voice-option">
-                                <input type="radio" name="lp-voice" value="piper" ${newBackend === 'piper' ? 'checked' : ''}>
-                                <span class="parent-voice-text">
-                                    <span class="parent-voice-label">Piper / Thorsten</span>
-                                    <span class="parent-helper">Offline, gratis. ~63 MB Download beim ersten Start.</span>
-                                </span>
-                            </label>
-                            <label class="parent-voice-option">
-                                <input type="radio" name="lp-voice" value="google" ${newBackend === 'google' ? 'checked' : ''}>
-                                <span class="parent-voice-text">
-                                    <span class="parent-voice-label">Google Chirp 3 HD</span>
-                                    <span class="parent-helper">Premium-Qualität. Eigener API-Key nötig (100k Zeichen/Monat gratis).</span>
-                                </span>
-                            </label>
-                            <label class="parent-voice-option">
-                                <input type="radio" name="lp-voice" value="browser" ${newBackend === 'browser' ? 'checked' : ''}>
-                                <span class="parent-voice-text">
-                                    <span class="parent-voice-label">Browser-Stimme</span>
-                                    <span class="parent-helper">Eingebaut, Qualität variiert je nach Gerät.</span>
-                                </span>
-                            </label>
-                        </div>
-                        <div class="parent-voice-google" id="lp-google-config" ${newBackend === 'google' ? '' : 'hidden'}>
-                            <input type="password" id="lp-google-key" class="parent-text-input" placeholder="Google API-Key" value="${newGoogleKey}" autocomplete="off">
-                            <select id="lp-google-voice" class="parent-text-input">
-                                ${this._buildVoiceOptions(newGoogleVoice)}
-                            </select>
-                            <button type="button" class="parent-btn parent-btn-secondary parent-btn-slim" id="lp-google-test">Testen</button>
-                            <div class="parent-helper">
-                                Key auf <code>console.cloud.google.com</code> erstellen, „Text-to-Speech API" aktivieren. Key per HTTP-Referrer auf deine Domain beschränken, damit er nicht missbraucht werden kann. Wird nur im Browser gespeichert.
-                            </div>
-                        </div>
-                        <div class="parent-status" id="lp-tts-status"></div>
-                    </div>
-                    <label class="parent-toggle">
-                        <span class="parent-toggle-control"><input type="checkbox" id="lp-lautiert" ${newLautierEnabled ? 'checked' : ''}></span>
-                        <span class="parent-toggle-text">
-                            <span class="parent-toggle-label">Lautiert aussprechen</span>
-                            <span class="parent-helper">Silbenmethode: „Fff" statt „Eff", „Mmm" statt „Emm". So wie in der Schule.</span>
-                        </span>
-                    </label>
-                </section>
-            </div>
-            <div class="parent-panel-footer">
-                <button type="button" class="parent-btn parent-btn-secondary" id="lp-close">Abbrechen</button>
-                <button type="button" class="parent-btn parent-btn-primary" id="lp-apply">Übernehmen</button>
-            </div>
-        `;
-        overlay.appendChild(panel);
-        document.body.appendChild(overlay);
-
+        const gridEl = document.getElementById('lp-letter-grid');
         const countEl = document.getElementById('lp-letter-count');
-        const updateCount = () => {
-            if (countEl) countEl.textContent = `${selectedLetters.length}/${ALL_LETTERS.length}`;
-        };
-        const syncPresetActive = () => {
-            overlay.querySelectorAll('.parent-preset').forEach(b => {
-                const preset = presets[b.dataset.preset];
-                const match = preset && JSON.stringify(preset) === JSON.stringify([...selectedLetters].sort((a, b) => a.localeCompare(b, 'de')));
-                b.classList.toggle('active', !!match);
-            });
-        };
-
-        overlay.querySelectorAll('.parent-preset').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const preset = presets[btn.dataset.preset];
-                if (!preset) return;
-                selectedLetters = [...preset];
-                overlay.querySelectorAll('[data-letter-check]').forEach(cb => {
-                    cb.checked = selectedLetters.includes(cb.dataset.letterCheck);
-                });
-                overlay.querySelectorAll('.parent-preset').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                updateCount();
-            });
-        });
-
-        overlay.querySelectorAll('[data-letter-check]').forEach(cb => {
-            cb.addEventListener('change', () => {
-                const l = cb.dataset.letterCheck;
-                if (cb.checked) {
-                    if (!selectedLetters.includes(l)) selectedLetters.push(l);
-                    selectedLetters.sort((a, b) => a.localeCompare(b, 'de'));
-                } else {
-                    selectedLetters = selectedLetters.filter(x => x !== l);
-                }
-                updateCount();
-                syncPresetActive();
-            });
-        });
-
         const levelVal = document.getElementById('lp-level-val');
-        document.getElementById('lp-level-down').addEventListener('click', () => {
-            if (newLevel > 1) { newLevel--; levelVal.textContent = newLevel; }
-        });
-        document.getElementById('lp-level-up').addEventListener('click', () => {
-            newLevel++; levelVal.textContent = newLevel;
-        });
-
-        const statusEl = document.getElementById('lp-tts-status');
-        const renderStatus = () => {
-            if (!statusEl) return;
-            statusEl.classList.remove('ready', 'fallback');
-            if (newBackend === 'browser') {
-                statusEl.textContent = '● Browser-Stimme aktiv';
-                statusEl.classList.add('ready');
-                return;
-            }
-            if (newBackend === 'google') {
-                const gs = this.tts.googleStatus;
-                if (!newGoogleKey) { statusEl.textContent = '○ Kein API-Key eingetragen'; statusEl.classList.add('fallback'); return; }
-                if (gs === 'ready') { statusEl.textContent = '● Google-Stimme bereit'; statusEl.classList.add('ready'); return; }
-                if (gs === 'error') { statusEl.textContent = '○ API-Fehler – Browser-Fallback aktiv'; statusEl.classList.add('fallback'); return; }
-                statusEl.textContent = '○ Noch nicht getestet';
-                return;
-            }
-            const s = this.tts.status;
-            if (s === 'ready') { statusEl.textContent = '● Piper/Thorsten bereit'; statusEl.classList.add('ready'); }
-            else if (s === 'downloading') statusEl.textContent = `⬇ Modell lädt … ${Math.round((this.tts.progress || 0) * 100)}%`;
-            else if (s === 'fallback') { statusEl.textContent = '○ Nicht verfügbar – Browser-Stimme aktiv'; statusEl.classList.add('fallback'); }
-            else statusEl.textContent = '○ Initialisiert …';
-        };
-        renderStatus();
-        const statusTimer = setInterval(renderStatus, TIMING.STATUS_POLL_MS);
-
-        const cleanup = () => {
-            clearInterval(statusTimer);
-            if (overlay.parentNode) overlay.remove();
-            document.removeEventListener('keydown', keyHandler);
-            this._parentMenuCleanup = null;
-        };
-        this._parentMenuCleanup = cleanup;
-        const keyHandler = (e) => { if (e.key === 'Escape') cleanup(); };
-        document.addEventListener('keydown', keyHandler);
-
-        document.getElementById('lp-vkb').addEventListener('change', (e) => {
-            newShowVirtualKeyboard = e.target.checked;
-        });
-        document.getElementById('lp-showword').addEventListener('change', (e) => {
-            newShowWord = e.target.checked;
-        });
-        document.getElementById('lp-lautiert').addEventListener('change', (e) => {
-            newLautierEnabled = e.target.checked;
-        });
-
-        // Musik-Lautstaerke live anwenden, damit man sofort den Unterschied hoert
+        const levelDisplay = document.getElementById('lp-level-display');
+        const showWordCb = document.getElementById('lp-showword');
+        const vkbCb = document.getElementById('lp-vkb');
+        const lautiertCb = document.getElementById('lp-lautiert');
         const volSlider = document.getElementById('lp-vol-slider');
         const volVal = document.getElementById('lp-vol-val');
-        volSlider.addEventListener('input', () => {
-            const pct = parseInt(volSlider.value);
-            volVal.textContent = pct + '%';
-            this.music.setVolume(pct / 100);
+        const musicCb = document.getElementById('lp-music-toggle');
+        const sfxCb = document.getElementById('lp-sfx-toggle');
+        const statusEl = document.getElementById('lp-tts-status');
+        const closeBtn = document.getElementById('lp-parent-close');
+
+        // Grid mit 29 Checkboxen populieren (war beim Templating im JS, jetzt
+        // deklarativ-befuellt: HTML stellt nur den Container).
+        if (gridEl) {
+            gridEl.innerHTML = ALL_LETTERS.map(l => {
+                const checked = this.state.activeLetters.includes(l) ? 'checked' : '';
+                return `<label><input type="checkbox" data-letter-check="${l}" ${checked}> ${l}</label>`;
+            }).join('');
+        }
+
+        const updateCount = () => {
+            if (countEl) countEl.textContent = `${this.state.activeLetters.length}/${ALL_LETTERS.length}`;
+        };
+        const syncPresetActive = () => {
+            const sortedActive = JSON.stringify([...this.state.activeLetters].sort((a, b) => a.localeCompare(b, 'de')));
+            overlay.querySelectorAll('.parent-preset').forEach(b => {
+                const preset = presets[b.dataset.preset];
+                if (!preset) { b.classList.remove('active'); return; }
+                const sortedPreset = JSON.stringify([...preset].sort((a, b) => a.localeCompare(b, 'de')));
+                b.classList.toggle('active', sortedPreset === sortedActive);
+            });
+        };
+        const syncLetterCheckboxes = () => {
+            overlay.querySelectorAll('[data-letter-check]').forEach(cb => {
+                cb.checked = this.state.activeLetters.includes(cb.dataset.letterCheck);
+            });
+        };
+
+        // Initiale Feld-Werte aus State uebernehmen
+        if (levelVal) levelVal.textContent = this.state.level;
+        if (levelDisplay) levelDisplay.textContent = this.state.level;
+        if (showWordCb) showWordCb.checked = this.state.showWord;
+        if (vkbCb) vkbCb.checked = this.state.showVirtualKeyboard;
+        if (lautiertCb) lautiertCb.checked = this.state.lautierEnabled;
+        const currentVolPct = Math.round((this.music.volume ?? 0.25) * 100);
+        if (volSlider) volSlider.value = currentVolPct;
+        if (volVal) volVal.textContent = currentVolPct + '%';
+        if (musicCb) musicCb.checked = this.music.musicEnabled !== false;
+        if (sfxCb) sfxCb.checked = this.soundEnabled;
+        overlay.querySelectorAll('input[name="lp-voice"]').forEach(r => {
+            r.checked = (r.value === this.tts.backend);
+        });
+        updateCount();
+        syncPresetActive();
+
+        // Helper: wenn der aktuelle Buchstabe nicht mehr im aktiven Set ist,
+        // muss eine neue Challenge erzeugt werden (sonst haengt das Kind auf
+        // einem nicht mehr zulaessigen Buchstaben fest).
+        const rebuildIfCurrentLetterGone = () => {
+            if (!this.state.activeLetters.includes(this.state.currentLetter)) {
+                this._createChallenge();
+            }
+        };
+
+        // ---- Presets: setzen aktive Buchstaben LIVE ----
+        overlay.querySelectorAll('.parent-preset').forEach(btn => {
+            addListener(btn, 'click', () => {
+                const preset = presets[btn.dataset.preset];
+                if (!preset) return;
+                this.state.activeLetters = [...preset];
+                localStorage.setItem('letter-active', JSON.stringify(this.state.activeLetters));
+                syncLetterCheckboxes();
+                updateCount();
+                syncPresetActive();
+                this._buildKeyboard();
+                rebuildIfCurrentLetterGone();
+            });
         });
 
-        const googleConfig = document.getElementById('lp-google-config');
+        // ---- Einzel-Checkboxen ----
+        overlay.querySelectorAll('[data-letter-check]').forEach(cb => {
+            addListener(cb, 'change', () => {
+                const l = cb.dataset.letterCheck;
+                let letters = [...this.state.activeLetters];
+                if (cb.checked) {
+                    if (!letters.includes(l)) letters.push(l);
+                    letters.sort((a, b) => a.localeCompare(b, 'de'));
+                } else {
+                    letters = letters.filter(x => x !== l);
+                }
+                // Mindestens zwei Buchstaben - sonst Default-Preset zurueckfordern.
+                if (letters.length < 2) {
+                    letters = [...LETTER_PRESETS[DEFAULT_PRESET]];
+                    syncLetterCheckboxes();
+                }
+                this.state.activeLetters = letters;
+                localStorage.setItem('letter-active', JSON.stringify(letters));
+                updateCount();
+                syncPresetActive();
+                this._buildKeyboard();
+                rebuildIfCurrentLetterGone();
+            });
+        });
+
+        // ---- Level Stepper ----
+        addListener(document.getElementById('lp-level-down'), 'click', () => {
+            if (this.state.level > 1) {
+                this.state.level--;
+                if (levelVal) levelVal.textContent = this.state.level;
+                if (levelDisplay) levelDisplay.textContent = this.state.level;
+                this._updateLevelIndicator();
+            }
+        });
+        addListener(document.getElementById('lp-level-up'), 'click', () => {
+            this.state.level++;
+            if (levelVal) levelVal.textContent = this.state.level;
+            if (levelDisplay) levelDisplay.textContent = this.state.level;
+            this._updateLevelIndicator();
+        });
+
+        // ---- Anzeige-Toggles ----
+        addListener(showWordCb, 'change', () => {
+            this.state.showWord = showWordCb.checked;
+            localStorage.setItem('letter-showword', this.state.showWord ? 'true' : 'false');
+            // Wort im aktuellen Display ein-/ausblenden, damit Aenderung sofort sichtbar ist.
+            const wordEl = document.querySelector('.letter-word');
+            if (wordEl) wordEl.classList.toggle('hidden', !this.state.showWord);
+        });
+        addListener(vkbCb, 'change', () => {
+            this.state.showVirtualKeyboard = vkbCb.checked;
+            localStorage.setItem('letter-vkb', this.state.showVirtualKeyboard ? 'true' : 'false');
+            this._buildKeyboard();
+        });
+        addListener(lautiertCb, 'change', () => {
+            this.state.lautierEnabled = lautiertCb.checked;
+            localStorage.setItem('letter-lautiert', this.state.lautierEnabled ? 'true' : 'false');
+        });
+
+        // ---- Audio ----
+        addListener(volSlider, 'input', () => {
+            const pct = parseInt(volSlider.value, 10) || 0;
+            if (volVal) volVal.textContent = pct + '%';
+            this.music.setVolume(pct / 100);
+        });
+        addListener(musicCb, 'change', () => {
+            // toggleMusic ist der "State-Flip" - nur aufrufen, wenn sich der
+            // Zielwert tatsaechlich vom aktuellen unterscheidet.
+            const wantOn = musicCb.checked;
+            const isOn = this.music.musicEnabled !== false;
+            if (wantOn !== isOn) {
+                this.music.toggleMusic();
+            }
+            localStorage.setItem('letter-music', wantOn ? 'true' : 'false');
+        });
+        addListener(sfxCb, 'change', () => {
+            // Effekte + Stimme sind fuer das Kind eine Einheit - gemeinsam steuern.
+            this.soundEnabled = sfxCb.checked;
+            this.speechEnabled = sfxCb.checked;
+            localStorage.setItem('letter-sfx', sfxCb.checked ? 'true' : 'false');
+        });
+
+        // ---- Stimme (Piper / Browser) ----
         overlay.querySelectorAll('input[name="lp-voice"]').forEach(r => {
-            r.addEventListener('change', () => {
-                newBackend = r.value;
-                if (googleConfig) googleConfig.toggleAttribute('hidden', newBackend !== 'google');
+            addListener(r, 'change', () => {
+                if (r.checked) this.tts.setBackend(r.value);
                 renderStatus();
             });
         });
 
-        const keyInput = document.getElementById('lp-google-key');
-        const voiceInput = document.getElementById('lp-google-voice');
-        keyInput.addEventListener('input', () => {
-            newGoogleKey = keyInput.value.trim();
-            renderStatus();
-        });
-        voiceInput.addEventListener('change', () => {
-            newGoogleVoice = voiceInput.value || 'de-DE-Chirp3-HD-Leda';
-        });
+        // ---- TTS-Status live anzeigen ----
+        const renderStatus = () => {
+            if (!statusEl) return;
+            statusEl.classList.remove('ready', 'fallback');
+            const backend = this.tts.backend;
+            if (backend === 'browser') {
+                statusEl.textContent = '● Browser-Stimme aktiv';
+                statusEl.classList.add('ready');
+                return;
+            }
+            // Piper
+            const s = this.tts.status;
+            if (s === 'ready') {
+                statusEl.textContent = '● Thorsten bereit';
+                statusEl.classList.add('ready');
+            } else if (s === 'downloading') {
+                statusEl.textContent = `⬇ Modell lädt … ${Math.round((this.tts.progress || 0) * 100)}%`;
+            } else if (s === 'fallback') {
+                statusEl.textContent = '○ Nicht verfügbar – Browser-Stimme aktiv';
+                statusEl.classList.add('fallback');
+            } else {
+                statusEl.textContent = '○ Initialisiert …';
+            }
+        };
+        renderStatus();
+        const statusTimer = setInterval(renderStatus, TIMING.STATUS_POLL_MS);
+        cleanups.push(() => clearInterval(statusTimer));
 
-        document.getElementById('lp-google-test').addEventListener('click', async () => {
-            // Fuer den Test die aktuellen Eingaben uebernehmen, Backend auf google zwingen
-            const savedBackend = this.tts.backend;
-            this.tts.setGoogleKey(newGoogleKey);
-            this.tts.setGoogleVoice(newGoogleVoice);
-            this.tts.backend = 'google';
-            await this.tts.speak('Hallo, ich bin deine neue Stimme.');
-            this.tts.backend = savedBackend;
-            renderStatus();
-        });
+        // ---- Schliessen ----
+        addListener(closeBtn, 'click', () => this._closeParentMenu());
+        // Klick auf den Overlay-Hintergrund schliesst ebenfalls
+        const onOverlayClick = (e) => { if (e.target === overlay) this._closeParentMenu(); };
+        addListener(overlay, 'click', onOverlayClick);
+        // ESC schliesst (Capture, damit globaler ESC-Handler nicht zusaetzlich feuert)
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                this._closeParentMenu();
+            }
+        };
+        document.addEventListener('keydown', onKey, true);
+        cleanups.push(() => document.removeEventListener('keydown', onKey, true));
 
-        document.getElementById('lp-apply').addEventListener('click', () => {
-            if (selectedLetters.length < 2) selectedLetters = [...LETTER_PRESETS[DEFAULT_PRESET]];
-            this.state.activeLetters = selectedLetters;
-            this.state.level = newLevel;
-            this.state.showVirtualKeyboard = newShowVirtualKeyboard;
-            this.state.showWord = newShowWord;
-            this.state.lautierEnabled = newLautierEnabled;
-            localStorage.setItem('letter-lautiert', newLautierEnabled ? 'true' : 'false');
-            localStorage.setItem('letter-vkb', newShowVirtualKeyboard ? 'true' : 'false');
-            localStorage.setItem('letter-showword', newShowWord ? 'true' : 'false');
-            localStorage.setItem('letter-active', JSON.stringify(selectedLetters));
-            this.tts.setGoogleKey(newGoogleKey);
-            this.tts.setGoogleVoice(newGoogleVoice);
-            this.tts.setBackend(newBackend);
-            this._buildKeyboard();
-            this._updateLevelIndicator();
-            this._updateStars();
-            this._createChallenge();
-            cleanup();
+        this._parentMenuTransient = { cleanups };
+    }
+
+    _closeParentMenu() {
+        if (!this._parentMenuTransient) return;
+        const overlay = document.getElementById('letter-parent-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        this._parentMenuTransient.cleanups.forEach(fn => {
+            try { fn(); } catch (e) { console.error('[LetterGame] parent menu cleanup failed', e); }
         });
-        document.getElementById('lp-close').addEventListener('click', cleanup);
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+        this._parentMenuTransient = null;
     }
 
     closeGame() {
@@ -859,7 +778,7 @@ class LetterGame {
         // Laufende Sprachausgabe abbrechen (inkl. gepufferter Queue)
         if (this.tts && typeof this.tts.cancel === 'function') this.tts.cancel();
         // Eltern-Menue schliessen falls offen
-        if (this._parentMenuCleanup) this._parentMenuCleanup();
+        this._closeParentMenu();
         // Visuelle Reste aufraeumen
         document.body.classList.remove('flash-wrong');
         document.querySelectorAll('.letter-key').forEach(k => k.classList.remove('hint-flash', 'correct', 'wrong'));

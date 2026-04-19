@@ -9,21 +9,8 @@ const BRICK_W = 52, BRICK_H = 18, BRICK_PAD = 4;
 const BRICK_OFFSET_X = (W - (BRICK_COLS * (BRICK_W + BRICK_PAD) - BRICK_PAD)) / 2;
 const BRICK_OFFSET_Y = 50;
 const ROW_COLORS = ['#ff4466','#ff6644','#ff8844','#ffcc44','#44ff88','#44bbff','#aa66ff'];
-// Hintergrundmusik-Tracks. Gleiche Tracks wie die anderen Spiele (shared.js SHARED_MUSIC_TRACKS).
-const MUSIC_TRACKS = [
-    'background music/Whispering_Horizons.mp3',
-    'background music/Pixel_Forest.mp3',
-    'background music/Echoes_of_the_Woods.mp3',
-    'background music/Echoes_of_the_Wild.mp3',
-    'background music/Grove.mp3',
-    'background music/Natures_Glow.mp3',
-    'background music/Joyful_Simplicity.mp3',
-    'background music/Trap_Paradise.mp3',
-    'background music/Funky_Playground_Groove.mp3',
-    'background music/Whispering_Sunshine.mp3',
-    'background music/Pathways.mp3',
-    'background music/Soothing_of_the_Pines.mp3'
-];
+// Hintergrundmusik nutzt jetzt den Shared MusicManager (SHARED_MUSIC_TRACKS aus shared.js) -
+// dieselbe Liste wie „Zaehlen" und „Buchstaben". Kein lokales Tracklist-Array mehr.
 const POWERUP_TYPES = ['multiball','laser','giant','tiny','fireball','slowmo','speeddemon','shield','magnet','bomb'];
 const POWERUP_COLORS = {
     multiball:'#44ffff', laser:'#ff4444', giant:'#44ff44', tiny:'#ff44ff',
@@ -280,56 +267,12 @@ class AudioEngine {
     constructor() {
         this.ctx = null;
         this.masterGain = null;
-        this.musicGain = null;
         this.sfxGain = null;
-        this.bpm = 140;
-        this.currentStep = 0;
-        this.stepTimer = null;
-        this.isPlaying = false;
-        this.levelTheme = 0;
-        this.comboIntensity = 0;
+        // onBeatCallback wird fuer optionale VFX-Beat-Animationen verwendet.
+        // Hintergrundmusik kommt jetzt ueber den Shared MusicManager (MP3-Tracks);
+        // diese AudioEngine liefert nur noch SFX. Der Callback bleibt als
+        // No-Op-Attrappe bestehen, damit bestehende Aufrufer (Game) nichts aendern muessen.
         this.onBeatCallback = null;
-        // Level-specific bass notes (Hz)
-        this.bassNotes = [
-            [65, 78, 87, 98, 117],    // L1: C minor pentatonic
-            [73, 87, 110, 147],        // L2: D minor
-            [82, 87, 98, 123],         // L3: E phrygian
-            [92, 110, 131, 156],       // L4: F# diminished
-            [55, 65, 82, 104]          // L5: A minor harmonic
-        ];
-        // Bass patterns per level (16 steps, index into bassNotes or -1 for rest)
-        this.bassPatterns = [
-            [0,-1,-1,-1,2,-1,-1,-1,0,-1,-1,-1,3,-1,1,-1],
-            [0,-1,1,-1,-1,-1,2,-1,0,-1,-1,-1,3,-1,-1,1],
-            [0,-1,-1,1,-1,-1,2,-1,0,-1,3,-1,-1,-1,1,-1],
-            [0,1,-1,2,-1,3,-1,0,1,-1,2,-1,3,-1,0,-1],
-            [0,-1,-1,-1,1,-1,2,-1,3,-1,-1,-1,0,-1,2,1]
-        ];
-        // Lead melody patterns per level (Hz or 0 for rest)
-        this.leadPatterns = [
-            [392,0,0,330,0,0,294,0,392,0,0,440,0,0,330,0],
-            [523,0,494,0,440,0,392,0,523,0,587,0,523,0,0,0],
-            [330,330,0,294,0,262,0,330,0,294,0,262,0,220,0,0],
-            [440,523,587,523,440,523,587,659,440,523,587,523,440,0,0,0],
-            [262,0,330,0,392,0,494,0,523,0,494,0,392,0,330,262]
-        ];
-        // Kick patterns (1=hit, 0=rest)
-        this.kickPatterns = [
-            [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],
-            [1,0,0,0,1,0,0,0,1,0,0,0,1,0,1,0],
-            [1,0,0,1,0,0,1,0,1,0,0,1,0,0,1,0],
-            [1,0,1,0,0,1,0,0,1,0,1,0,0,0,1,1],
-            [1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,1]
-        ];
-        // Hihat patterns
-        this.hihatPatterns = [
-            [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0],
-            [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
-            [1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0],
-            [1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1],
-            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-        ];
-        this.baseBPMs = [130, 140, 145, 155, 165];
     }
 
     init() {
@@ -338,204 +281,15 @@ class AudioEngine {
         this.masterGain = this.ctx.createGain();
         this.masterGain.gain.value = 1.0;
         this.masterGain.connect(this.ctx.destination);
-        this.musicGain = this.ctx.createGain();
-        this.musicGain.gain.value = 0.35;
-        this.musicGain.connect(this.masterGain);
         this.sfxGain = this.ctx.createGain();
         this.sfxGain.gain.value = 0.5;
         this.sfxGain.connect(this.masterGain);
     }
 
-    startMusic(levelIndex) {
-        this.init();
-        this.levelTheme = (levelIndex || 0) % 5;
-        this._stopBgAudio();
-        // Track pro Level waehlen, damit sich Wechsel abwechslungsreich anfuehlt.
-        const idx = ((levelIndex || 0) + (this._trackOffset || 0)) % MUSIC_TRACKS.length;
-        try {
-            const audio = new Audio(MUSIC_TRACKS[idx]);
-            audio.loop = true;
-            audio.preload = 'auto';
-            // Wenn moeglich ueber WebAudio routen: HTMLAudio wird von Browsern/OS
-            // waehrend SpeechSynthesis oft automatisch abgesenkt ("ducking").
-            // Der WebAudio-Pfad laeuft parallel und bleibt konstant.
-            let routed = false;
-            try {
-                const src = this.ctx.createMediaElementSource(audio);
-                src.connect(this.musicGain);
-                this._bgNode = src;
-                this.musicGain.gain.value = this._musicVolume();
-                audio.volume = 1.0;
-                routed = true;
-            } catch (e) {}
-            this._webAudioMusic = routed;
-            if (!routed) audio.volume = this._musicVolume();
-            audio.play().catch(() => {});
-            this.bgAudio = audio;
-        } catch (e) {}
-        this.isPlaying = true;
-    }
-
-    _musicVolume() {
-        // Halbe Lautstaerke: Hintergrundmusik bleibt im Hintergrund, TTS ist vorn.
-        // Ueber _musicBaseVolume steuerbar (persistiert im localStorage), damit
-        // Eltern im Parent-Panel die Lautstaerke live regeln koennen.
-        if (this._musicMuted) return 0;
-        if (typeof this._musicBaseVolume === 'number') return this._musicBaseVolume;
-        // Default 0.125 (halb so laut wie vorher 0.25).
-        try {
-            const v = parseFloat(localStorage.getItem('breakout_musicVolume'));
-            if (!Number.isNaN(v) && v >= 0 && v <= 1) return (this._musicBaseVolume = v);
-        } catch(_) {}
-        this._musicBaseVolume = 0.125;
-        return this._musicBaseVolume;
-    }
-
-    setMusicMuted(muted) {
-        this._musicMuted = !!muted;
-        if (this._webAudioMusic && this.musicGain) {
-            this.musicGain.gain.value = this._musicVolume();
-        } else if (this.bgAudio) {
-            this.bgAudio.volume = this._musicVolume();
-        }
-    }
-
-    _stopBgAudio() {
-        if (this._bgNode) { try { this._bgNode.disconnect(); } catch(e) {} this._bgNode = null; }
-        if (this.bgAudio) {
-            try { this.bgAudio.pause(); this.bgAudio.src = ''; } catch(e) {}
-            this.bgAudio = null;
-        }
-        this._webAudioMusic = false;
-    }
-
-    stopMusic() {
-        this.isPlaying = false;
-        this._stopBgAudio();
-    }
-
-    pauseMusic() {
-        if (this.bgAudio) { try { this.bgAudio.pause(); } catch(e) {} }
-        this.isPlaying = false;
-    }
-
-    resumeMusic(levelIndex) {
-        if (this.bgAudio) {
-            try { this.bgAudio.play().catch(()=>{}); this.isPlaying = true; } catch(e) {}
-        } else {
-            this.startMusic(levelIndex);
-        }
-    }
-
-    setCombo(combo) {
-        this.comboIntensity = Math.min(combo / 20, 1.0);
-        this.bpm = this.baseBPMs[this.levelTheme] + Math.min(combo * 2, 40);
-    }
-
-    _scheduleStep() {
-        if (!this.isPlaying) return;
-        const stepMs = 60000 / this.bpm / 4;
-        this.stepTimer = setTimeout(() => {
-            this._playStep();
-            this.currentStep = (this.currentStep + 1) % 16;
-            this._scheduleStep();
-        }, stepMs);
-    }
-
-    _playStep() {
-        const s = this.currentStep;
-        const t = this.ctx.currentTime;
-        const lv = this.levelTheme;
-        // Kick
-        if (this.kickPatterns[lv][s]) this._playKick(t);
-        // Hi-hat
-        if (this.hihatPatterns[lv][s]) this._playHihat(t, this.comboIntensity > 0.5 ? 0.06 : 0.035);
-        // Bass
-        const bassIdx = this.bassPatterns[lv][s];
-        if (bassIdx >= 0) {
-            const freq = this.bassNotes[lv][bassIdx % this.bassNotes[lv].length];
-            this._playBass(t, freq);
-        }
-        // Lead
-        const leadFreq = this.leadPatterns[lv][s];
-        if (leadFreq > 0) this._playLead(t, leadFreq);
-        // Beat callback
-        if (this.onBeatCallback && (s % 4 === 0)) this.onBeatCallback(s);
-    }
-
-    _playKick(t) {
-        try {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(150, t);
-            osc.frequency.exponentialRampToValueAtTime(40, t + 0.08);
-            gain.gain.setValueAtTime(0.4, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-            osc.connect(gain); gain.connect(this.musicGain);
-            osc.start(t); osc.stop(t + 0.15);
-        } catch(e) {}
-    }
-
-    _playHihat(t, vol = 0.035) {
-        try {
-            const bufSize = this.ctx.sampleRate * 0.02;
-            const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
-            const data = buf.getChannelData(0);
-            for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
-            const src = this.ctx.createBufferSource();
-            src.buffer = buf;
-            const filter = this.ctx.createBiquadFilter();
-            filter.type = 'highpass'; filter.frequency.value = 8000;
-            const gain = this.ctx.createGain();
-            gain.gain.setValueAtTime(vol, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
-            src.connect(filter); filter.connect(gain); gain.connect(this.musicGain);
-            src.start(t); src.stop(t + 0.04);
-        } catch(e) {}
-    }
-
-    _playBass(t, freq) {
-        try {
-            const osc = this.ctx.createOscillator();
-            const filter = this.ctx.createBiquadFilter();
-            const gain = this.ctx.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.value = freq;
-            filter.type = 'lowpass';
-            filter.frequency.value = 300 + this.comboIntensity * 600;
-            filter.Q.value = 3;
-            gain.gain.setValueAtTime(0.15, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-            osc.connect(filter); filter.connect(gain); gain.connect(this.musicGain);
-            osc.start(t); osc.stop(t + 0.12);
-        } catch(e) {}
-    }
-
-    _playLead(t, freq) {
-        try {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'square';
-            osc.frequency.value = freq;
-            const vol = 0.04 + this.comboIntensity * 0.04;
-            gain.gain.setValueAtTime(vol, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-            osc.connect(gain); gain.connect(this.musicGain);
-            osc.start(t); osc.stop(t + 0.1);
-            // Chorus at high intensity
-            if (this.comboIntensity > 0.5) {
-                const osc2 = this.ctx.createOscillator();
-                const gain2 = this.ctx.createGain();
-                osc2.type = 'square';
-                osc2.frequency.value = freq * 1.004;
-                gain2.gain.setValueAtTime(vol * 0.5, t);
-                gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-                osc2.connect(gain2); gain2.connect(this.musicGain);
-                osc2.start(t); osc2.stop(t + 0.1);
-            }
-        } catch(e) {}
-    }
+    // Hintergrundmusik-Steuerung wurde an den Shared MusicManager abgegeben.
+    // Die alten startMusic/stopMusic/pauseMusic/resumeMusic/setMusicMuted sind
+    // absichtlich entfernt; setCombo wird fuer Musikdynamik nicht mehr benoetigt
+    // und wurde ebenfalls entfernt.
 
     // SFX
     sfx(type, param) {
@@ -2348,6 +2102,19 @@ class Game {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
         this.audio = new AudioEngine();
+        // Hintergrundmusik: gleicher Shared MusicManager wie "Zaehlen"/"Buchstaben".
+        // Laedt echte MP3-Tracks aus background music/. Die prozedurale
+        // Music-Engine (fruehere AudioEngine) ist entfallen.
+        this.music = new MusicManager(SHARED_MUSIC_TRACKS, SHARED_MUSIC_COVERS);
+        // Anfangslautstaerke des MusicManagers respektiert den in localStorage
+        // persistierten Breakout-Wert (Legacy), falls vorhanden. Sonst laeuft der
+        // MusicManager mit seinem eigenen Default (s. shared.js).
+        try {
+            const legacyVol = parseFloat(localStorage.getItem('breakout_musicVolume'));
+            if (!Number.isNaN(legacyVol) && legacyVol >= 0 && legacyVol <= 1) {
+                this.music.setVolume(legacyVol);
+            }
+        } catch(_) {}
         this.particles = new ParticleSystem();
         this.vfx = new VisualEffects();
         this.paddle = new Paddle();
@@ -2399,7 +2166,10 @@ class Game {
         // Puzzle reward
         this.puzzle = new BreakoutPuzzle();
 
-        this.audio.onBeatCallback = () => this.vfx.onBeat(this.partyMode);
+        // Beat-Callback bleibt bestehen (Attrappe, feuert nicht mehr, da die
+        // prozedurale Musik entfernt wurde). Das Party-Mode-Flackern wird von
+        // der VFX selbst gesteuert, ein Beat-Pulse ist nicht mehr noetig.
+        this.audio.onBeatCallback = null;
         this._applySoundSettings();
 
         // Body-Klasse fuer Kids-Mode (blendet Score-Zahlen und Puzzle aus)
@@ -2411,10 +2181,22 @@ class Game {
             if (this.state === 'playing' || this.state === 'paused') {
                 this._showQuitConfirm();
             } else {
-                this.audio.stopMusic();
+                this.music.stopBackgroundMusic();
                 window.location.href = 'index.html';
             }
         });
+
+        // Musik-Overlay-Button (Track-Auswahl; gleiche Optik wie die anderen Spiele).
+        const musicBtn = document.getElementById('bp-music-btn');
+        if (musicBtn) {
+            musicBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.music.showOverlay();
+            });
+            musicBtn.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+            }, { passive: true });
+        }
 
         // Pause button (mobile-friendly)
         const pauseBtn = document.getElementById('pause-btn');
@@ -2553,7 +2335,7 @@ class Game {
             if (this.startLevel < maxLvl - 1) this.startLevel++;
             this._syncParentSettingsUI();
         });
-        // Musik-Lautstaerke
+        // Musik-Lautstaerke: verkabelt mit dem Shared MusicManager.
         $('bp-vol-slider').addEventListener('input', (e) => {
             const pct = parseInt(e.target.value);
             this._setMusicVolumePct(pct);
@@ -2564,17 +2346,18 @@ class Game {
             const on = e.target.checked;
             this.musicMuted = !on;
             try { localStorage.setItem('breakout_musicMuted', this.musicMuted.toString()); } catch(_) {}
-            // Wenn der Slider vorher auf 0 stand (automatisch als "stumm"
-            // interpretiert), wuerde ein einfacher Toggle-On nichts hoerbar
-            // machen - deshalb setzen wir eine sinnvolle Default-Lautstaerke
-            // zurueck. Entsprechend aktualisieren wir den Slider-UI-State.
-            if (on && this.audio && (this.audio._musicBaseVolume ?? 0) <= 0.001) {
+            // Slider auf 0? Dann beim Einschalten wieder auf eine hoerbare
+            // Default-Lautstaerke setzen, damit der Toggle spuerbar wirkt.
+            if (on && this.music && this.music.volume <= 0.001) {
                 this._setMusicVolumePct(13);
                 if ($('bp-vol-slider')) $('bp-vol-slider').value = 13;
                 if ($('bp-vol-val')) $('bp-vol-val').textContent = '13%';
                 this.musicMuted = false;
             }
+            // _applySoundSettings synchronisiert MusicManager.musicEnabled mit
+            // this.musicMuted; nicht doppelt toggeln.
             this._applySoundSettings();
+            this._updateSoundBtns();
         });
         $('bp-sfx-toggle').addEventListener('change', (e) => {
             this.sfxMuted = !e.target.checked;
@@ -2691,26 +2474,17 @@ class Game {
     }
 
     _getMusicVolumePct() {
-        // Stellt sicher, dass die AudioEngine ihre Default-Lautstaerke kennt,
-        // auch bevor Musik das erste Mal startet.
-        if (this.audio && typeof this.audio._musicVolume === 'function') {
-            this.audio._musicVolume();
-        }
-        const v = this.audio && !this.audio._musicMuted ? (this.audio._musicBaseVolume ?? 0.125) : 0;
+        // Volume kommt jetzt aus dem Shared MusicManager.
+        if (!this.music) return 0;
+        const v = this.musicMuted ? 0 : (this.music.volume ?? 0.25);
         return Math.round(v * 100);
     }
 
     _setMusicVolumePct(pct) {
         pct = Math.max(0, Math.min(100, pct));
         const val = pct / 100;
-        if (this.audio) {
-            this.audio._musicBaseVolume = val;
-            this.audio._musicMuted = (val <= 0.001);
-            if (this.audio._webAudioMusic && this.audio.musicGain) {
-                this.audio.musicGain.gain.value = this.audio._musicMuted ? 0 : val;
-            } else if (this.audio.bgAudio) {
-                this.audio.bgAudio.volume = this.audio._musicMuted ? 0 : val;
-            }
+        if (this.music) {
+            this.music.setVolume(val);
         }
         this.musicMuted = (val <= 0.001);
         try {
@@ -2726,7 +2500,11 @@ class Game {
 
     _applySoundSettings() {
         if (this.audio.sfxGain) this.audio.sfxGain.gain.value = this.sfxMuted ? 0 : 0.5;
-        this.audio.setMusicMuted(this.musicMuted);
+        // Musik-Mute ueber den Shared MusicManager. Nur umschalten, wenn der
+        // Zustand wirklich abweicht (sonst Double-Toggle).
+        if (this.music && this.music.musicEnabled === this.musicMuted) {
+            this.music.toggleMusic();
+        }
     }
 
     _cancelSpeech() {
@@ -2793,7 +2571,7 @@ class Game {
             tts: this.sfxMuted ? null : this._tts(),
             onQuit: () => {
                 this._quitConfirmPrevState = null;
-                this.audio.stopMusic();
+                this.music.stopBackgroundMusic();
                 window.location.href = 'index.html';
             },
             onCancel: () => {
@@ -2819,10 +2597,10 @@ class Game {
                     this.audio.ctx.resume().catch(() => {});
                 }
             } catch(_) {}
-            // Falls der erste startMusic-Aufruf beim Autoplay-Gate fehlgeschlagen ist,
-            // jetzt erneut versuchen. Im Pause- oder Over-Zustand nichts tun.
-            if (this.state === 'playing' && !this.audio.bgAudio && !this.musicMuted) {
-                try { this.audio.startMusic(this.levels.currentLevel); } catch(_) {}
+            // Autoplay-Policy: Browser blockieren Audio bis zur ersten User-Geste.
+            // Beim ersten Pointerdown/Keydown holen wir das Starten der MP3s nach.
+            if (this.state === 'playing' && this.music && this.music.musicEnabled) {
+                try { this.music.playBackgroundMusic(); } catch(_) {}
             }
         };
         document.addEventListener('pointerdown', unlock, true);
@@ -2841,6 +2619,7 @@ class Game {
 
     startGame() {
         this.audio.init();
+        // _applySoundSettings synchronisiert MusicManager.musicEnabled mit musicMuted.
         this._applySoundSettings();
         // Browser blockieren Autoplay bis zur ersten Nutzer-Geste. Da das Spiel
         // direkt laeuft (ohne Play-Button), beim ersten Pointerdown/Keydown den
@@ -2868,7 +2647,11 @@ class Game {
         this.paddle = new Paddle();
         if (this.kidsMode) this.paddle.setWidth(120);
         this.loadLevel(this.startLevel);
-        this.audio.startMusic(this.startLevel);
+        // Hintergrundmusik: Versuch startet sofort, wird aber vom Browser erst
+        // nach der ersten Nutzer-Geste hoerbar (siehe _armAudioUnlock).
+        if (this.music && this.music.musicEnabled) {
+            try { this.music.playBackgroundMusic(); } catch(_) {}
+        }
         this.hideAllOverlays();
         this.updateHUD();
         if (this.kidsMode) {
@@ -2952,7 +2735,10 @@ class Game {
                 }
                 this.state = 'playing';
                 this.loadLevel(nextLvl);
-                this.audio.startMusic(nextLvl);
+                // MP3 laeuft weiter bzw. wird wieder aufgenommen; nichts neu zu starten.
+                if (this.music && this.music.musicEnabled && this.music.backgroundMusic && this.music.backgroundMusic.paused) {
+                    try { this.music.backgroundMusic.play().catch(()=>{}); } catch(_) {}
+                }
                 this.updateHUD();
             }
             return;
@@ -3225,12 +3011,13 @@ class Game {
 
         this.particles.update();
         this.vfx.update(this.combo, this.partyMode);
-        this.audio.setCombo(this.combo);
         this._updateMusicRate();
     }
 
     _updateMusicRate() {
-        const audio = this.audio.bgAudio;
+        // Der Shared MusicManager spielt MP3s ab - Power-ups modulieren die
+        // Abspielgeschwindigkeit (speeddemon, fireball, slowmo, party).
+        const audio = this.music && this.music.backgroundMusic;
         if (!audio) return;
         let target = 1.0;
         if (this.powerups.isActive('speeddemon')) target = 1.30;
@@ -3576,7 +3363,8 @@ class Game {
     levelComplete() {
         this.state = 'leveltransition';
         this.levelTransitionTimer = 150;
-        this.audio.stopMusic();
+        // Musik laeuft in Breakout ueber Level-Grenzen hinweg durch (wie in
+        // Zaehlen/Buchstaben). Kein explizites Stoppen mehr.
         this.audio.sfx('levelUp');
         this.vfx.flash('#ffffff', 1.0);
         this.vfx.triggerShake(6);
@@ -3619,7 +3407,7 @@ class Game {
 
     gameOver() {
         this.state = 'gameover';
-        this.audio.stopMusic();
+        this.music.stopBackgroundMusic();
         const overlay = document.getElementById('game-over-overlay');
         overlay.classList.remove('hidden');
         overlay.querySelector('.gameover-score').textContent = 'Score: ' + this.score;
@@ -3629,7 +3417,7 @@ class Game {
 
     winGame() {
         this.state = 'win';
-        this.audio.stopMusic();
+        this.music.stopBackgroundMusic();
         this.audio.sfx('win');
         this.vfx.flash('#44ff88', 0.8);
         const overlay = document.getElementById('win-overlay');
@@ -3834,12 +3622,18 @@ class Game {
             case 'resume':
                 this.state = 'playing';
                 document.getElementById('pause-overlay').classList.add('hidden');
-                this.audio.resumeMusic(this.levels.currentLevel);
+                // Hintergrundmusik (MP3) nach Pause fortsetzen.
+                if (this.music && this.music.musicEnabled && this.music.backgroundMusic) {
+                    try { this.music.backgroundMusic.play().catch(()=>{}); } catch(_) {}
+                } else if (this.music && this.music.musicEnabled) {
+                    try { this.music.playBackgroundMusic(); } catch(_) {}
+                }
                 break;
             case 'toggleMusic':
-                this.musicMuted = !this.musicMuted;
+                // Shared MusicManager managed musicEnabled-Zustand und Wiedergabe.
+                if (this.music) this.music.toggleMusic();
+                this.musicMuted = !(this.music && this.music.musicEnabled);
                 try { localStorage.setItem('breakout_musicMuted', this.musicMuted.toString()); } catch(e) {}
-                this._applySoundSettings();
                 this._updateSoundBtns();
                 break;
             case 'toggleSfx':
@@ -3853,7 +3647,7 @@ class Game {
                 this.startGame();
                 break;
             case 'quit':
-                this.audio.stopMusic();
+                this.music.stopBackgroundMusic();
                 this.state = 'start';
                 this.hideAllOverlays();
                 document.getElementById('start-overlay').classList.remove('hidden');
@@ -3861,7 +3655,6 @@ class Game {
             case 'nextLevel': {
                 if (!this.parentMode) break;
                 document.getElementById('pause-overlay').classList.add('hidden');
-                this.audio.stopMusic();
                 const nextLvl = this.levels.currentLevel + 1;
                 const maxLvl = this.kidsMode ? 10 : 20;
                 if (nextLvl >= maxLvl) {
@@ -3869,7 +3662,12 @@ class Game {
                 } else {
                     this.state = 'playing';
                     this.loadLevel(nextLvl);
-                    this.audio.startMusic(nextLvl);
+                    // Musik laeuft durch; nur neu anwerfen, falls vorher gestoppt.
+                    if (this.music && this.music.musicEnabled && !this.music.backgroundMusic) {
+                        try { this.music.playBackgroundMusic(); } catch(_) {}
+                    } else if (this.music && this.music.musicEnabled && this.music.backgroundMusic && this.music.backgroundMusic.paused) {
+                        try { this.music.backgroundMusic.play().catch(()=>{}); } catch(_) {}
+                    }
                     this.updateHUD();
                 }
                 break;
@@ -3878,14 +3676,15 @@ class Game {
     }
 
     _updateSoundBtns() {
+        const musicOn = this.music ? !!this.music.musicEnabled : !this.musicMuted;
         const btns = Array.from(document.querySelectorAll('.pause-menu-btn'));
         for (const btn of btns) {
             const action = btn.dataset.action;
             const iconEl = btn.querySelector('.pause-icon');
             const labelEl = btn.querySelector('.pause-label');
             if (action === 'toggleMusic') {
-                if (iconEl) iconEl.textContent = this.musicMuted ? '🔇' : '🎵';
-                if (labelEl) labelEl.textContent = this.musicMuted ? 'Musik aus' : 'Musik an';
+                if (iconEl) iconEl.textContent = musicOn ? '🎵' : '🔇';
+                if (labelEl) labelEl.textContent = musicOn ? 'Musik an' : 'Musik aus';
             }
             if (action === 'toggleSfx') {
                 if (iconEl) iconEl.textContent = this.sfxMuted ? '🔕' : '🔔';
@@ -3902,7 +3701,11 @@ class Game {
         this._updateSoundBtns();
         const btns = Array.from(document.querySelectorAll('.pause-menu-btn'));
         this._highlightPauseBtn(btns);
-        this.audio.pauseMusic();
+        // Hintergrundmusik (MP3) waehrend Pause anhalten - wird bei 'resume'
+        // wieder gestartet. Kein Stopp, damit die Position erhalten bleibt.
+        if (this.music && this.music.backgroundMusic) {
+            try { this.music.backgroundMusic.pause(); } catch(_) {}
+        }
     }
 
     hideAllOverlays() {

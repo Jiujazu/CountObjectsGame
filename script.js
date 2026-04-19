@@ -110,31 +110,11 @@ class UIManager {
     constructor(game) {
         this.game = game; // Referenz auf das Spiel für State-Zugriff
     }
-    // Aktualisiert Punktestand und Level im UI
-    updateDisplay() {
-        document.getElementById('score').textContent = this.game.state.score;
-        document.getElementById('level').textContent = this.game.state.level;
-    }
     // Zeigt das aktuelle Level im Level-Indikator
     updateLevelIndicator() {
         const indicator = document.getElementById('level-indicator');
         if (indicator) {
             indicator.textContent = this.game.state.level;
-        }
-    }
-    // Aktualisiert die Stern-Anzeige (1 Stern pro 5 Level)
-    updateStars() {
-        const container = document.getElementById('star-progress');
-        if (!container) return;
-        const level = this.game.state.level;
-        const earnedStars = Math.floor((level - 1) / 5);
-        const totalStars = 7; // max 35 Level → 7 Sterne
-        container.innerHTML = '';
-        for (let i = 0; i < totalStars; i++) {
-            const star = document.createElement('span');
-            star.className = 'star' + (i < earnedStars ? ' earned' : '');
-            star.textContent = '⭐';
-            container.appendChild(star);
         }
     }
 
@@ -203,7 +183,6 @@ class GameLogic {
 
         if (number === this.game.state.correctAnswer) {
             this.game.state.wrongStreak = 0;
-            this.game.state.score += this.game.state.level * 10;
             // Skip-Handler VOR TTS registrieren, damit Leertaste instant reagiert
             let animationSkipped = false;
             const skipToNext = () => {
@@ -247,9 +226,11 @@ class GameLogic {
             }, 1000);
         } else {
             this.game.state.wrongStreak++;
-            // Sound und Shake sofort; TTS fire-and-forget parallel
-            this.game.playSound('wrong');
-            this.game.shakeObjects();
+            // Einheitliches Fehler-Feedback ueber GameUI: shake + Ton.
+            // TTS uebernimmt speakWrong (volle Phrasen), deshalb kein tts-Parameter.
+            GameUI.shakeError(document.getElementById('objects-display'), {
+                audio: SharedAudio,
+            });
             const willHint = this.game.state.wrongStreak >= 3;
             // Phrasen wie "Zähl nochmal nach!" brauchen die Aufgabe danach wirklich wieder.
             // TTS queued intern, die Instruktion spielt also nach speakWrong.
@@ -271,18 +252,25 @@ class GameLogic {
     }
     /**
      * Steigt ins nächste Level auf und startet die nächste Challenge.
+     * Zeigt zunaechst das einheitliche Win-Overlay; der tatsaechliche Level-Up
+     * laeuft erst in der onNext-Callback ab.
      */
     async nextLevel() {
-        this.game.state.level++;
-        this.game.state.wrongStreak = 0;
-        // Vor neuer Aufgabe: alle noch laufenden/gepufferten Ansagen verwerfen.
-        if (this.game.tts && typeof this.game.tts.cancel === 'function') this.game.tts.cancel();
-        await this.createNewChallenge();
-        this.game.ui.updateDisplay();
-        this.game.ui.updateLevelIndicator();
-        this.game.ui.updateStars();
-        // Input erst freigeben, nachdem die neue Challenge geladen ist
-        this.game.state.isProcessing = false;
+        const doLevelUp = async () => {
+            this.game.state.level++;
+            this.game.state.wrongStreak = 0;
+            // Vor neuer Aufgabe: alle noch laufenden/gepufferten Ansagen verwerfen.
+            if (this.game.tts && typeof this.game.tts.cancel === 'function') this.game.tts.cancel();
+            await this.createNewChallenge();
+            this.game.ui.updateLevelIndicator();
+            // Input erst freigeben, nachdem die neue Challenge geladen ist
+            this.game.state.isProcessing = false;
+        };
+        GameUI.showWinOverlay({
+            level: this.game.state.level,
+            tts: this.game.speechEnabled ? this.game.tts : null,
+            onNext: doLevelUp,
+        });
     }
 }
 
@@ -290,11 +278,9 @@ class CountingGame {
     constructor() {
         // Zentrales State-Objekt für den gesamten Spielzustand
         this.state = {
-            score: 0,              // Aktueller Punktestand
             level: 1,              // Aktuelles Level
             currentObjects: [],    // Aktuelle Objekte (Emojis)
             correctAnswer: 0,      // Richtige Antwort für das aktuelle Rätsel
-            numbersVisible: false, // Ist das Zahlenfeld sichtbar?
             isProcessing: false,   // Sperrt Input während Antwort-Verarbeitung
             wrongStreak: 0,        // Fehlversuche in Folge für aktuelles Level
             maxObjectsOverride: 0, // Eltern-Override für max. Objekte (0 = automatisch)
@@ -419,244 +405,185 @@ class CountingGame {
         }
     }
 
-    _initParentMenu() {
-        // Vorherige Listener abbauen, damit sich beim Re-Open des Spiels
-        // keine Long-Press-Timer stapeln.
-        this._teardownParentMenu();
-        const indicator = document.getElementById('level-indicator');
-        if (!indicator) return;
-        let pressTimer = null;
-        indicator.style.cursor = 'pointer';
-        const startPress = () => {
-            pressTimer = setTimeout(() => this._showParentMenu(), 800);
-        };
-        const cancelPress = () => {
-            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-        };
-        indicator.addEventListener('mousedown', startPress);
-        indicator.addEventListener('mouseup', cancelPress);
-        indicator.addEventListener('mouseleave', cancelPress);
-        indicator.addEventListener('touchstart', startPress, { passive: true });
-        indicator.addEventListener('touchend', cancelPress);
-        this._parentMenuBindings = [
-            { el: indicator, type: 'mousedown', fn: startPress },
-            { el: indicator, type: 'mouseup', fn: cancelPress },
-            { el: indicator, type: 'mouseleave', fn: cancelPress },
-            { el: indicator, type: 'touchstart', fn: startPress },
-            { el: indicator, type: 'touchend', fn: cancelPress },
-        ];
-    }
+    // Bindet das deklarative Eltern-Menue (#counting-parent-overlay).
+    // Felder werden LIVE angewendet - kein Apply-Button. Persistenz:
+    //  - Lautstaerke:  MusicManager speichert selbst.
+    //  - TTS-Backend:  this.tts.setBackend() speichert selbst.
+    //  - Music/SFX:    localStorage 'counting-music' / 'counting-sfx'.
+    _bindParentMenu() {
+        const overlay = document.getElementById('counting-parent-overlay');
+        if (!overlay || this._parentMenuBound) return;
+        this._parentMenuBound = true;
 
-    _teardownParentMenu() {
-        if (!this._parentMenuBindings) return;
-        this._parentMenuBindings.forEach(({ el, type, fn }) => {
-            el.removeEventListener(type, fn);
-        });
-        this._parentMenuBindings = [];
-    }
+        // --- Level-Stepper ---
+        const levelVal = document.getElementById('pc-level-val');
+        const levelDisplay = document.getElementById('pc-level-display');
+        const syncLevelFields = () => {
+            const v = String(this.state.level);
+            if (levelVal) levelVal.textContent = v;
+            if (levelDisplay) levelDisplay.textContent = v;
+            this.ui.updateLevelIndicator();
+        };
+        const changeLevel = (delta) => {
+            const next = Math.max(1, this.state.level + delta);
+            if (next === this.state.level) return;
+            this.state.level = next;
+            syncLevelFields();
+            // Neue Challenge sofort aufbauen, damit Schwierigkeitskurve passt.
+            if (this.tts && typeof this.tts.cancel === 'function') this.tts.cancel();
+            this.logic.createNewChallenge();
+        };
+        document.getElementById('pc-level-down')?.addEventListener('click', () => changeLevel(-1));
+        document.getElementById('pc-level-up')?.addEventListener('click', () => changeLevel(+1));
 
-    _buildVoiceOptions(current) {
-        const opts = GOOGLE_CHIRP_VOICES.map(v =>
-            `<option value="${v.id}" ${v.id === current ? 'selected' : ''}>${v.label}</option>`);
-        if (!GOOGLE_CHIRP_VOICES.find(v => v.id === current)) {
-            opts.unshift(`<option value="${current}" selected>${current} (eigene)</option>`);
+        // --- Schwierigkeits-Slider (max. Objekte) ---
+        const diffSlider = document.getElementById('pc-diff-slider');
+        const diffVal = document.getElementById('pc-diff-val');
+        if (diffSlider) {
+            diffSlider.addEventListener('input', () => {
+                const v = parseInt(diffSlider.value);
+                this.state.maxObjectsOverride = v;
+                if (diffVal) diffVal.textContent = 'max. ' + v;
+                // Challenge sofort neu aufbauen, damit die naechste Zahl im Bereich liegt.
+                if (this.tts && typeof this.tts.cancel === 'function') this.tts.cancel();
+                this.logic.createNewChallenge();
+            });
         }
-        return opts.join('');
-    }
 
-    _showParentMenu() {
-        const overlay = document.createElement('div');
-        overlay.id = 'parent-menu-overlay';
-        overlay.className = 'parent-overlay';
-        const panel = document.createElement('div');
-        panel.className = 'parent-panel';
+        // --- Musik-Lautstaerke ---
+        const volSlider = document.getElementById('pc-vol-slider');
+        const volVal = document.getElementById('pc-vol-val');
+        if (volSlider) {
+            volSlider.addEventListener('input', () => {
+                const pct = parseInt(volSlider.value);
+                if (volVal) volVal.textContent = pct + '%';
+                this.music.setVolume(pct / 100);
+            });
+        }
 
-        const currentMax = this._getCurrentMaxObjects();
-        const currentVolPct = Math.round((this.music.volume ?? 0.25) * 100);
-        let newLevel = this.state.level;
-        let newMaxOverride = currentMax;
-        let newBackend = this.tts.backend;
-        let newGoogleKey = this.tts.googleKey;
-        let newGoogleVoice = this.tts.googleVoice;
+        // --- Musik an/aus ---
+        const musicToggle = document.getElementById('pc-music-toggle');
+        if (musicToggle) {
+            musicToggle.addEventListener('change', () => {
+                if (musicToggle.checked !== !!this.music.musicEnabled) {
+                    this.music.toggleMusic();
+                }
+                localStorage.setItem('counting-music', musicToggle.checked ? 'true' : 'false');
+            });
+        }
 
-        panel.innerHTML = `
-            <div class="parent-panel-header">
-                <h2 class="parent-panel-title">⚙️ Eltern-Einstellungen</h2>
-                <div class="parent-panel-subtitle">Lange auf die Level-Zahl drücken zum Öffnen.</div>
-            </div>
-            <div class="parent-panel-body">
-                <section class="parent-section">
-                    <div class="parent-section-label">Inhalt</div>
-                    <div class="parent-field">
-                        <div class="parent-field-head">
-                            <span class="parent-field-label">Startschwierigkeit</span>
-                            <span class="parent-field-value" id="parent-diff-val">max. ${currentMax}</span>
-                        </div>
-                        <input type="range" id="parent-diff-slider" min="2" max="9" value="${currentMax}">
-                        <div class="parent-helper">Maximale Anzahl an Objekten, die gezeigt werden.</div>
-                    </div>
-                    <div class="parent-field">
-                        <div class="parent-field-head">
-                            <span class="parent-field-label">Level</span>
-                        </div>
-                        <div class="parent-stepper">
-                            <button type="button" id="parent-level-down" aria-label="Level runter">−</button>
-                            <span class="parent-stepper-value" id="parent-level-val">${this.state.level}</span>
-                            <button type="button" id="parent-level-up" aria-label="Level hoch">+</button>
-                        </div>
-                    </div>
-                </section>
-                <section class="parent-section">
-                    <div class="parent-section-label">Audio</div>
-                    <div class="parent-field">
-                        <div class="parent-field-head">
-                            <span class="parent-field-label">Musik-Lautstärke</span>
-                            <span class="parent-field-value" id="parent-vol-val">${currentVolPct}%</span>
-                        </div>
-                        <input type="range" id="parent-vol-slider" min="0" max="100" value="${currentVolPct}">
-                    </div>
-                    <div class="parent-field">
-                        <div class="parent-field-head">
-                            <span class="parent-field-label">Stimme</span>
-                        </div>
-                        <div class="parent-voice-options">
-                            <label class="parent-voice-option">
-                                <input type="radio" name="parent-voice" value="piper" ${newBackend === 'piper' ? 'checked' : ''}>
-                                <span class="parent-voice-text">
-                                    <span class="parent-voice-label">Piper / Thorsten</span>
-                                    <span class="parent-helper">Offline, gratis. ~63 MB Download beim ersten Start.</span>
-                                </span>
-                            </label>
-                            <label class="parent-voice-option">
-                                <input type="radio" name="parent-voice" value="google" ${newBackend === 'google' ? 'checked' : ''}>
-                                <span class="parent-voice-text">
-                                    <span class="parent-voice-label">Google Chirp 3 HD</span>
-                                    <span class="parent-helper">Premium-Qualität. Eigener API-Key nötig (100k Zeichen/Monat gratis).</span>
-                                </span>
-                            </label>
-                            <label class="parent-voice-option">
-                                <input type="radio" name="parent-voice" value="browser" ${newBackend === 'browser' ? 'checked' : ''}>
-                                <span class="parent-voice-text">
-                                    <span class="parent-voice-label">Browser-Stimme</span>
-                                    <span class="parent-helper">Eingebaut, Qualität variiert je nach Gerät.</span>
-                                </span>
-                            </label>
-                        </div>
-                        <div class="parent-voice-google" id="parent-google-config" ${newBackend === 'google' ? '' : 'hidden'}>
-                            <input type="password" id="parent-google-key" class="parent-text-input" placeholder="Google API-Key" value="${newGoogleKey}" autocomplete="off">
-                            <select id="parent-google-voice" class="parent-text-input">
-                                ${this._buildVoiceOptions(newGoogleVoice)}
-                            </select>
-                            <button type="button" class="parent-btn parent-btn-secondary parent-btn-slim" id="parent-google-test">Testen</button>
-                            <div class="parent-helper">
-                                Key auf <code>console.cloud.google.com</code> erstellen, „Text-to-Speech API" aktivieren. Key per HTTP-Referrer auf deine Domain beschränken. Wird nur im Browser gespeichert.
-                            </div>
-                        </div>
-                        <div class="parent-status" id="parent-tts-status"></div>
-                    </div>
-                </section>
-            </div>
-            <div class="parent-panel-footer">
-                <button type="button" class="parent-btn parent-btn-secondary" id="parent-menu-close">Abbrechen</button>
-                <button type="button" class="parent-btn parent-btn-primary" id="parent-menu-apply">Übernehmen</button>
-            </div>
-        `;
-        overlay.appendChild(panel);
-        document.body.appendChild(overlay);
+        // --- SFX & Stimme an/aus (kombiniert) ---
+        const sfxToggle = document.getElementById('pc-sfx-toggle');
+        if (sfxToggle) {
+            sfxToggle.addEventListener('change', () => {
+                this.soundEnabled = sfxToggle.checked;
+                this.speechEnabled = sfxToggle.checked;
+                localStorage.setItem('counting-sfx', sfxToggle.checked ? 'true' : 'false');
+                if (!sfxToggle.checked && this.tts && typeof this.tts.cancel === 'function') {
+                    this.tts.cancel();
+                }
+            });
+        }
 
-        const slider = document.getElementById('parent-diff-slider');
-        const diffVal = document.getElementById('parent-diff-val');
-        slider.addEventListener('input', () => {
-            newMaxOverride = parseInt(slider.value);
-            diffVal.textContent = 'max. ' + newMaxOverride;
-        });
-
-        const volSlider = document.getElementById('parent-vol-slider');
-        const volVal = document.getElementById('parent-vol-val');
-        volSlider.addEventListener('input', () => {
-            const pct = parseInt(volSlider.value);
-            volVal.textContent = pct + '%';
-            this.music.setVolume(pct / 100);
-        });
-
-        const levelVal = document.getElementById('parent-level-val');
-        document.getElementById('parent-level-down').addEventListener('click', () => {
-            if (newLevel > 1) { newLevel--; levelVal.textContent = newLevel; }
-        });
-        document.getElementById('parent-level-up').addEventListener('click', () => {
-            newLevel++; levelVal.textContent = newLevel;
-        });
-
-        let statusTimer = null;
-        const cleanup = () => {
-            if (statusTimer) clearInterval(statusTimer);
-            overlay.remove();
-            document.removeEventListener('keydown', keyHandler);
-        };
-        const keyHandler = (e) => {
-            if (e.key === 'Escape') cleanup();
-        };
-        document.addEventListener('keydown', keyHandler);
-
-        const statusEl = document.getElementById('parent-tts-status');
-        const renderStatus = () => {
-            if (!statusEl) return;
-            statusEl.classList.remove('ready', 'fallback');
-            if (newBackend === 'browser') {
-                statusEl.textContent = '● Browser-Stimme aktiv';
-                statusEl.classList.add('ready'); return;
-            }
-            if (newBackend === 'google') {
-                const gs = this.tts.googleStatus;
-                if (!newGoogleKey) { statusEl.textContent = '○ Kein API-Key eingetragen'; statusEl.classList.add('fallback'); return; }
-                if (gs === 'ready') { statusEl.textContent = '● Google-Stimme bereit'; statusEl.classList.add('ready'); return; }
-                if (gs === 'error') { statusEl.textContent = '○ API-Fehler – Browser-Fallback aktiv'; statusEl.classList.add('fallback'); return; }
-                statusEl.textContent = '○ Noch nicht getestet'; return;
-            }
-            const s = this.tts.status;
-            if (s === 'ready') { statusEl.textContent = '● Piper/Thorsten bereit'; statusEl.classList.add('ready'); }
-            else if (s === 'downloading') statusEl.textContent = `⬇ Modell lädt … ${Math.round((this.tts.progress || 0) * 100)}%`;
-            else if (s === 'fallback') { statusEl.textContent = '○ Nicht verfügbar – Browser-Stimme aktiv'; statusEl.classList.add('fallback'); }
-            else statusEl.textContent = '○ Initialisiert …';
-        };
-        renderStatus();
-        statusTimer = setInterval(renderStatus, 500);
-
-        const googleConfig = document.getElementById('parent-google-config');
-        overlay.querySelectorAll('input[name="parent-voice"]').forEach(r => {
+        // --- Voice-Backend (nur piper / browser) ---
+        overlay.querySelectorAll('input[name="pc-voice"]').forEach(r => {
             r.addEventListener('change', () => {
-                newBackend = r.value;
-                if (googleConfig) googleConfig.toggleAttribute('hidden', newBackend !== 'google');
-                renderStatus();
+                if (!r.checked) return;
+                this.tts.setBackend(r.value);
+                this._renderParentTtsStatus();
             });
         });
-        const keyInput = document.getElementById('parent-google-key');
-        const voiceInput = document.getElementById('parent-google-voice');
-        keyInput.addEventListener('input', () => { newGoogleKey = keyInput.value.trim(); renderStatus(); });
-        voiceInput.addEventListener('change', () => { newGoogleVoice = voiceInput.value || 'de-DE-Chirp3-HD-Leda'; });
-        document.getElementById('parent-google-test').addEventListener('click', async () => {
-            const saved = this.tts.backend;
-            this.tts.setGoogleKey(newGoogleKey);
-            this.tts.setGoogleVoice(newGoogleVoice);
-            this.tts.backend = 'google';
-            await this.tts.speak('Hallo, ich bin deine neue Stimme.');
-            this.tts.backend = saved;
-            renderStatus();
+
+        // --- Schliessen ---
+        const close = () => this._closeParentMenu();
+        document.getElementById('pc-parent-close')?.addEventListener('click', close);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+        // Escape-Handler wird in _openParentMenu registriert (nur aktiv waehrend offen).
+    }
+
+    _openParentMenu() {
+        const overlay = document.getElementById('counting-parent-overlay');
+        if (!overlay) return;
+
+        // Felder mit aktuellem State befuellen.
+        const levelVal = document.getElementById('pc-level-val');
+        const levelDisplay = document.getElementById('pc-level-display');
+        if (levelVal) levelVal.textContent = String(this.state.level);
+        if (levelDisplay) levelDisplay.textContent = String(this.state.level);
+
+        const currentMax = this._getCurrentMaxObjects();
+        const diffSlider = document.getElementById('pc-diff-slider');
+        const diffVal = document.getElementById('pc-diff-val');
+        if (diffSlider) diffSlider.value = currentMax;
+        if (diffVal) diffVal.textContent = 'max. ' + currentMax;
+
+        const volPct = Math.round((this.music.volume ?? 0.25) * 100);
+        const volSlider = document.getElementById('pc-vol-slider');
+        const volVal = document.getElementById('pc-vol-val');
+        if (volSlider) volSlider.value = volPct;
+        if (volVal) volVal.textContent = volPct + '%';
+
+        const musicToggle = document.getElementById('pc-music-toggle');
+        if (musicToggle) musicToggle.checked = !!this.music.musicEnabled;
+        const sfxToggle = document.getElementById('pc-sfx-toggle');
+        if (sfxToggle) sfxToggle.checked = !!this.soundEnabled;
+
+        overlay.querySelectorAll('input[name="pc-voice"]').forEach(r => {
+            r.checked = (r.value === this.tts.backend);
         });
 
-        document.getElementById('parent-menu-apply').addEventListener('click', () => {
-            this.state.level = newLevel;
-            this.state.maxObjectsOverride = newMaxOverride;
-            this.tts.setGoogleKey(newGoogleKey);
-            this.tts.setGoogleVoice(newGoogleVoice);
-            this.tts.setBackend(newBackend);
-            this.ui.updateLevelIndicator();
-            this.ui.updateStars();
-            this.logic.createNewChallenge();
-            cleanup();
-        });
-        document.getElementById('parent-menu-close').addEventListener('click', cleanup);
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+        overlay.classList.remove('hidden');
+
+        // TTS-Status live pollen, solange das Menue offen ist.
+        this._renderParentTtsStatus();
+        this._parentTtsTimer = setInterval(() => this._renderParentTtsStatus(), 500);
+
+        // Escape schliesst (capture, damit globaler ESC-Handler nicht Quit-Dialog oeffnet).
+        this._parentEscHandler = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                this._closeParentMenu();
+            }
+        };
+        document.addEventListener('keydown', this._parentEscHandler, true);
+    }
+
+    _closeParentMenu() {
+        const overlay = document.getElementById('counting-parent-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        if (this._parentTtsTimer) {
+            clearInterval(this._parentTtsTimer);
+            this._parentTtsTimer = null;
+        }
+        if (this._parentEscHandler) {
+            document.removeEventListener('keydown', this._parentEscHandler, true);
+            this._parentEscHandler = null;
+        }
+    }
+
+    _renderParentTtsStatus() {
+        const statusEl = document.getElementById('pc-tts-status');
+        if (!statusEl) return;
+        statusEl.classList.remove('ready', 'fallback');
+        const backend = this.tts.backend;
+        if (backend === 'browser') {
+            statusEl.textContent = '● Browser-Stimme aktiv';
+            statusEl.classList.add('ready');
+            return;
+        }
+        const s = this.tts.status;
+        if (s === 'ready') {
+            statusEl.textContent = '● Piper/Thorsten bereit';
+            statusEl.classList.add('ready');
+        } else if (s === 'downloading') {
+            statusEl.textContent = `⬇ Modell lädt … ${Math.round((this.tts.progress || 0) * 100)}%`;
+        } else if (s === 'fallback') {
+            statusEl.textContent = '○ Nicht verfügbar – Browser-Stimme aktiv';
+            statusEl.classList.add('fallback');
+        } else {
+            statusEl.textContent = '○ Initialisiert …';
+        }
     }
 
     _getCurrentMaxObjects() {
@@ -685,12 +612,9 @@ class CountingGame {
         // Control-Buttons
         const ids = [
             {id: 'next-level-btn', fn: async () => await this.logic.nextLevel()},
-            {id: 'music-toggle', fn: () => this.toggleMusic()},
             {id: 'tracklist-toggle', fn: () => this.music.showOverlay()},
-            {id: 'close-btn', fn: () => this.closeGame()},
-            {id: 'numbers-toggle', fn: () => this.toggleNumbers()},
-            {id: 'prev-track', fn: () => this.music.prevTrack()},
-            {id: 'next-track', fn: () => this.music.nextTrack()}
+            {id: 'home-btn', fn: () => this.closeGame()},
+            {id: 'parent-btn', fn: () => this._openParentMenu()},
         ];
         ids.forEach(obj => {
             const el = document.getElementById(obj.id);
@@ -710,6 +634,13 @@ class CountingGame {
 
     async startGame() {
         console.log('Spiel wird gestartet...');
+        // Persistierte Einstellungen laden (SFX/Stimme kombiniert unter 'counting-sfx').
+        this.soundEnabled = localStorage.getItem('counting-sfx') !== 'false';
+        this.speechEnabled = localStorage.getItem('counting-sfx') !== 'false';
+        // Musik vor playBackgroundMusic() deaktivieren, sonst startet sie trotzdem kurz.
+        if (localStorage.getItem('counting-music') === 'false') {
+            this.music.musicEnabled = false;
+        }
         // Trail-Animation stoppen
         if (window._trailControl) window._trailControl.stop();
         // Verstecke Startscreen
@@ -724,19 +655,10 @@ class CountingGame {
         await this.enableGameEvents();
         // Starte das Spiel sofort
         await this.logic.createNewChallenge();
-        this.ui.updateDisplay();
         this.ui.updateLevelIndicator();
-        this.ui.updateStars();
-        // Setze Zahlenfeld-Button auf ausgeschaltet
-        const numbersButton = document.getElementById('numbers-toggle');
-        numbersButton.textContent = '⌨️';
-        numbersButton.title = 'Zahlenfeld an';
-        // Verstecke das Zahlenfeld tatsächlich
-        const numbersContainer = document.getElementById('numbers-container');
-        numbersContainer.style.display = 'none';
-        // Eltern-Menü initialisieren
-        this._initParentMenu();
-        // Starte Hintergrundmusik
+        // Eltern-Menue an deklaratives Overlay binden (idempotent).
+        this._bindParentMenu();
+        // Starte Hintergrundmusik (respektiert musicEnabled-Flag).
         this.music.playBackgroundMusic();
         console.log('Spiel-Initialisierung abgeschlossen');
     }
@@ -747,17 +669,6 @@ class CountingGame {
         if (key === 'Escape') {
             e.preventDefault();
             this.closeGame();
-            return;
-        }
-        // Shortcuts für Musik und Zahlenfeld (immer erlaubt)
-        if (key.toLowerCase() === 'm') {
-            e.preventDefault();
-            this.toggleMusic();
-            return;
-        }
-        if (key.toLowerCase() === 'n') {
-            e.preventDefault();
-            this.toggleNumbers();
             return;
         }
         // Zahlentasten: Input-Lock beachten
@@ -898,14 +809,13 @@ class CountingGame {
         }, 500);
     }
 
-    toggleMusic() {
-        this.music.toggleMusic();
-    }
-
     closeGame() {
+        // Falls das Eltern-Menue noch offen ist: zuerst schliessen, damit der
+        // Quit-Dialog obenauf liegt und der Fokus klar ist.
+        this._closeParentMenu();
         // Immer Bestaetigung zeigen (einheitlich ueber alle Spiele) - auch in
-        // Level 1 koennte ein Kind versehentlich das X getroffen haben. Die
-        // gesprochene Frage macht die Wahl ohne Lesen moeglich.
+        // Level 1 koennte ein Kind versehentlich das Haus-Symbol getroffen
+        // haben. Die gesprochene Frage macht die Wahl ohne Lesen moeglich.
         GameUI.showQuitConfirm({
             tts: this.speechEnabled ? this.tts : null,
             onQuit: () => this._doCloseGame()
@@ -931,7 +841,6 @@ class CountingGame {
         }
 
         // Reset Spielstand
-        this.state.score = 0;
         this.state.level = 1;
         this.state.isProcessing = false;
 
@@ -971,49 +880,6 @@ class CountingGame {
                 hint.classList.remove('show');
             }, 2000);
         }
-    }
-
-    toggleNumbers() {
-        this.state.numbersVisible = !this.state.numbersVisible;
-        const numbersButton = document.getElementById('numbers-toggle');
-        const numbersContainer = document.getElementById('numbers-container');
-        const objectsDisplay = document.getElementById('objects-display');
-        if (this.state.numbersVisible) {
-            numbersButton.textContent = '🔢';
-            numbersButton.title = 'Zahlenfeld aus';
-            numbersContainer.classList.remove('hide');
-            numbersContainer.classList.add('show');
-            numbersContainer.style.display = 'grid';
-            objectsDisplay.classList.add('with-numbers');
-        } else {
-            numbersButton.textContent = '⌨️';
-            numbersButton.title = 'Zahlenfeld an';
-            numbersContainer.classList.remove('show');
-            numbersContainer.classList.add('hide');
-            objectsDisplay.classList.remove('with-numbers');
-            setTimeout(() => {
-                if (!this.state.numbersVisible) numbersContainer.style.display = 'none';
-            }, 500);
-        }
-    }
-
-    shakeObjects() {
-        const objects = document.querySelectorAll('.object');
-        
-        // Schüttel-Animation zu allen Objekten hinzufügen
-        objects.forEach(obj => {
-            obj.classList.add('shake');
-        });
-        
-        // Body kurz rot einfärben
-        document.body.classList.add('flash-wrong');
-        
-        setTimeout(() => {
-            objects.forEach(obj => {
-                obj.classList.remove('shake');
-            });
-            document.body.classList.remove('flash-wrong');
-        }, 500);
     }
 
     celebrateObjects() {
@@ -1078,9 +944,8 @@ class CountingGame {
 
     // --- Event-Listener für das Spiel deaktivieren ---
     disableGameEvents() {
-        // Eltern-Menue-Longpress-Listener abbauen, sonst verdoppeln sie sich
-        // beim naechsten startGame().
-        this._teardownParentMenu();
+        // Falls das Eltern-Menue noch offen ist: Timer/ESC-Handler aufraeumen.
+        this._closeParentMenu();
         // Zahlen-Buttons
         document.querySelectorAll('.number-btn').forEach(btn => {
             btn.removeEventListener('click', btn._numberClickHandler);
@@ -1088,15 +953,12 @@ class CountingGame {
 
         // Tastatur-Events
         document.removeEventListener('keydown', this._handleKeyPressBound);
-        // Control-Buttons
+        // Control-Buttons (Spiegel der Bindings aus enableGameEvents)
         const ids = [
             'next-level-btn',
-            'music-toggle',
             'tracklist-toggle',
-            'close-btn',
-            'numbers-toggle',
-            'prev-track',
-            'next-track'
+            'home-btn',
+            'parent-btn',
         ];
         ids.forEach(id => {
             const el = document.getElementById(id);

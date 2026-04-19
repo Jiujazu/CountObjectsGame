@@ -527,7 +527,8 @@ button,
     padding: 12px;
 }
 
-.close-button {
+.close-button,
+.home-button {
     position: absolute;
     top: 24px;
     left: 24px;
@@ -551,14 +552,16 @@ button,
     outline: none;
 }
 
-.close-button:hover, .close-button:focus {
+.close-button:hover, .close-button:focus,
+.home-button:hover, .home-button:focus {
     background: #FF6F91;
     color: #fff;
     outline: none;
     transform: scale(1.05);
 }
 
-.close-button:active {
+.close-button:active,
+.home-button:active {
     transform: scale(0.97);
 }
 
@@ -1205,30 +1208,6 @@ button,
     display: block;
 }
 
-.star-progress {
-    position: absolute;
-    top: 80px;
-    right: 24px;
-    display: flex;
-    gap: 2px;
-    z-index: 10;
-    user-select: none;
-}
-.star-progress .star {
-    font-size: 1.4rem;
-    opacity: 0.25;
-    transition: opacity 0.3s, transform 0.3s;
-}
-.star-progress .star.earned {
-    opacity: 1;
-    animation: starEarn 0.4s cubic-bezier(.4,1.3,.6,1);
-}
-@keyframes starEarn {
-    0% { transform: scale(0.3) rotate(-30deg); opacity: 0; }
-    60% { transform: scale(1.3) rotate(10deg); opacity: 1; }
-    100% { transform: scale(1) rotate(0deg); opacity: 1; }
-}
-
 html, body {
     width: 100%;
     max-width: 100%;
@@ -1625,22 +1604,9 @@ html, body {
 }
 
 @media (max-width: 480px) {
-    /* Top-Bar kompakter: Level-Zahl kleiner, Stars als zweite Zeile
-       mit kleinerer Schrift, damit sie nicht ueber das Emoji laufen. */
+    /* Top-Bar kompakter: Level-Zahl kleiner. */
     .level-label { font-size: 0.9rem; top: 4px; width: 64px; right: 16px; }
     .level-indicator { font-size: 2.2rem; width: 64px; height: 64px; top: 18px; right: 16px; padding: 6px; }
-    /* Stars in einer Reihe (nowrap), damit sie nicht in die Content-
-       Zone rutschen und mit Emoji/Objekten kollidieren. */
-    .star-progress {
-        top: 86px;
-        right: 12px;
-        gap: 1px;
-        max-width: none;
-        flex-wrap: nowrap;
-        justify-content: flex-end;
-        white-space: nowrap;
-    }
-    .star-progress .star { font-size: 0.9rem; }
 
     /* Letter-Display: kompakter, Abstaende reduziert. Emoji ist klick-
        barer Replay-Trigger; Fingerabdruck zeigen + dezenter Hover-Effekt. */
@@ -2121,17 +2087,6 @@ select.parent-text-input {
         line-height: 1;
         z-index: 55;
     }
-    .star-progress {
-        position: fixed;
-        top: 42px;
-        right: 14px;
-        max-width: none;
-        flex-wrap: nowrap;
-        gap: 1px;
-        z-index: 55;
-    }
-    .star-progress .star { font-size: 0.7rem; }
-
     /* Bottom-Controls fest in der Bottom-Bar zentriert */
     .controls-bottom-left {
         position: fixed;
@@ -2342,4 +2297,85 @@ select.parent-text-input {
 .parent-overlay,
 .parent-overlay * {
     text-transform: none;
+}
+
+/* Utility: display:none-Klasse fuer deklarative Overlays im index.html
+   (Parent-Menues werden zur Laufzeit ueber .hidden ein-/ausgeblendet). */
+.hidden {
+    display: none !important;
+}
+
+/* === Einheitliches Fehler-Feedback (Zaehlen/Buchstaben) ============
+   Siehe GameUI.shakeError: kurzes Schuetteln + dezente rote Umrandung.
+   Breakout hat eigene Fehlerlogik und nutzt das nicht. */
+.error-shake {
+    animation: gameui-error-shake 0.55s cubic-bezier(.36,.07,.19,.97) both;
+    box-shadow: 0 0 0 4px #EF476F88, 0 0 24px #EF476F66;
+    border-radius: 14px;
+}
+@keyframes gameui-error-shake {
+    10%, 90% { transform: translate3d(-2px, 0, 0); }
+    20%, 80% { transform: translate3d(4px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-8px, 0, 0); }
+    40%, 60% { transform: translate3d(8px, 0, 0); }
+}
+
+/* === Einheitliches Win-Overlay (alle drei Spiele am Level-Ende) ==== */
+.gameui-win-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(35, 41, 70, 0.55);
+    z-index: 10050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: gameui-win-fade-in 0.25s ease both;
+}
+.gameui-win-dialog {
+    background: linear-gradient(135deg, #FFD166 0%, #6AD1E3 100%);
+    border-radius: 32px;
+    padding: 48px 56px;
+    box-shadow: 0 12px 48px #23294666;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    text-transform: uppercase;
+    animation: gameui-win-pop 0.45s cubic-bezier(.4,1.3,.6,1) both;
+}
+.gameui-win-emoji {
+    font-size: 5.2rem;
+    line-height: 1;
+    animation: gameui-win-bounce 1.2s ease-in-out infinite;
+}
+.gameui-win-text {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #232946;
+    text-shadow: 0 2px 6px #ffffff88;
+    text-align: center;
+}
+.gameui-win-next {
+    margin-top: 6px;
+    background: #232946;
+    color: #FFD166;
+    border: none;
+    border-radius: 28px;
+    width: 96px;
+    height: 96px;
+    font-size: 3rem;
+    cursor: pointer;
+    box-shadow: 0 6px 18px #23294688;
+    transition: transform 0.18s, background 0.18s;
+}
+.gameui-win-next:hover { transform: scale(1.08); background: #3d4570; }
+@keyframes gameui-win-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gameui-win-pop {
+    0% { opacity: 0; transform: scale(0.6); }
+    60% { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 1; transform: scale(1); }
+}
+@keyframes gameui-win-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
 }
