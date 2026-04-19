@@ -2385,8 +2385,6 @@ class Game {
         // Sound settings
         try { this.musicMuted = localStorage.getItem('breakout_musicMuted') === 'true'; } catch(e) { this.musicMuted = false; }
         try { this.sfxMuted = localStorage.getItem('breakout_sfxMuted') === 'true'; } catch(e) { this.sfxMuted = false; }
-        // Pause menu
-        this.pauseMenuIdx = 0;
         // Skins
         try { this.unlockedSkins = JSON.parse(localStorage.getItem('breakout_skins') || '["default"]'); } catch(e) { this.unlockedSkins = ['default']; }
         try { this.selectedSkin = localStorage.getItem('breakout_skin') || 'default'; } catch(e) { this.selectedSkin = 'default'; }
@@ -2400,17 +2398,6 @@ class Game {
         // Body-Klasse fuer Kids-Mode (blendet Score-Zahlen und Puzzle aus)
         this._applyKidsModeClass();
 
-        // Back button: Bei laufendem Spiel Bestaetigungs-Dialog, sonst direkt.
-        document.getElementById('back-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (this.state === 'playing' || this.state === 'paused') {
-                this._showQuitConfirm();
-            } else {
-                this.audio.stopMusic();
-                window.location.href = 'index.html';
-            }
-        });
-
         // Quit confirmation buttons
         document.getElementById('quit-confirm-yes').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -2422,7 +2409,8 @@ class Game {
             this._hideQuitConfirm();
         });
 
-        // Pause button (mobile-friendly)
+        // Einziger Menue-Button (oben rechts): oeffnet das kombinierte
+        // Pause-+Einstellungs-Menue und pausiert dabei das Spiel.
         const pauseBtn = document.getElementById('pause-btn');
         if (pauseBtn) {
             pauseBtn.addEventListener('click', (e) => {
@@ -2438,27 +2426,19 @@ class Game {
             }, { passive: true });
         }
 
-        // Eltern-Gate: unauffaelliges Zahnrad oeffnet das neu gestaltete
-        // Eltern-Einstellungsmenue (gleiche Optik wie „Buchstaben"/„Zaehlen").
-        const parentGateBtn = document.getElementById('parent-gate-btn');
-        if (parentGateBtn) {
-            parentGateBtn.addEventListener('click', (e) => {
+        // Weiter-Button im Panel-Footer setzt das Spiel fort.
+        const resumeBtn = document.getElementById('resume-btn');
+        if (resumeBtn) {
+            resumeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this._openParentSettings();
+                this._executePauseAction('resume');
             });
         }
-        const parentCloseBtn = document.getElementById('parent-settings-close');
-        if (parentCloseBtn) {
-            parentCloseBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this._closeParentSettings();
-            });
-        }
-        // Klick auf Overlay-Hintergrund schliesst das Menue.
-        const parentOverlay = document.getElementById('parent-settings-overlay');
-        if (parentOverlay) {
-            parentOverlay.addEventListener('click', (e) => {
-                if (e.target === parentOverlay) this._closeParentSettings();
+        // Klick auf Overlay-Hintergrund schliesst das Menue (=Weiter).
+        const pauseOverlay = document.getElementById('pause-overlay');
+        if (pauseOverlay) {
+            pauseOverlay.addEventListener('click', (e) => {
+                if (e.target === pauseOverlay) this._executePauseAction('resume');
             });
         }
         this._initParentSettingsUI();
@@ -2492,24 +2472,17 @@ class Game {
 
         // Overlays die NICHT automatisch als Spiel-Start interpretiert werden
         // duerfen: Klick auf leere Flaeche soll nichts starten.
-        ['parent-settings-overlay', 'skins-overlay', 'quit-confirm-overlay'].forEach(id => {
+        ['skins-overlay', 'quit-confirm-overlay'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('click', (e) => e.stopPropagation());
         });
 
-        // Pause menu button clicks
-        document.querySelectorAll('.pause-menu-btn').forEach((btn, idx) => {
+        // Spiel-Aktionen im kombinierten Menue.
+        document.querySelectorAll('.pause-menu-btn').forEach((btn) => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (this.state === 'paused') {
-                    this.pauseMenuIdx = idx;
                     this._executePauseAction(btn.dataset.action);
-                }
-            });
-            btn.addEventListener('mouseenter', () => {
-                if (this.state === 'paused') {
-                    this.pauseMenuIdx = idx;
-                    this._highlightPauseBtn(Array.from(document.querySelectorAll('.pause-menu-btn')));
                 }
             });
         });
@@ -2614,13 +2587,13 @@ class Game {
 
     _openParentSettings() {
         this._syncParentSettingsUI();
-        document.getElementById('parent-settings-overlay').classList.remove('hidden');
+        document.getElementById('pause-overlay').classList.remove('hidden');
         if (this._ttsStatusTimer) clearInterval(this._ttsStatusTimer);
         this._ttsStatusTimer = setInterval(() => this._renderTtsStatus(), 500);
     }
 
     _closeParentSettings() {
-        document.getElementById('parent-settings-overlay').classList.add('hidden');
+        document.getElementById('pause-overlay').classList.add('hidden');
         if (this._ttsStatusTimer) { clearInterval(this._ttsStatusTimer); this._ttsStatusTimer = null; }
     }
 
@@ -2782,18 +2755,19 @@ class Game {
     _showQuitConfirm() {
         this._quitConfirmPrevState = this.state;
         if (this.state === 'playing') {
-            this.pauseGame();
-            document.getElementById('pause-overlay').classList.add('hidden');
+            this.state = 'paused';
+            this.audio.pauseMusic();
         }
+        // Pause-Overlay schliessen, damit der Confirm sauber im Vordergrund steht.
+        document.getElementById('pause-overlay').classList.add('hidden');
         document.getElementById('quit-confirm-overlay').classList.remove('hidden');
     }
 
     _hideQuitConfirm() {
         document.getElementById('quit-confirm-overlay').classList.add('hidden');
-        if (this._quitConfirmPrevState === 'playing') {
-            this._executePauseAction('resume');
-        } else if (this._quitConfirmPrevState === 'paused') {
-            document.getElementById('pause-overlay').classList.remove('hidden');
+        if (this._quitConfirmPrevState === 'playing' || this._quitConfirmPrevState === 'paused') {
+            // Zurueck ins kombinierte Pause-Menue (Panel wieder einblenden).
+            this._openParentSettings();
         }
         this._quitConfirmPrevState = null;
     }
@@ -2918,7 +2892,7 @@ class Game {
     update() {
         if (this.state === 'gameover' || this.state === 'win') {
             if (!document.getElementById('skins-overlay').classList.contains('hidden')) return;
-            if (!document.getElementById('parent-settings-overlay').classList.contains('hidden')) return;
+            if (!document.getElementById('pause-overlay').classList.contains('hidden')) return;
             if (this.input.wantsStart()) this.startGame();
             return;
         }
@@ -3346,7 +3320,6 @@ class Game {
             try { localStorage.setItem('breakout_highscore', this.highScore.toString()); } catch(e) {}
             if (!this.newHighScoreFlag) {
                 this.newHighScoreFlag = true;
-                document.getElementById('highscore-display').classList.add('new-record');
                 this.vfx.addFloatingText(W / 2, H / 3, 'NEW HIGH SCORE!', '#ffcc44');
             }
             this.checkSkinUnlocks();
@@ -3733,18 +3706,15 @@ class Game {
     }
 
     updateHUD() {
-        document.getElementById('score-display').textContent = 'Score: ' + this.score;
         const theme = WORLD_THEMES[this.currentWorld];
         const lvl = this.levels.currentLevel + 1;
-        const isKids = !!this.kidsMode;
-        const label = isKids
-            ? (theme && theme.emoji ? theme.emoji : '') + ' L' + lvl
-            : (theme ? theme.name + ' L' + lvl : 'L' + lvl);
-        document.getElementById('level-display').textContent = label;
-        document.getElementById('highscore-display').textContent = 'HI: ' + this.highScore;
+        const emoji = theme && theme.emoji ? theme.emoji : '🎮';
+        document.getElementById('level-display').textContent = emoji + ' L ' + lvl;
         const hearts = [];
         for (let i = 0; i < this.lives; i++) hearts.push('\u2764\uFE0F');
         document.getElementById('lives-display').textContent = hearts.join(' ');
+        const stats = document.getElementById('pause-stats');
+        if (stats) stats.textContent = 'Score: ' + this.score + '  ·  HI: ' + this.highScore;
     }
 
     _buildSkinGrid() {
@@ -3789,68 +3759,36 @@ class Game {
     }
 
     _updatePauseMenu() {
-        // Waehrend Quit-Confirm laeuft, blockiere Pause-Menue-Interaktionen.
+        // Waehrend Quit-Confirm laeuft, blockiere Menue-Interaktionen.
         if (this._quitConfirmPrevState) {
             this.input.consumeClick();
             return;
         }
-        const btns = Array.from(document.querySelectorAll('.pause-menu-btn'));
-        if (this.input.consumeMenuUp()) {
-            this.pauseMenuIdx = (this.pauseMenuIdx - 1 + btns.length) % btns.length;
-            this._highlightPauseBtn(btns);
-        }
-        if (this.input.consumeMenuDown()) {
-            this.pauseMenuIdx = (this.pauseMenuIdx + 1) % btns.length;
-            this._highlightPauseBtn(btns);
-        }
-        if (this.input.consumeMenuConfirm()) {
-            this._executePauseAction(btns[this.pauseMenuIdx].dataset.action);
-            return;
-        }
-        // Clicks werden direkt per Button-Handler behandelt - nicht hier konsumieren,
-        // damit Tippen ausserhalb des Menues nichts ausloest.
+        // Klicks werden direkt per Button-Handler behandelt.
         this.input.consumeClick();
         if (this.input.wantsPause()) {
             this._executePauseAction('resume');
         }
     }
 
-    _highlightPauseBtn(btns) {
-        btns.forEach((b, i) => b.classList.toggle('selected', i === this.pauseMenuIdx));
-    }
-
     _executePauseAction(action) {
         switch (action) {
             case 'resume':
                 this.state = 'playing';
-                document.getElementById('pause-overlay').classList.add('hidden');
+                this._closeParentSettings();
                 this.audio.resumeMusic(this.levels.currentLevel);
                 break;
-            case 'toggleMusic':
-                this.musicMuted = !this.musicMuted;
-                try { localStorage.setItem('breakout_musicMuted', this.musicMuted.toString()); } catch(e) {}
-                this._applySoundSettings();
-                this._updateSoundBtns();
-                break;
-            case 'toggleSfx':
-                this.sfxMuted = !this.sfxMuted;
-                try { localStorage.setItem('breakout_sfxMuted', this.sfxMuted.toString()); } catch(e) {}
-                this._applySoundSettings();
-                this._updateSoundBtns();
-                break;
             case 'restart':
-                document.getElementById('pause-overlay').classList.add('hidden');
+                this._closeParentSettings();
                 this.startGame();
                 break;
             case 'quit':
-                this.audio.stopMusic();
-                this.state = 'start';
-                this.hideAllOverlays();
-                document.getElementById('start-overlay').classList.remove('hidden');
+                this._closeParentSettings();
+                this._showQuitConfirm();
                 break;
             case 'nextLevel': {
                 if (!this.parentMode) break;
-                document.getElementById('pause-overlay').classList.add('hidden');
+                this._closeParentSettings();
                 this.audio.stopMusic();
                 const nextLvl = this.levels.currentLevel + 1;
                 const maxLvl = this.kidsMode ? 10 : 20;
@@ -3867,31 +3805,10 @@ class Game {
         }
     }
 
-    _updateSoundBtns() {
-        const btns = Array.from(document.querySelectorAll('.pause-menu-btn'));
-        for (const btn of btns) {
-            const action = btn.dataset.action;
-            const iconEl = btn.querySelector('.pause-icon');
-            const labelEl = btn.querySelector('.pause-label');
-            if (action === 'toggleMusic') {
-                if (iconEl) iconEl.textContent = this.musicMuted ? '🔇' : '🎵';
-                if (labelEl) labelEl.textContent = this.musicMuted ? 'Musik aus' : 'Musik an';
-            }
-            if (action === 'toggleSfx') {
-                if (iconEl) iconEl.textContent = this.sfxMuted ? '🔕' : '🔔';
-                if (labelEl) labelEl.textContent = this.sfxMuted ? 'Effekte aus' : 'Effekte an';
-            }
-        }
-    }
-
     pauseGame() {
         this.state = 'paused';
-        this.pauseMenuIdx = 0;
-        const overlay = document.getElementById('pause-overlay');
-        overlay.classList.remove('hidden');
-        this._updateSoundBtns();
-        const btns = Array.from(document.querySelectorAll('.pause-menu-btn'));
-        this._highlightPauseBtn(btns);
+        this.updateHUD();
+        this._openParentSettings();
         this.audio.pauseMusic();
     }
 
