@@ -903,53 +903,13 @@ class CountingGame {
     }
 
     closeGame() {
-        // Bestätigung nur wenn Fortschritt vorhanden
-        if (this.state.level > 1) {
-            this._showCloseConfirmation();
-            return;
-        }
-        this._doCloseGame();
-    }
-
-    _showCloseConfirmation() {
-        // Gleiches Pattern wie im Buchstabenspiel: grosse Emoji-Buttons, vorgelesene Frage
-        const overlay = document.createElement('div');
-        overlay.id = 'close-confirm-overlay';
-        overlay.className = 'close-confirm-overlay';
-        const dialog = document.createElement('div');
-        dialog.className = 'close-confirm-dialog';
-        dialog.innerHTML = `
-            <div class="close-confirm-emoji">\uD83E\uDD14</div>
-            <div class="close-confirm-text">Weiterspielen oder aufhören?</div>
-            <div class="close-confirm-actions">
-                <button id="close-confirm-no" class="close-confirm-btn continue" title="Weiterspielen" aria-label="Weiterspielen">\u25B6\uFE0F</button>
-                <button id="close-confirm-yes" class="close-confirm-btn stop" title="Aufhören" aria-label="Aufhören">\uD83D\uDED1</button>
-            </div>
-        `;
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-        if (this.speechEnabled && this.tts) {
-            this.tts.speak('Möchtest du weiterspielen oder aufhören?');
-        }
-
-        const cleanup = () => {
-            overlay.remove();
-            document.removeEventListener('keydown', keyHandler, true);
-        };
-        const keyHandler = (e) => {
-            if (e.key === 'Escape' || e.key === 'Enter') {
-                // Capture-Phase + stopImmediatePropagation, damit der Game-ESC-Handler
-                // nicht parallel feuert und einen zweiten Overlay erzeugt.
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                cleanup();
-                if (e.key === 'Enter') this._doCloseGame();
-            }
-        };
-        document.addEventListener('keydown', keyHandler, true);
-        document.getElementById('close-confirm-yes').addEventListener('click', () => { cleanup(); this._doCloseGame(); });
-        document.getElementById('close-confirm-no').addEventListener('click', cleanup);
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+        // Immer Bestaetigung zeigen (einheitlich ueber alle Spiele) - auch in
+        // Level 1 koennte ein Kind versehentlich das X getroffen haben. Die
+        // gesprochene Frage macht die Wahl ohne Lesen moeglich.
+        GameUI.showQuitConfirm({
+            tts: this.speechEnabled ? this.tts : null,
+            onQuit: () => this._doCloseGame()
+        });
     }
 
     _doCloseGame() {

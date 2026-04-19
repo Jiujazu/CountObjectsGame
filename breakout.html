@@ -144,14 +144,6 @@
                 <button class="pause-menu-btn" data-action="quit"><span class="pause-icon">🏠</span><span class="pause-label">Menü</span></button>
             </div>
         </div>
-        <div id="quit-confirm-overlay" class="hidden">
-            <div class="quit-confirm-emoji" aria-hidden="true">👋</div>
-            <div class="quit-confirm-text">Wirklich beenden?</div>
-            <div class="quit-confirm-buttons">
-                <button id="quit-confirm-no" class="quit-confirm-btn quit-no" aria-label="Nein, weiterspielen">✔</button>
-                <button id="quit-confirm-yes" class="quit-confirm-btn quit-yes" aria-label="Ja, beenden">✕</button>
-            </div>
-        </div>
     </div>
     <!-- Piper TTS (gleich wie bei „Buchstaben"/„Zaehlen"): laedt das
          Thorsten-Modell offline, mit automatischem Fallback auf die
@@ -165,6 +157,7 @@
     </script>
     <script type="module" src="piper-loader.js"></script>
     <script src="shared.js"></script>
+    <script src="game-ui.js"></script>
     <script src="breakout.js"></script>
 </body>
 </html>

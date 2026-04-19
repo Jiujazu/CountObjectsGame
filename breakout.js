@@ -2411,17 +2411,6 @@ class Game {
             }
         });
 
-        // Quit confirmation buttons
-        document.getElementById('quit-confirm-yes').addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.audio.stopMusic();
-            window.location.href = 'index.html';
-        });
-        document.getElementById('quit-confirm-no').addEventListener('click', (e) => {
-            e.stopPropagation();
-            this._hideQuitConfirm();
-        });
-
         // Pause button (mobile-friendly)
         const pauseBtn = document.getElementById('pause-btn');
         if (pauseBtn) {
@@ -2491,8 +2480,9 @@ class Game {
         });
 
         // Overlays die NICHT automatisch als Spiel-Start interpretiert werden
-        // duerfen: Klick auf leere Flaeche soll nichts starten.
-        ['parent-settings-overlay', 'skins-overlay', 'quit-confirm-overlay'].forEach(id => {
+        // duerfen: Klick auf leere Flaeche soll nichts starten. (Der Quit-
+        // Dialog wird von GameUI live erzeugt und kapselt sein Input selbst.)
+        ['parent-settings-overlay', 'skins-overlay'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('click', (e) => e.stopPropagation());
         });
@@ -2780,22 +2770,37 @@ class Game {
     }
 
     _showQuitConfirm() {
-        this._quitConfirmPrevState = this.state;
-        if (this.state === 'playing') {
-            this.pauseGame();
-            document.getElementById('pause-overlay').classList.add('hidden');
-        }
-        document.getElementById('quit-confirm-overlay').classList.remove('hidden');
-    }
+        // Vereinheitlicht ueber GameUI: identischer Dialog wie in Zaehl-/
+        // Buchstabenspiel. Waehrend der Bestaetigung wird das Pause-Menue
+        // weggeblendet; bei Abbruch stellen wir den vorherigen Zustand wieder
+        // her (laufendes Spiel oder sichtbares Pause-Menue).
+        if (GameUI.isQuitConfirmOpen()) return;
 
-    _hideQuitConfirm() {
-        document.getElementById('quit-confirm-overlay').classList.add('hidden');
-        if (this._quitConfirmPrevState === 'playing') {
-            this._executePauseAction('resume');
-        } else if (this._quitConfirmPrevState === 'paused') {
-            document.getElementById('pause-overlay').classList.remove('hidden');
+        const prevState = this.state;
+        const pauseOverlay = document.getElementById('pause-overlay');
+        if (prevState === 'playing') {
+            this.pauseGame();
         }
-        this._quitConfirmPrevState = null;
+        if (pauseOverlay) pauseOverlay.classList.add('hidden');
+        this._quitConfirmPrevState = prevState;
+
+        GameUI.showQuitConfirm({
+            tts: this.sfxMuted ? null : this._tts(),
+            onQuit: () => {
+                this._quitConfirmPrevState = null;
+                this.audio.stopMusic();
+                window.location.href = 'index.html';
+            },
+            onCancel: () => {
+                const prev = this._quitConfirmPrevState;
+                this._quitConfirmPrevState = null;
+                if (prev === 'playing') {
+                    this._executePauseAction('resume');
+                } else if (prev === 'paused' && pauseOverlay) {
+                    pauseOverlay.classList.remove('hidden');
+                }
+            }
+        });
     }
 
     _armAudioUnlock() {

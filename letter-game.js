@@ -844,52 +844,13 @@ class LetterGame {
     }
 
     closeGame() {
-        // Immer Bestaetigung zeigen - auch in Level 1 koennte ein Kind versehentlich
-        // das X getroffen haben. Dank Audio-Dialog muss es nichts lesen koennen.
-        this._showCloseConfirmation();
-    }
-
-    _showCloseConfirmation() {
-        // Nicht-Leser: grosse Emoji-Buttons (gruener Pfeil weiterspielen, rotes Stop aufhoeren)
-        // plus gesprochene Frage - der Text bleibt fuer Eltern sichtbar, ist aber nicht
-        // die primaere Informationsquelle.
-        const overlay = document.createElement('div');
-        overlay.className = 'close-confirm-overlay';
-        const dialog = document.createElement('div');
-        dialog.className = 'close-confirm-dialog';
-        dialog.innerHTML = `
-            <div class="close-confirm-emoji">\uD83E\uDD14</div>
-            <div class="close-confirm-text">Weiterspielen oder aufhören?</div>
-            <div class="close-confirm-actions">
-                <button id="letter-close-no" class="close-confirm-btn continue" title="Weiterspielen" aria-label="Weiterspielen">\u25B6\uFE0F</button>
-                <button id="letter-close-yes" class="close-confirm-btn stop" title="Aufhören" aria-label="Aufhören">\uD83D\uDED1</button>
-            </div>
-        `;
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-        // Frage vorlesen, damit das Kind ohne Lesen entscheiden kann
-        if (this.speechEnabled && this.tts) {
-            this.tts.speak('Möchtest du weiterspielen oder aufhören?');
-        }
-        const cleanup = () => {
-            overlay.remove();
-            document.removeEventListener('keydown', kh, true);
-        };
-        const kh = (e) => {
-            if (e.key === 'Escape' || e.key === 'Enter') {
-                // Capture-Phase + stopImmediatePropagation, damit der Spiel-weite
-                // _handleKeyDown (ESC → closeGame) nicht parallel einen neuen
-                // Overlay aufmacht, waehrend der alte geschlossen wird.
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                cleanup();
-                if (e.key === 'Enter') this._doClose();
-            }
-        };
-        document.addEventListener('keydown', kh, true);
-        document.getElementById('letter-close-yes').addEventListener('click', () => { cleanup(); this._doClose(); });
-        document.getElementById('letter-close-no').addEventListener('click', cleanup);
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+        // Vereinheitlicht ueber GameUI (siehe game-ui.js). Frage wird immer
+        // gestellt (auch Level 1) und vorgelesen - identisch zum Zaehlspiel
+        // und Breakout.
+        GameUI.showQuitConfirm({
+            tts: this.speechEnabled ? this.tts : null,
+            onQuit: () => this._doClose()
+        });
     }
 
     _doClose() {
