@@ -2324,3 +2324,22 @@ select.parent-text-input {
         height: min(28vmin, 9rem);
     }
 }
+
+/* === Kindgerechte Gross-Schrift (3-4 Jahre lesen nur Grossbuchstaben) ===
+   Harte Regel ueber alle Spiele: saemtliche kinderseitigen Texte werden in
+   Versalien dargestellt. Umgesetzt per CSS statt per Source-Edit, damit die
+   Quellstrings lesbar bleiben und unveraendert an TTS gehen (dort egal).
+   Umlaute (Ae/Oe/Ue) und ss werden von `text-transform` korrekt umgesetzt.
+   Ausnahme: die Eltern-Einstellungsmenues - die liest nur der Erwachsene. */
+.startscreen,
+.game-container,
+.letter-game-container,
+#game-wrapper,
+#puzzle-container,
+.close-confirm-dialog {
+    text-transform: uppercase;
+}
+.parent-overlay,
+.parent-overlay * {
+    text-transform: none;
+}

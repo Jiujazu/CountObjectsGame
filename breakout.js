@@ -44,10 +44,12 @@ const POWERUP_NAMES_DE = {
     fireball:'FEUERBALL', slowmo:'ZEITLUPE', speeddemon:'TURBO',
     shield:'SCHILD', magnet:'MAGNET', bomb:'BOMBE'
 };
+// HINTS werden auf das Canvas gezeichnet - hier muss der String selbst schon
+// in Grossbuchstaben vorliegen (CSS text-transform wirkt nur im DOM).
 const POWERUP_HINTS_DE = {
-    multiball:'Mehr B\u00e4lle!', laser:'Paddle schie\u00dft!', giant:'Gro\u00dfes Paddle!', tiny:'Kleines Paddle!',
-    fireball:'Ball brennt!', slowmo:'Alles langsam!', speeddemon:'Alles schnell!',
-    shield:'Boden gesch\u00fctzt!', magnet:'Ball klebt!', bomb:'Explosion!'
+    multiball:'MEHR B\u00c4LLE!', laser:'PADDLE SCHIESST!', giant:'GROSSES PADDLE!', tiny:'KLEINES PADDLE!',
+    fireball:'BALL BRENNT!', slowmo:'ALLES LANGSAM!', speeddemon:'ALLES SCHNELL!',
+    shield:'BODEN GESCH\u00dcTZT!', magnet:'BALL KLEBT!', bomb:'EXPLOSION!'
 };
 // Kurze, laut aussprechbare Phrasen fuer 3-4jaehrige (Nichtleser).
 const POWERUP_SPEECH_DE = {
@@ -134,15 +136,18 @@ const WORLD_THEMES = [
 // ═══════════════════════════════════════════���═══════════════════
 // PADDLE SKINS
 // ═══════════════════════════���═══════════════════════════════════
+// name + unlock.label werden sowohl auf das Canvas (Floating-Text) als auch
+// ins DOM (Skin-Grid) geschrieben. Beide sichtbaren Strings liegen daher
+// bereits in Grossbuchstaben vor.
 const PADDLE_SKINS = [
-    { id:'default',  name:'Standard',   colors:['#aaaaff','#6666cc'], glow:'#8888ff',   unlock:null },
-    { id:'neon',     name:'Neon',        colors:['#00ffaa','#00aa66'], glow:'#00ffaa',   unlock:{type:'score', value:2000, label:'2.000 Punkte'} },
-    { id:'fire',     name:'Flammen',     colors:['#ff6622','#cc2200'], glow:'#ff4400',   unlock:{type:'score', value:5000, label:'5.000 Punkte'} },
-    { id:'ice',      name:'Eis',         colors:['#88ddff','#4488cc'], glow:'#44ccff',   unlock:{type:'level', value:3, label:'Level 3'} },
-    { id:'rainbow',  name:'Regenbogen',  colors:'rainbow',            glow:'#ff88ff',   unlock:{type:'level', value:5, label:'Level 5'} },
-    { id:'gold',     name:'Gold',        colors:['#ffd700','#cc9900'], glow:'#ffd700',   unlock:{type:'score', value:15000, label:'15.000 Punkte'} },
-    { id:'pixel',    name:'Pixel',       colors:['#88ff88','#448844'], glow:'#44ff44',   unlock:{type:'combo', value:15, label:'15er Combo'} },
-    { id:'galaxy',   name:'Galaxie',     colors:'galaxy',             glow:'#aa44ff',   unlock:{type:'boss', value:1, label:'Boss besiegt'} },
+    { id:'default',  name:'STANDARD',   colors:['#aaaaff','#6666cc'], glow:'#8888ff',   unlock:null },
+    { id:'neon',     name:'NEON',       colors:['#00ffaa','#00aa66'], glow:'#00ffaa',   unlock:{type:'score', value:2000,  label:'2.000 PUNKTE'} },
+    { id:'fire',     name:'FLAMMEN',    colors:['#ff6622','#cc2200'], glow:'#ff4400',   unlock:{type:'score', value:5000,  label:'5.000 PUNKTE'} },
+    { id:'ice',      name:'EIS',        colors:['#88ddff','#4488cc'], glow:'#44ccff',   unlock:{type:'level', value:3,     label:'LEVEL 3'} },
+    { id:'rainbow',  name:'REGENBOGEN', colors:'rainbow',             glow:'#ff88ff',   unlock:{type:'level', value:5,     label:'LEVEL 5'} },
+    { id:'gold',     name:'GOLD',       colors:['#ffd700','#cc9900'], glow:'#ffd700',   unlock:{type:'score', value:15000, label:'15.000 PUNKTE'} },
+    { id:'pixel',    name:'PIXEL',      colors:['#88ff88','#448844'], glow:'#44ff44',   unlock:{type:'combo', value:15,    label:'15ER COMBO'} },
+    { id:'galaxy',   name:'GALAXIE',    colors:'galaxy',              glow:'#aa44ff',   unlock:{type:'boss',  value:1,     label:'BOSS BESIEGT'} },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -3086,7 +3091,7 @@ class Game {
                 this.vfx.triggerShake(4);
                 this.vfx.flash('#4488ff', 0.2);
                 if (this.lives > 0) {
-                    this.vfx.addFloatingText(W / 2, H / 2, '👆 Ziehen, loslassen!', '#44bbff');
+                    this.vfx.addFloatingText(W / 2, H / 2, '👆 ZIEHEN, LOSLASSEN!', '#44bbff');
                     this._speak('Ziehen, loslassen!');
                 }
             } else {
@@ -3708,7 +3713,7 @@ class Game {
             if (this.combo >= 15 && !this.partyMode) {
                 ctx.fillStyle = 'rgba(255,200,100,0.5)';
                 ctx.font = 'bold 11px system-ui';
-                ctx.fillText(`Noch ${20 - this.combo}...`, W / 2, H - 50);
+                ctx.fillText(`NOCH ${20 - this.combo}...`, W / 2, H - 50);
             }
         }
 
@@ -3731,7 +3736,7 @@ class Game {
             ctx.fillStyle = '#44ffff';
             ctx.font = 'bold 11px system-ui';
             ctx.textAlign = 'left';
-            ctx.fillText('Balls: ' + this.balls.length, 8, H - 6);
+            ctx.fillText('BALLS: ' + this.balls.length, 8, H - 6);
         }
 
         ctx.restore();
