@@ -480,7 +480,7 @@ class MusicOverlay {
             style.textContent = `
                 .music-overlay-bg {
                     position: fixed;
-                    top: 0; left: 0; width: 100vw; height: 100vh;
+                    top: 0; left: 0; width: 100vw; height: 100dvh;
                     background: rgba(0,0,0,0.28);
                     z-index: 10000;
                     display: flex;
@@ -699,6 +699,9 @@ class PuzzleManager {
     init() {
         this.createPuzzleContainer();
         this.updateDisplay();
+        // Standardmaessig versteckt - jedes Spiel ruft puzzle.show() beim Start.
+        // Sonst leuchtet das Puzzle bereits auf dem Startbildschirm durch.
+        this.hide();
     }
     createPuzzleContainer() {
         const puzzleContainer = document.createElement('div');
@@ -763,7 +766,7 @@ class PuzzleManager {
             .puzzle-piece.revealed::before { display: none; }
             .puzzle-piece.revealed { background-size: cover; background-position: center; }
             .puzzle-reveal-overlay {
-                position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+                position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh;
                 background: radial-gradient(circle, rgba(255, 209, 102, 0.3) 0%, transparent 70%);
                 z-index: 9999; pointer-events: none;
                 animation: revealOverlay 1s ease-out forwards;
