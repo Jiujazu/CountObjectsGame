@@ -2120,6 +2120,12 @@ class Game {
                 this.music.setVolume(legacyVol);
             }
         } catch(_) {}
+        // Dedizierte Party-Mode-Musik. Spielt nur waehrend Party Mode statt der
+        // normalen Hintergrundmusik und macht den Modus zu etwas Besonderem.
+        this.partyMusic = new Audio('background music/Funky_Playground_Groove.mp3');
+        this.partyMusic.loop = true;
+        this.partyMusic.preload = 'auto';
+        this.partyMusic.volume = Math.min(1, this.music.volume * 1.4);
         this.particles = new ParticleSystem();
         this.vfx = new VisualEffects();
         this.paddle = new Paddle();
@@ -2133,6 +2139,7 @@ class Game {
         this.combo = 0;
         this.partyMode = false;
         this.partyTimer = 0;
+        this.partyModeUsedThisLevel = false;
         this.bricks = [];
         this.balls = [];
         this.bricksDestroyed = 0;
@@ -2185,6 +2192,7 @@ class Game {
                 this._showQuitConfirm();
             } else {
                 this.music.stopBackgroundMusic();
+                if (this.partyMusic) { try { this.partyMusic.pause(); } catch(_) {} }
                 window.location.href = 'index.html';
             }
         });
@@ -2491,6 +2499,14 @@ class Game {
         if (this.music && this.music.musicEnabled === this.musicMuted) {
             this.music.toggleMusic();
         }
+        // Party-Musik dem aktuellen Mute-Status angleichen, falls Party Mode laeuft.
+        if (this.partyMusic) {
+            if (this.musicMuted) {
+                try { this.partyMusic.pause(); } catch(_) {}
+            } else if (this.partyMode) {
+                try { this.partyMusic.play().catch(()=>{}); } catch(_) {}
+            }
+        }
     }
 
     _cancelSpeech() {
@@ -2558,6 +2574,7 @@ class Game {
             onQuit: () => {
                 this._quitConfirmPrevState = null;
                 this.music.stopBackgroundMusic();
+                if (this.partyMusic) { try { this.partyMusic.pause(); } catch(_) {} }
                 window.location.href = 'index.html';
             },
             onCancel: () => {
@@ -2622,6 +2639,7 @@ class Game {
         this.nextExtraLife = 5000;
         this.partyMode = false;
         this.partyTimer = 0;
+        this.partyModeUsedThisLevel = false;
         this.newHighScoreFlag = false;
         this.boss = null;
         this.maxComboEver = 0;
@@ -2651,6 +2669,9 @@ class Game {
         this.currentWorld = getWorldForLevel(idx);
         this.bricksDestroyed = 0;
         this.boss = null;
+        // Party-Mode-Cooldown pro Level zuruecksetzen, damit der Spieler ihn pro
+        // Level hoechstens einmal triggern kann.
+        this.partyModeUsedThisLevel = false;
         // Kids-Mode: Keine Boss-Level. 3-4jaehrige Kinder koennen Paddle-Steuerung
         // nicht mit Projektil-Ausweichen kombinieren - das ueberfordert die
         // Motorik und ist frustrierend. Normal-Mode: Boss alle 5 Level.
@@ -3149,9 +3170,11 @@ class Game {
             this.vfx.triggerZoom();
             this.vfx.addFloatingText(W / 2, H / 2, this.combo + 'x COMBO!', '#ffcc44');
         }
-        // Party mode trigger at 20
-        if (this.combo === 20 && !this.partyMode) {
-            this.activatePartyMode(600);
+        // Party mode trigger: seltenes Highlight bei sehr hohem Combo. Der
+        // Cooldown laeuft bis zum naechsten Level - so bleibt der Modus etwas
+        // Besonderes statt alle paar Sekunden auszuloesen.
+        if (this.combo === 50 && !this.partyMode && !this.partyModeUsedThisLevel) {
+            this.activatePartyMode(900);
         }
         // Powerup drop
         this.powerups.trySpawn(brick.x + brick.w / 2, brick.y + brick.h / 2, this.partyMode, this.kidsMode);
@@ -3322,6 +3345,7 @@ class Game {
         if (this.partyMode) { this.partyTimer = Math.max(this.partyTimer, duration); return; }
         this.partyMode = true;
         this.partyTimer = duration;
+        this.partyModeUsedThisLevel = true;
         document.body.classList.add('party-mode');
         this.paddle.setWidth(160);
         for (const ball of this.balls) ball.fireball = true;
@@ -3331,6 +3355,7 @@ class Game {
         for (let i = 0; i < 50; i++) {
             this.particles.spawn(rnd(0, W), rnd(0, H * 0.6), '#fff', 3, { randomColor: true, speed: 3, speedVar: 3 });
         }
+        this._startPartyMusic();
     }
 
     deactivatePartyMode() {
@@ -3342,6 +3367,45 @@ class Game {
         if (!this.powerups.isActive('fireball')) {
             for (const ball of this.balls) ball.fireball = false;
         }
+        this._stopPartyMusic();
+    }
+
+    _startPartyMusic() {
+        if (!this.partyMusic) return;
+        // Normale Hintergrundmusik anhalten (Position bleibt erhalten) und die
+        // Party-Musik von vorne starten. Lautstaerke wird an die aktuelle
+        // Musik-Lautstaerke gekoppelt; Mute respektieren wir ueber musicMuted.
+        try {
+            if (this.music && this.music.backgroundMusic && !this.music.backgroundMusic.paused) {
+                this.music.backgroundMusic.pause();
+            }
+        } catch(_) {}
+        if (this.musicMuted) return;
+        try {
+            this.partyMusic.volume = Math.min(1, (this.music ? this.music.volume : 0.25) * 1.4);
+            this.partyMusic.currentTime = 0;
+            this.partyMusic.play().catch(()=>{});
+        } catch(_) {}
+    }
+
+    _stopPartyMusic() {
+        if (!this.partyMusic) return;
+        try {
+            this.partyMusic.pause();
+            this.partyMusic.currentTime = 0;
+        } catch(_) {}
+        // Normale Hintergrundmusik wieder anwerfen, sofern Musik nicht stumm
+        // geschaltet wurde und das Spiel weiterhin laeuft.
+        if (this.musicMuted) return;
+        if (this.state !== 'playing' && this.state !== 'leveltransition') return;
+        if (!this.music || !this.music.musicEnabled) return;
+        try {
+            if (this.music.backgroundMusic) {
+                this.music.backgroundMusic.play().catch(()=>{});
+            } else {
+                this.music.playBackgroundMusic();
+            }
+        } catch(_) {}
     }
 
     levelComplete() {
@@ -3392,6 +3456,9 @@ class Game {
     gameOver() {
         this.state = 'gameover';
         this.music.stopBackgroundMusic();
+        if (this.partyMusic) {
+            try { this.partyMusic.pause(); this.partyMusic.currentTime = 0; } catch(_) {}
+        }
         const overlay = document.getElementById('game-over-overlay');
         overlay.classList.remove('hidden');
         overlay.querySelector('.gameover-score').textContent = 'Score: ' + this.score;
@@ -3402,6 +3469,9 @@ class Game {
     winGame() {
         this.state = 'win';
         this.music.stopBackgroundMusic();
+        if (this.partyMusic) {
+            try { this.partyMusic.pause(); this.partyMusic.currentTime = 0; } catch(_) {}
+        }
         this.audio.sfx('win');
         this.vfx.flash('#44ff88', 0.8);
         const overlay = document.getElementById('win-overlay');
@@ -3496,9 +3566,10 @@ class Game {
             ctx.fillStyle = `hsl(${Date.now()/6%360},100%,70%)`;
             const wobble = Math.sin(Date.now() / 100) * 4;
             ctx.fillText('PARTY MODE!', W / 2, 28 + wobble);
-            // Timer bar
+            // Timer bar - die Konami-Variante laeuft 1800 Frames, der combo-
+            // getriggerte Modus 900. Der laengere Wert deckt beide ab.
             const maxTimer = 1800;
-            const frac = this.partyTimer / maxTimer;
+            const frac = Math.min(1, this.partyTimer / maxTimer);
             ctx.fillStyle = `hsla(${Date.now()/4%360},100%,60%,0.5)`;
             ctx.fillRect(W * 0.2, 34, W * 0.6 * frac, 4);
         }
@@ -3583,8 +3654,11 @@ class Game {
             case 'resume':
                 this.state = 'playing';
                 this._closeParentSettings();
-                // Hintergrundmusik (MP3) nach Pause fortsetzen.
-                if (this.music && this.music.musicEnabled && this.music.backgroundMusic) {
+                // Wenn Party Mode aktiv ist, laeuft die Party-Musik weiter -
+                // sonst die normale Hintergrundmusik (MP3) nach Pause fortsetzen.
+                if (this.partyMode && this.partyMusic && !this.musicMuted) {
+                    try { this.partyMusic.play().catch(()=>{}); } catch(_) {}
+                } else if (this.music && this.music.musicEnabled && this.music.backgroundMusic) {
                     try { this.music.backgroundMusic.play().catch(()=>{}); } catch(_) {}
                 } else if (this.music && this.music.musicEnabled) {
                     try { this.music.playBackgroundMusic(); } catch(_) {}
@@ -3629,6 +3703,9 @@ class Game {
         // weiter (Position bleibt erhalten).
         if (this.music && this.music.backgroundMusic) {
             try { this.music.backgroundMusic.pause(); } catch(_) {}
+        }
+        if (this.partyMusic) {
+            try { this.partyMusic.pause(); } catch(_) {}
         }
     }
 
