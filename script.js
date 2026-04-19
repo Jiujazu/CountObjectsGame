@@ -778,8 +778,8 @@ class CountingGame {
         const container = document.getElementById('objects-display');
         container.innerHTML = '';
         
-        // Responsive Grid-Größe basierend auf Bildschirmbreite
-        const isMobile = window.innerWidth <= 480;
+        // Grid-Größe muss zur CSS-Regel passen (style.css: 3×4 auf Touch/≤700px, 4×3 auf Desktop)
+        const isMobile = window.matchMedia('(max-width: 700px), (pointer: coarse)').matches;
         const gridCols = isMobile ? 3 : 4;
         const gridRows = isMobile ? 4 : 3;
         const gridSize = gridCols * gridRows;
@@ -912,22 +912,25 @@ class CountingGame {
     }
 
     _showCloseConfirmation() {
-        // Overlay erstellen
+        // Gleiches Pattern wie im Buchstabenspiel: grosse Emoji-Buttons, vorgelesene Frage
         const overlay = document.createElement('div');
         overlay.id = 'close-confirm-overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        overlay.className = 'close-confirm-overlay';
         const dialog = document.createElement('div');
-        dialog.style.cssText = 'background:#fff;border-radius:24px;padding:32px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.2);max-width:320px;';
+        dialog.className = 'close-confirm-dialog';
         dialog.innerHTML = `
-            <div style="font-size:2.5rem;margin-bottom:16px;">🛑</div>
-            <div style="font-size:1.2rem;font-weight:700;color:#232946;margin-bottom:24px;">Spiel wirklich beenden?</div>
-            <div style="display:flex;gap:16px;justify-content:center;">
-                <button id="close-confirm-yes" style="background:#FF6F91;color:#fff;border:none;border-radius:14px;padding:12px 28px;font-size:1.1rem;font-weight:700;cursor:pointer;">Ja</button>
-                <button id="close-confirm-no" style="background:#6AD1E3;color:#fff;border:none;border-radius:14px;padding:12px 28px;font-size:1.1rem;font-weight:700;cursor:pointer;">Nein</button>
+            <div class="close-confirm-emoji">\uD83E\uDD14</div>
+            <div class="close-confirm-text">Weiterspielen oder aufhören?</div>
+            <div class="close-confirm-actions">
+                <button id="close-confirm-no" class="close-confirm-btn continue" title="Weiterspielen" aria-label="Weiterspielen">\u25B6\uFE0F</button>
+                <button id="close-confirm-yes" class="close-confirm-btn stop" title="Aufhören" aria-label="Aufhören">\uD83D\uDED1</button>
             </div>
         `;
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
+        if (this.speechEnabled && this.tts) {
+            this.tts.speak('Möchtest du weiterspielen oder aufhören?');
+        }
 
         const cleanup = () => {
             overlay.remove();

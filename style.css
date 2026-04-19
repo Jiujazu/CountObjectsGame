@@ -442,13 +442,13 @@ button,
         max-height: 98vh;
     }
     .celebration-number {
-        font-size: 30vw;
+        font-size: clamp(5rem, 30vw, 8rem);
         color: #ffffff;
     }
     .celebration-content .game-button {
-        width: 120px;
-        height: 120px;
-        font-size: 3rem;
+        width: min(120px, 22vh);
+        height: min(120px, 22vh);
+        font-size: clamp(1.6rem, 6vh, 3rem);
     }
 }
 
@@ -832,7 +832,7 @@ button,
 }
 
 .success-number {
-    font-size: 25rem;
+    font-size: clamp(8rem, 40vw, 25rem);
     font-weight: 700;
     font-family: 'Roboto', 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     color: white;
@@ -1452,6 +1452,37 @@ html, body {
     }
 }
 
+/* Handy im Querformat: Kacheln nebeneinander, sonst quetscht der vertikale
+   Stack die Hoehe und der Inhalt scrollt. */
+@media (orientation: landscape) and (max-height: 520px) {
+    .startscreen-content {
+        top: 2vh; bottom: 2vh; left: 2vw; right: 2vw;
+        transform: none;
+        width: auto; height: auto;
+    }
+    .game-select-menu {
+        flex-direction: row;
+        gap: 12px;
+        align-items: stretch;
+        height: 100%;
+    }
+    .game-select-btn {
+        flex: 1 1 0;
+        max-width: none;
+        min-height: 120px;
+        padding: 12px;
+        gap: 6px;
+        border-width: 4px;
+    }
+    .game-select-icon { font-size: 2.6rem; }
+    .tile-art--counting .tile-emoji { font-size: 2.4rem; }
+    .tile-art--letters  .tile-letter { font-size: 2.8rem; }
+    .tile-art--breakout .tile-bricks > span { font-size: 1.8rem; }
+    .tile-art--breakout .tile-ball { font-size: 1.6rem; }
+    .game-select-label { font-size: 0.7rem; }
+    .startscreen-video { display: none; }
+}
+
 /* === Buchstabenspiel === */
 .letter-display {
     display: flex;
@@ -2015,7 +2046,11 @@ select.parent-text-input {
    Dieses Block ueberschreibt die aelteren Mobile-Regeln (spaetere Quelle ->
    hoehere Kaskadenprioritaet), damit die alten :top:x;right:x;-Werte neutral
    gesetzt werden koennen. */
-@media (max-width: 700px) {
+/* Kompaktes Mobile-Layout gilt auch auf Tablets/iPads: (pointer: coarse)
+   matcht jedes Touch-Geraet unabhaengig von der Breite, damit die Top-/
+   Bottom-Bar-Logik auch im iPad-Portrait greift und sich Keyboard und
+   Controls nicht ueberlappen. */
+@media (max-width: 700px), (pointer: coarse) {
     /* Top-Bar- und Bottom-Bar-Hintergrund via Pseudo-Elementen. Sie werden
        nur gerendert, wenn der jeweilige Container sichtbar ist (display:none
        unterdrueckt auch Pseudos). */
@@ -2148,7 +2183,16 @@ select.parent-text-input {
         gap: 2px;
     }
     .letter-display .letter-emoji { font-size: min(28vmin, 9rem); }
-    .letter-display .letter-word { font-size: min(6vmin, 2.2rem); min-height: 0; }
+    .letter-display .letter-word {
+        font-size: clamp(1.2rem, 4.5vmin, 2rem);
+        min-height: 0;
+        max-width: min(92vw, 560px);
+        margin-left: auto;
+        margin-right: auto;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: clip;
+    }
 
     .letter-answer-area {
         flex: 0 0 auto;
@@ -2169,7 +2213,7 @@ select.parent-text-input {
         flex: 1 1 auto;
         display: grid;
         grid-template-columns: repeat(5, 1fr);
-        grid-auto-rows: 1fr;
+        grid-auto-rows: minmax(0, 1fr);
         gap: 4px;
         padding: 4px 0 0 0;
         width: 100%;
@@ -2182,6 +2226,7 @@ select.parent-text-input {
         height: 100%;
         min-width: 0;
         min-height: 0;
+        max-height: 88px;
         font-size: min(5.5vmin, 1.7rem);
         padding: 0;
         border-radius: 10px;
@@ -2226,6 +2271,19 @@ select.parent-text-input {
     }
 
     .game-area { padding: 0; }
+}
+
+/* iPad-spezifischer Feinschliff: groesseres Keyboard + groesserer Emoji-Fallback.
+   Greift zwischen 593px und 1199px auf Touch-Geraeten - schliesst die Luecke
+   zwischen Handy-Reglung (max-width: 592px) und dem naechsten Image-Breakpoint. */
+@media (pointer: coarse) and (min-width: 700px) {
+    .letter-keyboard { max-width: 520px; }
+    .letter-key { max-height: 88px; font-size: clamp(1.5rem, 3vmin, 2.2rem); }
+    .letter-display .letter-emoji .emoji-fallback { font-size: min(28vmin, 12rem); }
+    .letter-display .letter-emoji .letter-emoji-img {
+        width: min(28vmin, 12rem);
+        height: min(28vmin, 12rem);
+    }
 }
 
 /* === Fluent UI Emoji assets (bundled as <img>) ============================
