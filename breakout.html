@@ -9,13 +9,16 @@
 <body>
     <div id="game-wrapper">
         <button id="back-btn" title="Zurück zum Menü" aria-label="Zurück zum Menü">✕</button>
+        <button id="pause-btn" title="Pause" aria-label="Pause">⏸</button>
         <div id="hud">
             <span id="score-display">Score: 0</span>
             <span id="level-display">Level 1</span>
             <span id="highscore-display">HI: 0</span>
             <span id="lives-display"></span>
         </div>
-        <canvas id="gameCanvas" width="480" height="600"></canvas>
+        <div id="canvas-holder">
+            <canvas id="gameCanvas" width="480" height="600"></canvas>
+        </div>
         <div id="start-overlay">
             <div class="start-text">ULTIMATE<br>BREAKOUT</div>
             <button id="play-btn">SPIELEN</button>
@@ -46,13 +49,13 @@
             <div class="gameover-text">GAME OVER</div>
             <div class="gameover-score"></div>
             <div class="gameover-highscore"></div>
-            <div class="start-sub">Klick oder Leertaste zum Neustarten</div>
+            <div class="start-sub">Tippen zum Neustarten</div>
         </div>
         <div id="win-overlay" class="hidden">
             <div class="win-text">DU BIST EINE LEGENDE!</div>
             <div class="win-score"></div>
             <div class="win-highscore"></div>
-            <div class="start-sub">Klick oder Leertaste zum Neustarten</div>
+            <div class="start-sub">Tippen zum Neustarten</div>
         </div>
         <div id="level-overlay" class="hidden">
             <div class="level-complete-text"></div>
@@ -67,7 +70,7 @@
                 <button class="pause-menu-btn" data-action="restart">Neustart</button>
                 <button class="pause-menu-btn" data-action="quit">Hauptmen&uuml;</button>
             </div>
-            <div class="pause-hint">Pfeiltasten + Enter</div>
+            <div class="pause-hint">Tippen oder Pfeiltasten + Enter</div>
         </div>
     </div>
     <script src="breakout.js"></script>

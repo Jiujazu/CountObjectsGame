@@ -1909,16 +1909,26 @@ class InputManager {
             this.mouseX = clamp(raw, 0, W);
             this.useMouse = true;
         });
-        document.addEventListener('touchmove', (e) => {
-            e.preventDefault();
+        const updateFromTouch = (touch) => {
             const rect = canvas.getBoundingClientRect();
-            const raw = (e.touches[0].clientX - rect.left) * (W / rect.width);
+            const raw = (touch.clientX - rect.left) * (W / rect.width);
             this.mouseX = clamp(raw, 0, W);
             this.useMouse = true;
-        }, { passive: false });
+        };
+        const touchTargets = [canvas, document.getElementById('canvas-holder')].filter(Boolean);
+        for (const target of touchTargets) {
+            target.addEventListener('touchstart', (e) => {
+                if (e.touches && e.touches[0]) updateFromTouch(e.touches[0]);
+                this.clicked = true;
+                e.preventDefault();
+            }, { passive: false });
+            target.addEventListener('touchmove', (e) => {
+                if (e.touches && e.touches[0]) updateFromTouch(e.touches[0]);
+                e.preventDefault();
+            }, { passive: false });
+        }
         const handleClick = () => { this.clicked = true; };
         document.addEventListener('click', handleClick);
-        canvas.addEventListener('touchstart', handleClick);
     }
 
     getDir() {
@@ -2001,7 +2011,7 @@ class Game {
         try { this.tutorialSeen = localStorage.getItem('breakout_tutorialSeen') === 'true'; } catch(e) { this.tutorialSeen = false; }
         this.tutorialStep = 0;
         this.tutorialCards = [
-            { icon: '\uD83D\uDDB1\uFE0F', text: 'Maus oder Pfeiltasten:\nPaddle bewegen' },
+            { icon: '\uD83D\uDC46', text: 'Finger, Maus oder Pfeiltasten:\nPaddle bewegen' },
             { icon: '\uD83E\uDDF1', text: 'Zerst\u00f6re alle\nbunten Steine!' },
             { icon: '\u2B50', text: 'Sammle Power-ups\nf\u00fcr Superkr\u00e4fte!' },
         ];
@@ -2022,6 +2032,22 @@ class Game {
             this.audio.stopMusic();
             window.location.href = 'index.html';
         });
+
+        // Pause button (mobile-friendly)
+        const pauseBtn = document.getElementById('pause-btn');
+        if (pauseBtn) {
+            pauseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.state === 'playing') {
+                    this.pauseGame();
+                } else if (this.state === 'paused') {
+                    this._executePauseAction('resume');
+                }
+            });
+            pauseBtn.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+            }, { passive: true });
+        }
 
         // Play button
         document.getElementById('play-btn').addEventListener('click', (e) => {
@@ -2186,9 +2212,17 @@ class Game {
         this.balls = [new Ball(W / 2, H - 50, Math.cos(angle) * speed, Math.sin(angle) * speed, speed)];
     }
 
+    _updatePauseBtnVisibility() {
+        const btn = document.getElementById('pause-btn');
+        if (!btn) return;
+        const visible = this.state === 'playing' || this.state === 'leveltransition' || this.state === 'paused';
+        btn.classList.toggle('hidden', !visible);
+    }
+
     // --- Main loop ---
     loop() {
         this.update();
+        this._updatePauseBtnVisibility();
         this.draw();
         requestAnimationFrame(() => this.loop());
     }
