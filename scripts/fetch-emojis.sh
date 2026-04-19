@@ -96,7 +96,6 @@ EMOJIS=(
   "1f985|Eagle|eagle"           # A: Adler
   "1f3b8|Guitar|guitar"         # G: Gitarre
   "1f3e0|House|house"           # H: Haus
-  "1f9ca|Ice|ice"               # I: Iglu
   "1f9e5|Coat|coat"             # J: Jacke
   "1f4a1|Light bulb|light_bulb" # L: Lampe
   "1f95c|Peanuts|peanuts"       # N: Nuss
