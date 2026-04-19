@@ -47,7 +47,7 @@ const ANLAUT_TABLE = {
     ],
     'I': [
         { emoji: '🦔', word: 'Igel' },
-        { emoji: '🧊', word: 'Iglu' },
+        { emoji: 'custom:iglu.svg', word: 'Iglu' },
     ],
     'J': [
         { emoji: '🪀', word: 'Jojo' },
