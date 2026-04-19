@@ -368,7 +368,17 @@ class AudioEngine {
 
     _musicVolume() {
         // Halbe Lautstaerke: Hintergrundmusik bleibt im Hintergrund, TTS ist vorn.
-        return this._musicMuted ? 0 : 0.125;
+        // Ueber _musicBaseVolume steuerbar (persistiert im localStorage), damit
+        // Eltern im Parent-Panel die Lautstaerke live regeln koennen.
+        if (this._musicMuted) return 0;
+        if (typeof this._musicBaseVolume === 'number') return this._musicBaseVolume;
+        // Default 0.125 (halb so laut wie vorher 0.25).
+        try {
+            const v = parseFloat(localStorage.getItem('breakout_musicVolume'));
+            if (!Number.isNaN(v) && v >= 0 && v <= 1) return (this._musicBaseVolume = v);
+        } catch(_) {}
+        this._musicBaseVolume = 0.125;
+        return this._musicBaseVolume;
     }
 
     setMusicMuted(muted) {
@@ -2411,54 +2421,34 @@ class Game {
             this._triggerStart();
         });
 
-        // Eltern-Gate: unauffaelliges Zahnrad oeffnet Einstellungs-Overlay
+        // Eltern-Gate: unauffaelliges Zahnrad oeffnet das neu gestaltete
+        // Eltern-Einstellungsmenue (gleiche Optik wie „Buchstaben"/„Zaehlen").
         const parentGateBtn = document.getElementById('parent-gate-btn');
         if (parentGateBtn) {
             parentGateBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                document.getElementById('parent-settings-overlay').classList.remove('hidden');
+                this._openParentSettings();
             });
         }
         const parentCloseBtn = document.getElementById('parent-settings-close');
         if (parentCloseBtn) {
             parentCloseBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                document.getElementById('parent-settings-overlay').classList.add('hidden');
+                this._closeParentSettings();
             });
         }
-
-        // Mode toggle cycles: Kinder -> Normal -> Eltern (Test)
-        const modeBtn = document.getElementById('mode-toggle');
-        this._updateModeBtn(modeBtn);
-        modeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const order = ['kids', 'normal', 'parent'];
-            this.mode = order[(order.indexOf(this.mode) + 1) % order.length];
-            this.kidsMode = this.mode === 'kids';
-            this.parentMode = this.mode === 'parent';
-            try {
-                localStorage.setItem('breakout_mode', this.mode);
-                localStorage.setItem('breakout_kidsMode', this.kidsMode.toString());
-            } catch(e) {}
-            this._updateModeBtn(modeBtn);
-            this._applyKidsModeClass();
-            this._updateLevelBtn();
-        });
-
-        // Level toggle: in Kinder 1-10, sonst 1-20
-        const levelBtn = document.getElementById('level-toggle');
-        this._levelBtnEl = levelBtn;
-        this._updateLevelBtn();
-        levelBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const maxLvl = this.kidsMode ? 10 : 20;
-            this.startLevel = (this.startLevel + 1) % maxLvl;
-            this._updateLevelBtn();
-        });
+        // Klick auf Overlay-Hintergrund schliesst das Menue.
+        const parentOverlay = document.getElementById('parent-settings-overlay');
+        if (parentOverlay) {
+            parentOverlay.addEventListener('click', (e) => {
+                if (e.target === parentOverlay) this._closeParentSettings();
+            });
+        }
+        this._initParentSettingsUI();
 
         // Skin selector (aus dem Eltern-Overlay heraus, nicht direkt aus Start-Screen)
         this._buildSkinGrid();
-        document.getElementById('skins-btn').addEventListener('click', (e) => {
+        document.getElementById('bp-skins-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             document.getElementById('parent-settings-overlay').classList.add('hidden');
             document.getElementById('skins-overlay').classList.remove('hidden');
@@ -2506,17 +2496,239 @@ class Game {
         this.loop();
     }
 
-    _updateModeBtn(btn) {
-        const labels = { kids: 'Kinder', normal: 'Normal', parent: 'Eltern' };
-        btn.textContent = labels[this.mode] || 'Normal';
-        btn.className = 'option-btn' + (this.kidsMode ? ' kids' : (this.parentMode ? ' parent' : ''));
+    _initParentSettingsUI() {
+        // Verkabelt alle Eingabeelemente des Eltern-Panels (Shared-Optik wie
+        // „Buchstaben"/„Zaehlen") mit dem Spielzustand. Wird einmalig beim
+        // Spielstart ausgefuehrt; _openParentSettings synchronisiert dann nur
+        // noch die Werte.
+        const $ = (id) => document.getElementById(id);
+        // Mode-Presets
+        const modePresets = document.querySelectorAll('#bp-mode-presets .parent-preset');
+        modePresets.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const m = btn.dataset.mode;
+                if (!m) return;
+                this.mode = m;
+                this.kidsMode = m === 'kids';
+                this.parentMode = m === 'parent';
+                try {
+                    localStorage.setItem('breakout_mode', this.mode);
+                    localStorage.setItem('breakout_kidsMode', this.kidsMode.toString());
+                } catch(_) {}
+                this._applyKidsModeClass();
+                this._syncParentSettingsUI();
+            });
+        });
+        // Level-Stepper
+        $('bp-level-down').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.startLevel > 0) this.startLevel--;
+            this._syncParentSettingsUI();
+        });
+        $('bp-level-up').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const maxLvl = this.kidsMode ? 10 : 20;
+            if (this.startLevel < maxLvl - 1) this.startLevel++;
+            this._syncParentSettingsUI();
+        });
+        // Musik-Lautstaerke
+        $('bp-vol-slider').addEventListener('input', (e) => {
+            const pct = parseInt(e.target.value);
+            this._setMusicVolumePct(pct);
+            $('bp-vol-val').textContent = pct + '%';
+        });
+        // Musik/SFX-Toggles
+        $('bp-music-toggle').addEventListener('change', (e) => {
+            this.musicMuted = !e.target.checked;
+            try { localStorage.setItem('breakout_musicMuted', this.musicMuted.toString()); } catch(_) {}
+            this._applySoundSettings();
+        });
+        $('bp-sfx-toggle').addEventListener('change', (e) => {
+            this.sfxMuted = !e.target.checked;
+            try { localStorage.setItem('breakout_sfxMuted', this.sfxMuted.toString()); } catch(_) {}
+            this._applySoundSettings();
+        });
+        // TTS-Backend-Auswahl
+        const googleConfig = $('bp-google-config');
+        document.querySelectorAll('input[name="bp-voice"]').forEach(r => {
+            r.addEventListener('change', (e) => {
+                const tts = this._tts();
+                if (tts) tts.setBackend(r.value);
+                if (googleConfig) googleConfig.toggleAttribute('hidden', r.value !== 'google');
+                this._renderTtsStatus();
+            });
+        });
+        // Google TTS Key/Voice
+        this._populateGoogleVoiceSelect();
+        const keyInput = $('bp-google-key');
+        const voiceInput = $('bp-google-voice');
+        if (keyInput) {
+            keyInput.addEventListener('input', () => {
+                const tts = this._tts();
+                if (tts) tts.setGoogleKey(keyInput.value);
+                this._renderTtsStatus();
+            });
+        }
+        if (voiceInput) {
+            voiceInput.addEventListener('change', () => {
+                const tts = this._tts();
+                if (tts) tts.setGoogleVoice(voiceInput.value);
+            });
+        }
+        const testBtn = $('bp-google-test');
+        if (testBtn) {
+            testBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const tts = this._tts();
+                if (!tts) return;
+                tts.setGoogleKey(keyInput.value);
+                tts.setGoogleVoice(voiceInput.value);
+                const prev = tts.backend;
+                tts.backend = 'google';
+                await tts.speak('Hallo, ich bin deine neue Stimme.');
+                tts.backend = prev;
+                this._renderTtsStatus();
+            });
+        }
     }
 
-    _updateLevelBtn() {
-        if (!this._levelBtnEl) return;
+    _tts() {
+        // PiperTTSManager wird erst nach DOM-Init via shared.js verfuegbar.
+        // Shared-Instanz verwenden, damit sich alle Spiele das gleiche Modell
+        // und die gleichen Einstellungen teilen.
+        if (!window.PiperTTSManager) return null;
+        if (!this._ttsInstance) {
+            try { this._ttsInstance = window.PiperTTSManager.getShared('de_DE-thorsten-medium'); }
+            catch(e) { this._ttsInstance = null; }
+        }
+        return this._ttsInstance;
+    }
+
+    _populateGoogleVoiceSelect() {
+        const sel = document.getElementById('bp-google-voice');
+        if (!sel || sel.options.length > 0) return;
+        const voices = (typeof GOOGLE_CHIRP_VOICES !== 'undefined') ? GOOGLE_CHIRP_VOICES : [];
+        const tts = this._tts();
+        const current = tts ? tts.googleVoice : 'de-DE-Chirp3-HD-Leda';
+        voices.forEach(v => {
+            const o = document.createElement('option');
+            o.value = v.id; o.textContent = v.label;
+            if (v.id === current) o.selected = true;
+            sel.appendChild(o);
+        });
+    }
+
+    _openParentSettings() {
+        this._syncParentSettingsUI();
+        document.getElementById('parent-settings-overlay').classList.remove('hidden');
+        if (this._ttsStatusTimer) clearInterval(this._ttsStatusTimer);
+        this._ttsStatusTimer = setInterval(() => this._renderTtsStatus(), 500);
+    }
+
+    _closeParentSettings() {
+        document.getElementById('parent-settings-overlay').classList.add('hidden');
+        if (this._ttsStatusTimer) { clearInterval(this._ttsStatusTimer); this._ttsStatusTimer = null; }
+    }
+
+    _syncParentSettingsUI() {
+        const $ = (id) => document.getElementById(id);
+        // Modus
+        document.querySelectorAll('#bp-mode-presets .parent-preset').forEach(b => {
+            b.classList.toggle('active', b.dataset.mode === this.mode);
+        });
+        const modeHint = $('bp-mode-hint');
+        if (modeHint) {
+            const hints = {
+                kids: 'Kinder: langsamer, vorlesender Modus. Empfohlen für 3–4 Jahre.',
+                normal: 'Normal: klassischer Breakout-Schwierigkeitsverlauf.',
+                parent: 'Eltern-Test: zusätzlicher „Level überspringen"-Button im Pause-Menü.'
+            };
+            modeHint.textContent = hints[this.mode] || '';
+        }
+        // Level
         const maxLvl = this.kidsMode ? 10 : 20;
-        if (this.startLevel >= maxLvl) this.startLevel = 0;
-        this._levelBtnEl.textContent = (this.startLevel + 1).toString();
+        if (this.startLevel >= maxLvl) this.startLevel = maxLvl - 1;
+        if (this.startLevel < 0) this.startLevel = 0;
+        const levelNum = (this.startLevel + 1).toString();
+        if ($('bp-level-val')) $('bp-level-val').textContent = levelNum;
+        if ($('bp-level-display')) $('bp-level-display').textContent = levelNum;
+        // Lautstaerke
+        const pct = Math.round((this._getMusicVolumePct ? this._getMusicVolumePct() : 13));
+        if ($('bp-vol-slider')) $('bp-vol-slider').value = pct;
+        if ($('bp-vol-val')) $('bp-vol-val').textContent = pct + '%';
+        // Mute-Toggles
+        if ($('bp-music-toggle')) $('bp-music-toggle').checked = !this.musicMuted;
+        if ($('bp-sfx-toggle')) $('bp-sfx-toggle').checked = !this.sfxMuted;
+        // Stimme
+        const tts = this._tts();
+        if (tts) {
+            const backend = tts.backend || 'piper';
+            document.querySelectorAll('input[name="bp-voice"]').forEach(r => {
+                r.checked = (r.value === backend);
+            });
+            const gc = $('bp-google-config');
+            if (gc) gc.toggleAttribute('hidden', backend !== 'google');
+            if ($('bp-google-key')) $('bp-google-key').value = tts.googleKey || '';
+            this._populateGoogleVoiceSelect();
+        }
+        this._renderTtsStatus();
+    }
+
+    _renderTtsStatus() {
+        const el = document.getElementById('bp-tts-status');
+        if (!el) return;
+        el.classList.remove('ready', 'fallback');
+        const tts = this._tts();
+        if (!tts) { el.textContent = '○ Stimm-Modul laedt …'; return; }
+        const backend = tts.backend || 'piper';
+        if (backend === 'browser') {
+            el.textContent = '● Browser-Stimme aktiv';
+            el.classList.add('ready');
+            return;
+        }
+        if (backend === 'google') {
+            const gs = tts.googleStatus;
+            if (!tts.googleKey) { el.textContent = '○ Kein API-Key eingetragen'; el.classList.add('fallback'); return; }
+            if (gs === 'ready') { el.textContent = '● Google-Stimme bereit'; el.classList.add('ready'); return; }
+            if (gs === 'error') { el.textContent = '○ API-Fehler – Browser-Fallback aktiv'; el.classList.add('fallback'); return; }
+            el.textContent = '○ Noch nicht getestet';
+            return;
+        }
+        const s = tts.status;
+        if (s === 'ready') { el.textContent = '● Piper/Thorsten bereit'; el.classList.add('ready'); }
+        else if (s === 'downloading') el.textContent = `⬇ Modell lädt … ${Math.round((tts.progress || 0) * 100)}%`;
+        else if (s === 'fallback') { el.textContent = '○ Nicht verfügbar – Browser-Stimme aktiv'; el.classList.add('fallback'); }
+        else el.textContent = '○ Initialisiert …';
+    }
+
+    _getMusicVolumePct() {
+        // Stellt sicher, dass die AudioEngine ihre Default-Lautstaerke kennt,
+        // auch bevor Musik das erste Mal startet.
+        if (this.audio && typeof this.audio._musicVolume === 'function') {
+            this.audio._musicVolume();
+        }
+        const v = this.audio && !this.audio._musicMuted ? (this.audio._musicBaseVolume ?? 0.125) : 0;
+        return Math.round(v * 100);
+    }
+
+    _setMusicVolumePct(pct) {
+        pct = Math.max(0, Math.min(100, pct));
+        const val = pct / 100;
+        if (this.audio) {
+            this.audio._musicBaseVolume = val;
+            this.audio._musicMuted = (val <= 0.001);
+            if (this.audio._webAudioMusic && this.audio.musicGain) {
+                this.audio.musicGain.gain.value = this.audio._musicMuted ? 0 : val;
+            } else if (this.audio.bgAudio) {
+                this.audio.bgAudio.volume = this.audio._musicMuted ? 0 : val;
+            }
+        }
+        this.musicMuted = (val <= 0.001);
+        try {
+            localStorage.setItem('breakout_musicVolume', String(val));
+            localStorage.setItem('breakout_musicMuted', this.musicMuted.toString());
+        } catch(_) {}
     }
 
     _applyKidsModeClass() {
@@ -2530,9 +2742,16 @@ class Game {
     }
 
     _speak(text) {
-        // Sprachausgabe fuer 3-4jaehrige Kinder (Nichtleser). Best-effort, kein Fehler,
-        // wenn der Browser keine SpeechSynthesis unterstuetzt oder Effekte stumm sind.
+        // Sprachausgabe fuer 3-4jaehrige Kinder (Nichtleser). Best-effort: wenn
+        // PiperTTSManager geladen ist (shared.js), nutzen wir die Thorsten-Stimme
+        // wie in „Buchstaben"/„Zaehlen". Fallback auf die Browser-Stimme ist
+        // bereits in PiperTTSManager eingebaut.
         if (!this.kidsMode || this.sfxMuted) return;
+        const tts = this._tts();
+        if (tts && typeof tts.speak === 'function') {
+            try { tts.speak(text); } catch (e) {}
+            return;
+        }
         try {
             const ss = window.speechSynthesis;
             if (!ss) return;
