@@ -197,6 +197,7 @@ class LetterGame {
             currentEntry: null,
             wrongStreak: 0,
             isProcessing: false,
+            hasAnswered: false,     // Kind hat in aktueller Challenge schon getippt -> Space darf TTS skippen
             activeLetters: LetterGame._loadActiveLetters(),
             // Virtuelle Tastatur: auf Touch-Geraeten standardmaessig AN (sonst keine Eingabe moeglich),
             // am Desktop AUS (physische Tastatur verfuegbar). Elternmenue ueberschreibt das persistent.
@@ -428,6 +429,8 @@ class LetterGame {
         this.state.currentEntry = this._pickEntry(this.state.currentLetter);
         this.state.wrongStreak = 0;
         this.state.isProcessing = false;
+        this.state.hasAnswered = false;
+        this._skipRequested = false;
         const entry = this.state.currentEntry;
         // Display aktualisieren. Wort wird zunaechst versteckt, damit der Anfangsbuchstabe nicht verraten wird.
         const display = document.getElementById('letter-display');
@@ -469,6 +472,9 @@ class LetterGame {
     async _handleLetterClick(letter) {
         if (this.state.isProcessing) return;
         this.state.isProcessing = true;
+        this.state.hasAnswered = true;
+        // Pro Versuch frisch: Space waehrend der Rueckmeldung setzt das Flag neu.
+        this._skipRequested = false;
         // Kind hat getippt: laufende/gepufferte Ansagen abbrechen, sonst
         // ueberlappen die alten mit der neuen Rueckmeldung.
         if (this.tts && typeof this.tts.cancel === 'function') this.tts.cancel();
@@ -524,12 +530,16 @@ class LetterGame {
                 await this.tts.speak(_pickTTS('wrong', {}));
                 // Phrasen wie "Hör nochmal gut hin!" brauchen eine Wiederholung,
                 // solange wir noch nicht beim Hint sind.
-                if (this.state.wrongStreak < 2) {
+                // Wenn das Kind Space gedrueckt hat, wollen wir NICHT nochmal
+                // die Instruktion nachlegen, sonst frisst der Skip nur den
+                // ersten Satz und die Stimme spricht trotzdem weiter.
+                if (this.state.wrongStreak < 2 && !this._skipRequested) {
                     await this._speakInstruction();
                 }
             }
             // 3-4jaehrige brechen nach 2 Fehlversuchen emotional ab, nicht erst nach 3.
-            if (this.state.wrongStreak >= 2) {
+            // Skip unterdrueckt den TTS-Hint zusaetzlich, visuell blinkt der Key trotzdem.
+            if (this.state.wrongStreak >= 2 && !this._skipRequested) {
                 this._showHint();
             }
             this.state.isProcessing = false;
@@ -544,6 +554,26 @@ class LetterGame {
             this.closeGame();
             return;
         }
+        // Leertaste: TTS-Skip nach erstem Versuch. Vor der ersten Antwort
+        // bleibt Space inaktiv, damit die Start-Instruktion gehoert wird.
+        // e.repeat + Cooldown verhindern, dass eine gedrueckt gehaltene
+        // Leertaste Aufgabe nach Aufgabe wegskippt.
+        if (e.key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            if (e.repeat) return;
+            if (!this.state.hasAnswered) return;
+            const now = Date.now();
+            if (this._skipLockUntil && now < this._skipLockUntil) return;
+            this._skipLockUntil = now + 500;
+            this._skipRequested = true;
+            if (this.tts && typeof this.tts.cancel === 'function') this.tts.cancel();
+            // Falls Skip waehrend der Wrong-Sequence kam, bleibt isProcessing
+            // sonst bis zur zweiten await-Aufloesung true - das Kind koennte
+            // erst nach Sekunden wieder tippen. Sofort freigeben.
+            this.state.isProcessing = false;
+            this._showSkipHint();
+            return;
+        }
         // Keine Buchstaben-Shortcuts, sonst kollidieren Musik/Hinweis mit M/H-Raten.
         // Musik & Hinweis bleiben ueber die On-Screen-Buttons erreichbar.
         // Buchstaben-Eingabe
@@ -552,6 +582,14 @@ class LetterGame {
             e.preventDefault();
             this._handleLetterClick(letter);
         }
+    }
+
+    _showSkipHint() {
+        const hint = document.getElementById('big-key-hint');
+        if (!hint) return;
+        hint.innerHTML = '<span>⏭</span>';
+        hint.classList.add('show');
+        this._setTimeout(() => hint.classList.remove('show'), 900);
     }
 
     _showHint() {

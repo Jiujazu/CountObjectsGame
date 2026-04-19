@@ -148,6 +148,7 @@ class GameLogic {
         for (let i = 0; i < this.game.state.correctAnswer; i++) {
             this.game.state.currentObjects.push(category.emoji);
         }
+        this.game.state.hasAnswered = false;
         this.game.displayObjects();
         // TTS fire-and-forget: Instruktion parallel zur Anzeige sprechen,
         // nicht darauf warten, sonst blockiert der naechste Input.
@@ -161,6 +162,7 @@ class GameLogic {
         // Input-Lock: Keine Eingabe während Verarbeitung
         if (this.game.state.isProcessing) return;
         this.game.state.isProcessing = true;
+        this.game.state.hasAnswered = true;
 
         // Kind hat getippt: laufende Instruktion abbrechen, damit die neue
         // Rueckmeldung (Success/Wrong) nicht mit der alten Stimme ueberlappt.
@@ -228,7 +230,10 @@ class CountingGame {
             wrongStreak: 0,        // Fehlversuche in Folge für aktuelles Level
             maxObjectsOverride: 0, // Eltern-Override für max. Objekte (0 = automatisch)
             numbersVisible: false, // Ist das Zahlenfeld sichtbar?
+            hasAnswered: false,    // Kind hat in aktueller Challenge schon getippt -> Space darf TTS skippen
         };
+        // Debounce fuer Space-Skip, damit gedrueckt gehaltene Leertaste nicht serienweise skippt.
+        this._skipLockUntil = 0;
         this.soundEnabled = true;
         this.speechEnabled = true;
         this.objectCategories = [
@@ -668,6 +673,21 @@ class CountingGame {
         if (key === 'Escape') {
             e.preventDefault();
             this.closeGame();
+            return;
+        }
+        // Leertaste: TTS-Skip, aber nur nachdem das Kind schon mind. eine
+        // Antwort getippt hat - sonst wuerde es die Start-Instruktion
+        // ueberspringen und wuesste nicht, was gezaehlt werden soll.
+        // e.repeat + Cooldown verhindern Dauerskip bei gedrueckter Taste.
+        if (key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            if (e.repeat) return;
+            if (!this.state.hasAnswered) return;
+            const now = Date.now();
+            if (now < this._skipLockUntil) return;
+            this._skipLockUntil = now + 500;
+            if (this.tts && typeof this.tts.cancel === 'function') this.tts.cancel();
+            this.ui.showBigKeyHint('⏭');
             return;
         }
         // Zahlentasten: Input-Lock beachten
