@@ -9,6 +9,21 @@ const BRICK_W = 52, BRICK_H = 18, BRICK_PAD = 4;
 const BRICK_OFFSET_X = (W - (BRICK_COLS * (BRICK_W + BRICK_PAD) - BRICK_PAD)) / 2;
 const BRICK_OFFSET_Y = 50;
 const ROW_COLORS = ['#ff4466','#ff6644','#ff8844','#ffcc44','#44ff88','#44bbff','#aa66ff'];
+// Hintergrundmusik-Tracks. Gleiche Tracks wie die anderen Spiele (shared.js SHARED_MUSIC_TRACKS).
+const MUSIC_TRACKS = [
+    'background music/Whispering_Horizons.mp3',
+    'background music/Pixel_Forest.mp3',
+    'background music/Echoes_of_the_Woods.mp3',
+    'background music/Echoes_of_the_Wild.mp3',
+    'background music/Grove.mp3',
+    'background music/Natures_Glow.mp3',
+    'background music/Joyful_Simplicity.mp3',
+    'background music/Trap_Paradise.mp3',
+    'background music/Funky_Playground_Groove.mp3',
+    'background music/Whispering_Sunshine.mp3',
+    'background music/Pathways.mp3',
+    'background music/Soothing_of_the_Pines.mp3'
+];
 const POWERUP_TYPES = ['multiball','laser','giant','tiny','fireball','slowmo','speeddemon','shield','magnet','bomb'];
 const POWERUP_COLORS = {
     multiball:'#44ffff', laser:'#ff4444', giant:'#44ff44', tiny:'#ff44ff',
@@ -33,6 +48,12 @@ const POWERUP_HINTS_DE = {
     multiball:'Mehr B\u00e4lle!', laser:'Paddle schie\u00dft!', giant:'Gro\u00dfes Paddle!', tiny:'Kleines Paddle!',
     fireball:'Ball brennt!', slowmo:'Alles langsam!', speeddemon:'Alles schnell!',
     shield:'Boden gesch\u00fctzt!', magnet:'Ball klebt!', bomb:'Explosion!'
+};
+// Kurze, laut aussprechbare Phrasen fuer 3-4jaehrige (Nichtleser).
+const POWERUP_SPEECH_DE = {
+    multiball:'Mehr B\u00e4lle!', laser:'Laser an!', giant:'Gro\u00dfes Paddel!', tiny:'Kleines Paddel!',
+    fireball:'Feuerball!', slowmo:'Zeitlupe!', speeddemon:'Turbo!',
+    shield:'Schild an!', magnet:'Magnet an!', bomb:'Bombe!'
 };
 const POWERUP_GOOD = {
     multiball:true, laser:true, giant:true, tiny:false,
@@ -317,20 +338,54 @@ class AudioEngine {
 
     startMusic(levelIndex) {
         this.init();
-        this.levelTheme = levelIndex % 5; // cycle themes for endless mode
-        this.bpm = this.baseBPMs[this.levelTheme] + Math.floor(levelIndex / 5) * 5;
-        this.currentStep = 0;
+        this.levelTheme = (levelIndex || 0) % 5;
+        this._stopBgAudio();
+        // Track pro Level waehlen, damit sich Wechsel abwechslungsreich anfuehlt.
+        const idx = ((levelIndex || 0) + (this._trackOffset || 0)) % MUSIC_TRACKS.length;
+        try {
+            const audio = new Audio(MUSIC_TRACKS[idx]);
+            audio.loop = true;
+            audio.preload = 'auto';
+            audio.volume = this._musicVolume();
+            audio.play().catch(() => {});
+            this.bgAudio = audio;
+        } catch (e) {}
         this.isPlaying = true;
-        this._scheduleStep();
+    }
+
+    _musicVolume() {
+        return this._musicMuted ? 0 : 0.25;
+    }
+
+    setMusicMuted(muted) {
+        this._musicMuted = !!muted;
+        if (this.bgAudio) this.bgAudio.volume = this._musicVolume();
+    }
+
+    _stopBgAudio() {
+        if (this.bgAudio) {
+            try { this.bgAudio.pause(); this.bgAudio.src = ''; } catch(e) {}
+            this.bgAudio = null;
+        }
     }
 
     stopMusic() {
         this.isPlaying = false;
-        if (this.stepTimer) { clearTimeout(this.stepTimer); this.stepTimer = null; }
+        this._stopBgAudio();
     }
 
-    pauseMusic() { this.stopMusic(); }
-    resumeMusic(levelIndex) { if (!this.isPlaying) this.startMusic(levelIndex); }
+    pauseMusic() {
+        if (this.bgAudio) { try { this.bgAudio.pause(); } catch(e) {} }
+        this.isPlaying = false;
+    }
+
+    resumeMusic(levelIndex) {
+        if (this.bgAudio) {
+            try { this.bgAudio.play().catch(()=>{}); this.isPlaying = true; } catch(e) {}
+        } else {
+            this.startMusic(levelIndex);
+        }
+    }
 
     setCombo(combo) {
         this.comboIntensity = Math.min(combo / 20, 1.0);
@@ -470,14 +525,18 @@ class AudioEngine {
         osc.start(t); osc.stop(t + 0.08);
     }
 
-    _sfx_wallHit(t) {
+    _sfx_wallHit(t, side = 'side') {
+        // Kurzer, freundlicher "Bloop". Seitenwaende hell, Decke etwas tiefer.
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
-        osc.type = 'sine'; osc.frequency.value = 220;
-        gain.gain.setValueAtTime(0.04, t);
-        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+        const freq = side === 'top' ? 520 : 720;
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.7, t + 0.06);
+        gain.gain.setValueAtTime(0.08, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
         osc.connect(gain); gain.connect(this.sfxGain);
-        osc.start(t); osc.stop(t + 0.05);
+        osc.start(t); osc.stop(t + 0.08);
     }
 
     _sfx_loseLife(t) {
@@ -1283,25 +1342,246 @@ class PowerUp {
         const isGood = POWERUP_GOOD[this.type];
         ctx.save();
         ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+        // Subtile Wirkungseffekte oberhalb (Feuer flackert, Bombe zischt, ...)
+        this._drawEffect(ctx);
         if (!isGood) {
             ctx.strokeStyle = '#ff2222';
             ctx.lineWidth = 2.5;
             ctx.beginPath();
-            ctx.arc(0, 0, this.w / 2 + 3, 0, Math.PI * 2);
+            ctx.arc(0, 0, Math.max(this.w, this.h) / 2 + 4, 0, Math.PI * 2);
             ctx.stroke();
         }
         ctx.shadowColor = color;
         ctx.shadowBlur = 15 * glow;
         ctx.fillStyle = color;
-        ctx.beginPath();
-        roundRect(ctx, -this.w / 2, -this.h / 2, this.w, this.h, this.h / 2);
-        ctx.fill();
+        this._drawShape(ctx);
         ctx.shadowBlur = 0;
         ctx.font = '12px system-ui';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(POWERUP_EMOJI[this.type] || POWERUP_SYMBOLS[this.type], 0, 1);
         ctx.restore();
+    }
+
+    _drawShape(ctx) {
+        const w = this.w, h = this.h;
+        switch (this.type) {
+            case 'multiball': {
+                ctx.beginPath();
+                ctx.arc(0, 0, h * 0.85, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            }
+            case 'laser': {
+                ctx.beginPath();
+                ctx.moveTo(0, -h * 0.9);
+                ctx.lineTo(w * 0.45, h * 0.2);
+                ctx.lineTo(w * 0.2, h * 0.2);
+                ctx.lineTo(w * 0.2, h * 0.8);
+                ctx.lineTo(-w * 0.2, h * 0.8);
+                ctx.lineTo(-w * 0.2, h * 0.2);
+                ctx.lineTo(-w * 0.45, h * 0.2);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            }
+            case 'giant': {
+                ctx.beginPath();
+                roundRect(ctx, -w * 0.6, -h * 0.45, w * 1.2, h * 0.9, h * 0.45);
+                ctx.fill();
+                break;
+            }
+            case 'tiny': {
+                ctx.beginPath();
+                ctx.arc(0, 0, h * 0.55, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            }
+            case 'fireball': {
+                ctx.beginPath();
+                ctx.moveTo(0, -h * 0.9);
+                ctx.bezierCurveTo(w * 0.5, -h * 0.2, w * 0.45, h * 0.6, 0, h * 0.9);
+                ctx.bezierCurveTo(-w * 0.45, h * 0.6, -w * 0.5, -h * 0.2, 0, -h * 0.9);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            }
+            case 'slowmo': {
+                ctx.beginPath();
+                ctx.moveTo(-w * 0.4, -h * 0.9);
+                ctx.lineTo(w * 0.4, -h * 0.9);
+                ctx.lineTo(-w * 0.25, 0);
+                ctx.lineTo(w * 0.4, h * 0.9);
+                ctx.lineTo(-w * 0.4, h * 0.9);
+                ctx.lineTo(w * 0.25, 0);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            }
+            case 'speeddemon': {
+                for (let i = 0; i < 3; i++) {
+                    const cx = (i - 1) * w * 0.28;
+                    ctx.beginPath();
+                    ctx.moveTo(cx - w * 0.15, -h * 0.8);
+                    ctx.lineTo(cx + w * 0.15, 0);
+                    ctx.lineTo(cx - w * 0.15, h * 0.8);
+                    ctx.lineTo(cx - w * 0.02, 0);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                break;
+            }
+            case 'shield': {
+                ctx.beginPath();
+                ctx.moveTo(0, -h * 0.95);
+                ctx.lineTo(w * 0.5, -h * 0.4);
+                ctx.lineTo(w * 0.4, h * 0.5);
+                ctx.lineTo(0, h * 0.95);
+                ctx.lineTo(-w * 0.4, h * 0.5);
+                ctx.lineTo(-w * 0.5, -h * 0.4);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            }
+            case 'magnet': {
+                ctx.beginPath();
+                ctx.moveTo(-w * 0.5, -h * 0.9);
+                ctx.lineTo(-w * 0.5, h * 0.9);
+                ctx.lineTo(-w * 0.15, h * 0.9);
+                ctx.lineTo(-w * 0.15, -h * 0.3);
+                ctx.lineTo(w * 0.15, -h * 0.3);
+                ctx.lineTo(w * 0.15, h * 0.9);
+                ctx.lineTo(w * 0.5, h * 0.9);
+                ctx.lineTo(w * 0.5, -h * 0.9);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            }
+            case 'bomb': {
+                ctx.beginPath();
+                ctx.arc(0, h * 0.1, h * 0.85, 0, Math.PI * 2);
+                ctx.fill();
+                // Zunder
+                ctx.strokeStyle = '#8b5a2b';
+                ctx.lineWidth = 1.8;
+                ctx.beginPath();
+                ctx.moveTo(w * 0.15, -h * 0.5);
+                ctx.quadraticCurveTo(w * 0.5, -h * 1.3, w * 0.1, -h * 1.7);
+                ctx.stroke();
+                break;
+            }
+            default: {
+                ctx.beginPath();
+                roundRect(ctx, -w / 2, -h / 2, w, h, h / 2);
+                ctx.fill();
+            }
+        }
+    }
+
+    _drawEffect(ctx) {
+        const t = Date.now() / 100;
+        switch (this.type) {
+            case 'fireball': {
+                // Flackernde Flamme oberhalb
+                for (let i = 0; i < 4; i++) {
+                    const fx = (Math.random() - 0.5) * this.w * 0.7;
+                    const fy = -this.h - 4 - Math.random() * 8;
+                    const fr = 1.5 + Math.random() * 2;
+                    ctx.globalAlpha = 0.35 + Math.random() * 0.35;
+                    ctx.fillStyle = i < 2 ? '#ff3322' : '#ffaa44';
+                    ctx.beginPath();
+                    ctx.arc(fx, fy, fr, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+                break;
+            }
+            case 'bomb': {
+                // Zischender Funke
+                ctx.globalAlpha = 0.7 + Math.sin(t * 3) * 0.3;
+                ctx.fillStyle = '#ffee44';
+                ctx.beginPath();
+                ctx.arc(this.w * 0.1 + (Math.random() - 0.5) * 3, -this.h - 4 + (Math.random() - 0.5) * 2, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+                break;
+            }
+            case 'slowmo': {
+                // Pulsierende Zeit-Ringe
+                ctx.strokeStyle = '#ffffff';
+                ctx.globalAlpha = 0.25;
+                ctx.lineWidth = 1;
+                const r = (t * 0.6) % this.h + this.h * 0.6;
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+                break;
+            }
+            case 'speeddemon': {
+                // Speed-Linien
+                ctx.strokeStyle = '#ffff44';
+                ctx.globalAlpha = 0.45;
+                ctx.lineWidth = 1.5;
+                for (let i = -1; i <= 1; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(-this.w * 0.6, i * 4);
+                    ctx.lineTo(-this.w * 1.1, i * 4 + 1);
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+                break;
+            }
+            case 'magnet': {
+                // Magnetfeld-Linien
+                ctx.strokeStyle = '#aa44ff';
+                ctx.globalAlpha = 0.35;
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 2; i++) {
+                    ctx.beginPath();
+                    ctx.arc(0, -this.h * 0.2, this.w * (0.8 + i * 0.3), -Math.PI * 0.85, -Math.PI * 0.15);
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+                break;
+            }
+            case 'shield': {
+                // Schimmer-Aura
+                ctx.strokeStyle = '#88ccff';
+                ctx.globalAlpha = 0.3 + Math.sin(t) * 0.2;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(0, 0, this.w * 0.8, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+                break;
+            }
+            case 'multiball': {
+                // Orbitierende Satellitenpunkte
+                ctx.fillStyle = '#44ffff';
+                ctx.globalAlpha = 0.75;
+                for (let i = 0; i < 3; i++) {
+                    const a = t * 0.1 + (i * Math.PI * 2 / 3);
+                    const ox = Math.cos(a) * this.w * 0.85;
+                    const oy = Math.sin(a) * this.h * 0.85;
+                    ctx.beginPath();
+                    ctx.arc(ox, oy, 1.8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+                break;
+            }
+            case 'laser': {
+                // Laser-Funken ueber der Spitze
+                ctx.fillStyle = '#ff6666';
+                ctx.globalAlpha = 0.5 + Math.sin(t * 2) * 0.35;
+                ctx.beginPath();
+                ctx.arc(0, -this.h - 4, 1.6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+                break;
+            }
+        }
     }
 
     hitsPaddle(paddle) {
@@ -2226,7 +2506,7 @@ class Game {
 
     _applySoundSettings() {
         if (this.audio.sfxGain) this.audio.sfxGain.gain.value = this.sfxMuted ? 0 : 0.5;
-        if (this.audio.musicGain) this.audio.musicGain.gain.value = this.musicMuted ? 0 : 0.35;
+        this.audio.setMusicMuted(this.musicMuted);
     }
 
     _speak(text) {
@@ -2244,6 +2524,16 @@ class Game {
             u.volume = 1.0;
             ss.speak(u);
         } catch (e) {}
+    }
+
+    _speakPowerup(type) {
+        const text = POWERUP_SPEECH_DE[type];
+        if (text) this._speak(text);
+    }
+
+    _numberWord(n) {
+        const words = ['null','eins','zwei','drei','vier','f\u00fcnf','sechs','sieben','acht','neun','zehn','elf','zw\u00f6lf','dreizehn','vierzehn','f\u00fcnfzehn','sechzehn','siebzehn','achtzehn','neunzehn','zwanzig'];
+        return words[n] || String(n);
     }
 
     _showQuitConfirm() {
@@ -2315,6 +2605,8 @@ class Game {
     startGame() {
         this.audio.init();
         this._applySoundSettings();
+        // Klick vom Play-Button verwerfen, sonst wuerde er sofort den geklebten Ball loesen.
+        this.input.consumeClick();
         this.state = 'playing';
         this.score = 0;
         this.lives = this.kidsMode ? 5 : 3;
@@ -2337,6 +2629,10 @@ class Game {
         this.audio.startMusic(this.startLevel);
         this.hideAllOverlays();
         this.updateHUD();
+        if (this.kidsMode) {
+            const lvl = this.startLevel + 1;
+            this._speak('Los geht\u2019s! Level ' + this._numberWord(lvl) + '! Tippe zum Starten.');
+        }
     }
 
     loadLevel(idx) {
@@ -2359,8 +2655,17 @@ class Game {
     resetBalls() {
         const baseSpeed = this.levels.getBaseSpeed();
         const speed = this.kidsMode ? baseSpeed * 0.6 : baseSpeed;
-        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
-        this.balls = [new Ball(W / 2, H - 50, Math.cos(angle) * speed, Math.sin(angle) * speed, speed)];
+        // Ball klebt am Paddle bis der Spieler tippt. So kann das Kind
+        // selbst entscheiden, von wo aus der Ball startet.
+        const startX = this.paddle ? this.paddle.x + this.paddle.w / 2 : W / 2;
+        const startY = this.paddle ? this.paddle.y - 8 : H - 50;
+        const ball = new Ball(startX, startY, 0, 0, speed);
+        ball.stuck = true;
+        ball.manualStick = true;
+        ball.stuckOffset = 0;
+        this.balls = [ball];
+        // Etwaige vorherige Klicks verwerfen, damit der Ball nicht sofort fliegt.
+        if (this.input) this.input.consumeClick();
     }
 
     _updatePauseBtnVisibility() {
@@ -2435,24 +2740,24 @@ class Game {
         // Paddle
         this.paddle.update(this.input.getDir(), this.input.mouseX, this.input.useMouse);
 
-        // Handle magnet release
-        if (this.powerups.isActive('magnet')) {
-            for (const ball of this.balls) {
-                if (ball.stuck) {
-                    ball.x = this.paddle.x + this.paddle.w / 2 + ball.stuckOffset;
-                    ball.y = this.paddle.y - ball.r;
-                    ball.stickTime = (ball.stickTime || 0) + 1;
-                    const autoRelease = ball.stickTime > 480;
-                    if (this.input.wantsRelease() || autoRelease) {
-                        ball.stuck = false;
-                        ball.stickTime = 0;
-                        const hitPos = (ball.x - this.paddle.x) / this.paddle.w;
-                        const angle = -Math.PI / 2 + (hitPos - 0.5) * 1.2;
-                        ball.setAngle(angle, ball.speed);
-                    }
-                } else {
-                    ball.stickTime = 0;
-                }
+        // Stuck-Handling: Magnet-Power-up ODER manueller Start-Kleber nach Ball-Verlust.
+        for (const ball of this.balls) {
+            if (!ball.stuck) { ball.stickTime = 0; continue; }
+            ball.x = this.paddle.x + this.paddle.w / 2 + (ball.stuckOffset || 0);
+            ball.y = this.paddle.y - ball.r;
+            ball.stickTime = (ball.stickTime || 0) + 1;
+            // Kurze Schonfrist, damit ein noch nicht konsumierter Klick (z.B. vom
+            // "Spielen"-Button) den Ball nicht sofort abfeuert.
+            if (ball.stickTime <= 8) { this.input.consumeClick(); continue; }
+            // Magnet: Auto-Release nach 8s. Manueller Start: Tipp erforderlich.
+            const autoRelease = !ball.manualStick && ball.stickTime > 480;
+            if (this.input.wantsRelease() || autoRelease) {
+                ball.stuck = false;
+                ball.manualStick = false;
+                ball.stickTime = 0;
+                const hitPos = (ball.x - this.paddle.x) / this.paddle.w;
+                const angle = -Math.PI / 2 + (hitPos - 0.5) * 1.2;
+                ball.setAngle(angle, ball.speed);
             }
         }
 
@@ -2490,9 +2795,9 @@ class Game {
             }
 
             // Wall collisions
-            if (ball.x - ball.r <= 0) { ball.x = ball.r; ball.dx = Math.abs(ball.dx); this.audio.sfx('wallHit'); }
-            if (ball.x + ball.r >= W) { ball.x = W - ball.r; ball.dx = -Math.abs(ball.dx); this.audio.sfx('wallHit'); }
-            if (ball.y - ball.r <= 0) { ball.y = ball.r; ball.dy = Math.abs(ball.dy); this.audio.sfx('wallHit'); }
+            if (ball.x - ball.r <= 0) { ball.x = ball.r; ball.dx = Math.abs(ball.dx); this.audio.sfx('wallHit', 'side'); }
+            if (ball.x + ball.r >= W) { ball.x = W - ball.r; ball.dx = -Math.abs(ball.dx); this.audio.sfx('wallHit', 'side'); }
+            if (ball.y - ball.r <= 0) { ball.y = ball.r; ball.dy = Math.abs(ball.dy); this.audio.sfx('wallHit', 'top'); }
 
             // Shield check
             if (ball.y + ball.r >= H - 13 && ball.dy > 0 && this.powerups.checkShield(ball.y + ball.r)) {
@@ -2541,8 +2846,9 @@ class Game {
                 this.vfx.triggerShake(4);
                 this.vfx.flash('#4488ff', 0.2);
                 if (this.lives > 0) {
-                    this.vfx.addFloatingText(W / 2, H / 2, "Versuch's nochmal!", '#44bbff');
-                    this._speak('Nochmal!');
+                    this.vfx.addFloatingText(W / 2, H / 2 - 10, 'Ball verloren!', '#ff8844');
+                    this.vfx.addFloatingText(W / 2, H / 2 + 20, 'Tipp zum Starten!', '#44bbff');
+                    this._speak('Oh, ein Ball ist weg! Tippe zum Starten.');
                 }
             } else {
                 this.audio.sfx('loseLife');
@@ -2615,6 +2921,7 @@ class Game {
         for (const type of collected) {
             this.audio.sfx('powerup');
             this._showPowerupIntro(type);
+            this._speakPowerup(type);
             this.applyPowerup(type);
         }
 
@@ -2642,7 +2949,8 @@ class Game {
         if (!this.powerups.isActive('magnet')) {
             this.paddle.magnetActive = false;
             for (const ball of this.balls) {
-                if (ball.stuck) {
+                // manualStick-Kleber bleibt erhalten, der Spieler startet per Tipp.
+                if (ball.stuck && !ball.manualStick) {
                     ball.stuck = false;
                     ball.setAngle(-Math.PI / 2 + (Math.random() - 0.5) * 0.6, ball.speed);
                 }
@@ -2667,12 +2975,27 @@ class Game {
             this.audio.sfx('extraLife');
             this.vfx.addFloatingText(W / 2, H / 2, '+1 UP!', '#44ff88');
             this.vfx.flash('#44ff88', 0.3);
+            this._speak('Ein Leben mehr!');
             this.updateHUD();
         }
 
         this.particles.update();
         this.vfx.update(this.combo, this.partyMode);
         this.audio.setCombo(this.combo);
+        this._updateMusicRate();
+    }
+
+    _updateMusicRate() {
+        const audio = this.audio.bgAudio;
+        if (!audio) return;
+        let target = 1.0;
+        if (this.powerups.isActive('speeddemon')) target = 1.30;
+        else if (this.powerups.isActive('fireball')) target = 1.15;
+        else if (this.powerups.isActive('slowmo')) target = 0.75;
+        if (this.partyMode) target = Math.max(target, 1.2);
+        const cur = audio.playbackRate || 1.0;
+        const next = cur + (target - cur) * 0.08;
+        try { audio.playbackRate = Math.max(0.5, Math.min(1.8, next)); } catch(e) {}
     }
 
     checkBrickCollisions(ball) {
@@ -3027,10 +3350,17 @@ class Game {
         // Show overlay
         const overlay = document.getElementById('level-overlay');
         overlay.classList.remove('hidden');
+        const maxLvl = this.kidsMode ? 10 : 20;
+        const nextIdx = this.levels.currentLevel + 1;
+        const isLastLevel = nextIdx >= maxLvl;
         if (this.kidsMode) {
-            overlay.querySelector('.level-complete-text').textContent = '🎉 Super!';
-            overlay.querySelector('.level-bonus-text').textContent = '';
-            this._speak('Super gemacht!');
+            overlay.querySelector('.level-complete-text').textContent = '\uD83C\uDF89 Super!';
+            overlay.querySelector('.level-bonus-text').textContent = isLastLevel ? '' : 'Level ' + (nextIdx + 1);
+            if (isLastLevel) {
+                this._speak('Geschafft! Du bist super!');
+            } else {
+                this._speak('Super gemacht! Auf zu Level ' + this._numberWord(nextIdx + 1) + '!');
+            }
         } else {
             overlay.querySelector('.level-complete-text').textContent = `LEVEL ${this.levels.currentLevel + 1} COMPLETE!`;
             overlay.querySelector('.level-bonus-text').textContent = `Lives Bonus: +${bonus}`;
