@@ -355,8 +355,9 @@ class LetterGame {
         document.querySelectorAll('.letter-key').forEach(k => {
             k.classList.remove('correct', 'wrong', 'hint-flash');
         });
-        // Instruktion sprechen
-        await this._speakInstruction();
+        // Instruktion sprechen — NICHT awaiten, damit Musik/UI nicht blockiert
+        // werden, falls TTS haengt (z.B. Piper-Download langsam).
+        this._speakInstruction();
     }
 
     _letterForSpeech(letter) {
