@@ -191,14 +191,51 @@ body {
     margin-top: 8px;
 }
 
+.gameover-emoji,
+.win-emoji {
+    font-size: clamp(4rem, 20vw, 6.5rem);
+    line-height: 1;
+    margin-bottom: 8px;
+    animation: emojiBounce 0.6s ease-out;
+}
+
 .gameover-text {
     font-size: clamp(1.9rem, 9vw, 3rem);
     font-weight: 900;
-    color: #ff4466;
-    text-shadow: 0 0 30px rgba(255, 68, 102, 0.6);
-    letter-spacing: 0.1em;
-    margin-bottom: 8px;
+    color: #ffcc44;
+    text-shadow: 0 0 30px rgba(255, 204, 68, 0.6);
+    letter-spacing: 0.05em;
+    margin-bottom: 16px;
     text-align: center;
+}
+
+.retry-btn {
+    background: linear-gradient(180deg, #44ff88, #22cc55);
+    border: none;
+    color: #0a0a2e;
+    width: clamp(88px, 28vw, 120px);
+    height: clamp(88px, 28vw, 120px);
+    border-radius: 50%;
+    font-size: clamp(2.4rem, 10vw, 3.2rem);
+    cursor: pointer;
+    margin-bottom: 16px;
+    box-shadow: 0 0 30px rgba(68, 255, 136, 0.5);
+    animation: playPulse 2s ease-in-out infinite;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.retry-btn:active {
+    transform: scale(0.95);
+}
+
+@keyframes emojiBounce {
+    0% { transform: scale(0.3); opacity: 0; }
+    60% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 .gameover-score,
@@ -212,7 +249,15 @@ body {
 .win-highscore {
     font-size: clamp(0.85rem, 3.5vw, 1rem);
     color: #ffcc44;
-    margin-bottom: 16px;
+    margin-bottom: 8px;
+}
+
+/* In Kids-Mode Zahlen verstecken - fuer 3-4Jaehrige bedeutungslos */
+body.kids-mode .gameover-score,
+body.kids-mode .gameover-highscore,
+body.kids-mode .win-score,
+body.kids-mode .win-highscore {
+    display: none;
 }
 
 .win-text {
@@ -477,28 +522,71 @@ body.warp-mode #gameCanvas {
     50% { box-shadow: 0 0 40px rgba(68, 255, 136, 0.6); }
 }
 
-/* Parent Settings */
-#parent-settings {
-    margin-top: 8px;
-    text-align: center;
-    width: 100%;
-    max-width: 320px;
-}
-
-#parent-settings summary {
-    color: rgba(200, 200, 255, 0.4);
-    font-size: 0.85rem;
+/* Parent gate: unauffaelliges Zahnrad unten rechts im Start-Overlay.
+   Kinder 3-4 Jahre interessieren sich nicht fuer das Symbol; Eltern
+   finden es leicht. */
+.parent-gate-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(200, 200, 255, 0.2);
+    border-radius: 50%;
+    color: rgba(200, 200, 255, 0.45);
+    font-size: 1.1rem;
     cursor: pointer;
-    list-style: none;
-    user-select: none;
-    padding: 6px;
+    transition: color 0.2s, background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    z-index: 11;
 }
 
-#parent-settings summary::-webkit-details-marker { display: none; }
+.parent-gate-btn:hover,
+.parent-gate-btn:active {
+    color: rgba(220, 220, 255, 0.85);
+    background: rgba(170, 170, 255, 0.15);
+}
 
-#parent-settings[open] summary {
-    color: rgba(200, 200, 255, 0.6);
-    margin-bottom: 10px;
+#parent-settings-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(10, 10, 46, 0.95);
+    border-radius: 8px;
+    z-index: 20;
+    padding: 16px;
+    overflow-y: auto;
+}
+
+.parent-settings-panel {
+    background: rgba(25, 25, 60, 0.9);
+    border: 1px solid rgba(170, 170, 255, 0.25);
+    border-radius: 14px;
+    padding: 20px 18px 16px;
+    width: 100%;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.parent-settings-title {
+    color: #e0e0ff;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-align: center;
 }
 
 .start-options {
@@ -614,9 +702,104 @@ body.warp-mode #gameCanvas {
     background: #44ff88;
 }
 
+/* Pause menu icons + labels */
+.pause-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.pause-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+    display: inline-block;
+    min-width: 1.6em;
+    text-align: center;
+}
+
+.pause-label {
+    display: inline-block;
+}
+
+/* Quit-Konfirmation (verhindert versehentliches Verlassen) */
+#quit-confirm-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(10, 10, 46, 0.94);
+    border-radius: 8px;
+    z-index: 40;
+    padding: 16px;
+    gap: 18px;
+}
+
+.quit-confirm-emoji {
+    font-size: clamp(3.2rem, 14vw, 5rem);
+    line-height: 1;
+}
+
+.quit-confirm-text {
+    font-size: clamp(1.3rem, 6vw, 1.9rem);
+    font-weight: 800;
+    color: #e0e0ff;
+    text-align: center;
+    letter-spacing: 0.04em;
+}
+
+.quit-confirm-buttons {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.quit-confirm-btn {
+    width: clamp(80px, 22vw, 110px);
+    height: clamp(80px, 22vw, 110px);
+    border-radius: 50%;
+    font-size: clamp(2.4rem, 10vw, 3.2rem);
+    border: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    font-weight: 700;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s;
+}
+
+.quit-confirm-btn:active {
+    transform: scale(0.95);
+}
+
+.quit-yes {
+    background: linear-gradient(180deg, #ff8888, #cc3344);
+    color: #fff;
+}
+
+.quit-no {
+    background: linear-gradient(180deg, #44ff88, #22cc55);
+    color: #0a0a2e;
+}
+
 /* Puzzle widget */
 #puzzle-container {
     transition: opacity 0.3s;
+}
+
+/* Puzzle im Kids-Mode komplett ausblenden - fuer 3-4Jaehrige nicht
+   relevant und nimmt Fingerplatz weg. */
+body.kids-mode #puzzle-container {
+    display: none !important;
 }
 
 /* Mobile + portrait fine-tuning */
