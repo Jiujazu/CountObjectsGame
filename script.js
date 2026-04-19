@@ -129,21 +129,6 @@ class UIManager {
             hint.classList.remove('show');
         }, 1400);
     }
-    // Zeigt den Celebration-Screen und ruft Callback nach Schließen auf
-    showCelebration(correctAnswer, onContinue) {
-        const successScreen = document.getElementById('success-screen');
-        const successNumber = document.getElementById('success-number');
-        successNumber.textContent = correctAnswer;
-        successScreen.classList.add('show');
-        // Keine eigenen Skip-Handler hier — das wird von handleNumberClick gesteuert
-        if (onContinue) {
-            // Auto-Dismiss nach 3 Sekunden falls nicht manuell geschlossen
-            this._celebrationTimeout = setTimeout(() => {
-                successScreen.classList.remove('show');
-                onContinue();
-            }, 3000);
-        }
-    }
 }
 
 // === GameLogic: Spiellogik als eigene Klasse ===
@@ -183,34 +168,6 @@ class GameLogic {
 
         if (number === this.game.state.correctAnswer) {
             this.game.state.wrongStreak = 0;
-            // Skip-Handler VOR TTS registrieren, damit Leertaste instant reagiert
-            let animationSkipped = false;
-            const skipToNext = () => {
-                if (animationSkipped) return;
-                animationSkipped = true;
-                document.removeEventListener('keydown', skipKeyHandler);
-                document.removeEventListener('click', skipClickHandler);
-                // Laufende TTS abbrechen, damit der Wechsel sich instant anfuehlt
-                if (this.game.tts && typeof this.game.tts.cancel === 'function') this.game.tts.cancel();
-                // Auto-Dismiss-Timeout abbrechen
-                if (this.game.ui._celebrationTimeout) {
-                    clearTimeout(this.game.ui._celebrationTimeout);
-                    this.game.ui._celebrationTimeout = null;
-                }
-                const successScreen = document.getElementById('success-screen');
-                if (successScreen) successScreen.classList.remove('show');
-                this.nextLevel();
-            };
-            const skipKeyHandler = (e) => {
-                if (e.code === 'Space' || e.key === ' ') {
-                    e.preventDefault();
-                    skipToNext();
-                }
-            };
-            const skipClickHandler = () => skipToNext();
-            document.addEventListener('keydown', skipKeyHandler);
-            document.addEventListener('click', skipClickHandler);
-
             // Sound, TTS (fire-and-forget) und Effekte zeitgleich starten
             this.game.playSound('success');
             this.game.speakSuccess();
@@ -218,11 +175,11 @@ class GameLogic {
             this.game.puzzle.revealNextPiece();
 
             setTimeout(() => {
-                if (!animationSkipped) {
-                    this.game.ui.showCelebration(this.game.state.correctAnswer, () => {
-                        skipToNext();
-                    });
-                }
+                GameUI.showSuccessScreen({
+                    content: this.game.state.correctAnswer,
+                    tts: this.game.speechEnabled ? this.game.tts : null,
+                    onNext: () => this.nextLevel(),
+                });
             }, 1000);
         } else {
             this.game.state.wrongStreak++;
@@ -250,27 +207,13 @@ class GameLogic {
             }, 500);
         }
     }
-    /**
-     * Steigt ins nächste Level auf und startet die nächste Challenge.
-     * Zeigt zunaechst das einheitliche Win-Overlay; der tatsaechliche Level-Up
-     * laeuft erst in der onNext-Callback ab.
-     */
     async nextLevel() {
-        const doLevelUp = async () => {
-            this.game.state.level++;
-            this.game.state.wrongStreak = 0;
-            // Vor neuer Aufgabe: alle noch laufenden/gepufferten Ansagen verwerfen.
-            if (this.game.tts && typeof this.game.tts.cancel === 'function') this.game.tts.cancel();
-            await this.createNewChallenge();
-            this.game.ui.updateLevelIndicator();
-            // Input erst freigeben, nachdem die neue Challenge geladen ist
-            this.game.state.isProcessing = false;
-        };
-        GameUI.showWinOverlay({
-            level: this.game.state.level,
-            tts: this.game.speechEnabled ? this.game.tts : null,
-            onNext: doLevelUp,
-        });
+        this.game.state.level++;
+        this.game.state.wrongStreak = 0;
+        if (this.game.tts && typeof this.game.tts.cancel === 'function') this.game.tts.cancel();
+        await this.createNewChallenge();
+        this.game.ui.updateLevelIndicator();
+        this.game.state.isProcessing = false;
     }
 }
 
@@ -915,12 +858,8 @@ class CountingGame {
         this.puzzle.hide();
 
         // Offene UI-Overlays schließen
-        const successScreen = document.getElementById('success-screen');
-        if (successScreen) successScreen.classList.remove('show');
-        if (this.ui._celebrationTimeout) {
-            clearTimeout(this.ui._celebrationTimeout);
-            this.ui._celebrationTimeout = null;
-        }
+        const successScreen = document.getElementById('gameui-success-screen');
+        if (successScreen) successScreen.remove();
 
         // Reset Spielstand
         this.state.level = 1;

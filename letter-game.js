@@ -355,13 +355,12 @@ class LetterGame {
             }
             // Puzzle Fortschritt
             this.puzzle.revealNextPiece();
-            // Kurzes Win-Overlay, dann Level hoch und neue Aufgabe. Einheitlich
-            // ueber GameUI, damit Zaehl-/Breakout-/Letter-Spiele denselben Flow
-            // haben.
+            // Gruener Success-Screen mit dem getroffenen Buchstaben. Einheitlich
+            // ueber GameUI, damit Zaehl- und Letter-Spiel denselben Flow haben.
             slot.classList.remove('correct', 'filled');
             slot.textContent = '';
-            GameUI.showWinOverlay({
-                level: this.state.level + 1,
+            GameUI.showSuccessScreen({
+                content: letter,
                 tts: this.speechEnabled ? this.tts : null,
                 onNext: () => {
                     this.state.level++;
