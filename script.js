@@ -1,5 +1,11 @@
 // === script.js: Zaehlspiel (nutzt shared.js) ===
 
+// Touch-Geraete (Handy/Tablet) haben keine physische Tastatur. Dort muss das
+// Zahlenfeld standardmaessig sichtbar sein, sonst kann das Kind keine Antwort
+// eintippen.
+const IS_TOUCH_DEVICE = (typeof window !== 'undefined') &&
+    (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+
 // Kindgerechte, abwechslungsreiche TTS-Phrasen fuer das Zaehlspiel.
 // Platzhalter: {name} (Plural-Name z.B. "Hunde"), {singular} (z.B. "ein Hund"),
 // {count} (Ziffer), {zahlwort} (z.B. "drei"), {zahlwort_cap} ("Drei"),
@@ -288,7 +294,8 @@ class CountingGame {
             level: 1,              // Aktuelles Level
             currentObjects: [],    // Aktuelle Objekte (Emojis)
             correctAnswer: 0,      // Richtige Antwort für das aktuelle Rätsel
-            numbersVisible: false, // Ist das Zahlenfeld sichtbar?
+            numbersVisible: IS_TOUCH_DEVICE, // Auf Touch-Geraeten standardmaessig an, sonst aus
+
             isProcessing: false,   // Sperrt Input während Antwort-Verarbeitung
             wrongStreak: 0,        // Fehlversuche in Folge für aktuelles Level
             maxObjectsOverride: 0, // Eltern-Override für max. Objekte (0 = automatisch)
@@ -703,13 +710,22 @@ class CountingGame {
         this.ui.updateDisplay();
         this.ui.updateLevelIndicator();
         this.ui.updateStars();
-        // Setze Zahlenfeld-Button auf ausgeschaltet
+        // Zahlenfeld-Button und Container auf den aktuellen Zustand setzen.
+        // Auf Touch-Geraeten ist das Zahlenfeld standardmaessig sichtbar, sonst aus.
         const numbersButton = document.getElementById('numbers-toggle');
-        numbersButton.textContent = '⌨️';
-        numbersButton.title = 'Zahlenfeld an';
-        // Verstecke das Zahlenfeld tatsächlich
         const numbersContainer = document.getElementById('numbers-container');
-        numbersContainer.style.display = 'none';
+        if (this.state.numbersVisible) {
+            numbersButton.textContent = '🔢';
+            numbersButton.title = 'Zahlenfeld aus';
+            numbersContainer.classList.remove('hide');
+            numbersContainer.classList.add('show');
+            numbersContainer.style.display = 'grid';
+            document.getElementById('objects-display').classList.add('with-numbers');
+        } else {
+            numbersButton.textContent = '⌨️';
+            numbersButton.title = 'Zahlenfeld an';
+            numbersContainer.style.display = 'none';
+        }
         // Eltern-Menü initialisieren
         this._initParentMenu();
         // Starte Hintergrundmusik
