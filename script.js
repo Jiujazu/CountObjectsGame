@@ -689,6 +689,7 @@ class CountingGame {
             {id: 'tracklist-toggle', fn: () => this.music.showOverlay()},
             {id: 'close-btn', fn: () => this.closeGame()},
             {id: 'numbers-toggle', fn: () => this.toggleNumbers()},
+            {id: 'replay-btn', fn: () => this.speakInstruction()},
             {id: 'prev-track', fn: () => this.music.prevTrack()},
             {id: 'next-track', fn: () => this.music.nextTrack()}
         ];

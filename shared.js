@@ -109,20 +109,14 @@ class SharedAudio {
 // synchron entsperren. Ohne das bleibt iOS-Safari nach einem Piper-Fallback-
 // oder Welcome-TTS stumm, weil die spaeteren resume()-Aufrufe ausserhalb der
 // Geste feuern.
+// Bewusst OHNE speechSynthesis-Priming: ein leeres Utterance + spaeteres
+// cancel() triggert einen Chrome-Bug, der nachfolgende speak()-Aufrufe
+// stummschaltet. speechSynthesis braucht auf Desktop kein Priming; auf iOS
+// reicht die erste echte Benutzer-Geste.
 (function installAudioUnlockShim() {
     if (typeof document === 'undefined') return;
     const unlock = () => {
         try { SharedAudio.unlock(); } catch (e) {}
-        // Auch speechSynthesis auf iOS per leerem Utterance "priming", damit
-        // spaetere speak()-Aufrufe aus Promise-Chains nicht verworfen werden.
-        try {
-            if (window.speechSynthesis && !SharedAudio._speechPrimed) {
-                const u = new SpeechSynthesisUtterance('');
-                u.volume = 0;
-                window.speechSynthesis.speak(u);
-                SharedAudio._speechPrimed = true;
-            }
-        } catch (e) {}
         document.removeEventListener('touchstart', unlock, true);
         document.removeEventListener('pointerdown', unlock, true);
         document.removeEventListener('click', unlock, true);
