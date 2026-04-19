@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Xylophon">
+  <!-- Wooden frame -->
+  <path d="M28 92 L228 64 L238 86 L38 114 Z" fill="#9a5a2c"/>
+  <path d="M38 150 L238 178 L228 200 L28 172 Z" fill="#9a5a2c"/>
+  <!-- Bars (descending size, rainbow) -->
+  <g stroke="#6b3c18" stroke-width="2">
+    <rect x="48" y="92"  width="28" height="72" rx="4" fill="#e53935" transform="rotate(-8 62 128)"/>
+    <rect x="82" y="92"  width="28" height="70" rx="4" fill="#fb8c00" transform="rotate(-5 96 128)"/>
+    <rect x="116" y="94" width="28" height="68" rx="4" fill="#fdd835" transform="rotate(-2 130 128)"/>
+    <rect x="150" y="96" width="28" height="64" rx="4" fill="#43a047" transform="rotate(1 164 128)"/>
+    <rect x="184" y="98" width="26" height="60" rx="4" fill="#1e88e5" transform="rotate(4 197 128)"/>
+    <rect x="214" y="100" width="22" height="56" rx="4" fill="#8e24aa" transform="rotate(7 225 128)"/>
+  </g>
+  <!-- Mallets -->
+  <g>
+    <rect x="30" y="38" width="120" height="6" rx="3" fill="#6b3c18" transform="rotate(18 90 41)"/>
+    <circle cx="42" cy="36" r="12" fill="#ffb74d" stroke="#8d4e1a" stroke-width="2"/>
+    <rect x="110" y="214" width="120" height="6" rx="3" fill="#6b3c18" transform="rotate(-18 170 217)"/>
+    <circle cx="222" cy="222" r="12" fill="#ffb74d" stroke="#8d4e1a" stroke-width="2"/>
+  </g>
+</svg>

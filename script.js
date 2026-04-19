@@ -296,9 +296,7 @@ class CountingGame {
         this.soundEnabled = true;
         this.speechEnabled = true;
         this.objectCategories = [
-            { emoji: '🍎', name: 'Äpfel' },
-            { emoji: '🍕', name: 'Pizzen' },
-            { emoji: '🦄', name: 'Einhörner' },
+            // Tiere
             { emoji: '🐶', name: 'Hunde' },
             { emoji: '🐱', name: 'Katzen' },
             { emoji: '🐰', name: 'Hasen' },
@@ -315,7 +313,41 @@ class CountingGame {
             { emoji: '🐻', name: 'Bären' },
             { emoji: '🦋', name: 'Schmetterlinge' },
             { emoji: '🐞', name: 'Marienkäfer' },
-            { emoji: '🦕', name: 'Dinosaurier' }
+            { emoji: '🦕', name: 'Dinosaurier' },
+            { emoji: '🦄', name: 'Einhörner' },
+            // Essen
+            { emoji: '🍎', name: 'Äpfel' },
+            { emoji: '🍕', name: 'Pizzen' },
+            { emoji: '🍌', name: 'Bananen' },
+            { emoji: '🍓', name: 'Erdbeeren' },
+            { emoji: '🍊', name: 'Orangen' },
+            { emoji: '🍇', name: 'Weintrauben' },
+            { emoji: '🍉', name: 'Wassermelonen' },
+            { emoji: '🥕', name: 'Karotten' },
+            { emoji: '🍄', name: 'Pilze' },
+            { emoji: '🍪', name: 'Kekse' },
+            { emoji: '🎂', name: 'Kuchen' },
+            { emoji: '🍭', name: 'Lollis' },
+            // Fahrzeuge
+            { emoji: '🚗', name: 'Autos' },
+            { emoji: '🚂', name: 'Züge' },
+            { emoji: '🚀', name: 'Raketen' },
+            { emoji: '⛵', name: 'Segelboote' },
+            { emoji: '🚁', name: 'Hubschrauber' },
+            { emoji: '🚲', name: 'Fahrräder' },
+            // Natur & Himmel
+            { emoji: '🌸', name: 'Blumen' },
+            { emoji: '🌳', name: 'Bäume' },
+            { emoji: '🌈', name: 'Regenbögen' },
+            { emoji: '⭐', name: 'Sterne' },
+            { emoji: '🌙', name: 'Monde' },
+            { emoji: '🌞', name: 'Sonnen' },
+            // Spielzeug & Sport
+            { emoji: '🎈', name: 'Luftballons' },
+            { emoji: '⚽', name: 'Fußbälle' },
+            { emoji: '🪀', name: 'Jojos' },
+            { emoji: '🎨', name: 'Paletten' },
+            { emoji: '👑', name: 'Kronen' }
         ];
         // Singular-Formen mit Artikel (Plural → Singular)
         this.singularMap = {
@@ -325,7 +357,18 @@ class CountingGame {
             'Löwen': 'ein Löwe', 'Kühe': 'eine Kuh', 'Schweine': 'ein Schwein',
             'Kraken': 'eine Krake', 'Giraffen': 'eine Giraffe', 'Elefanten': 'ein Elefant',
             'Füchse': 'ein Fuchs', 'Bären': 'ein Bär', 'Schmetterlinge': 'ein Schmetterling',
-            'Marienkäfer': 'ein Marienkäfer', 'Dinosaurier': 'ein Dinosaurier'
+            'Marienkäfer': 'ein Marienkäfer', 'Dinosaurier': 'ein Dinosaurier',
+            'Bananen': 'eine Banane', 'Erdbeeren': 'eine Erdbeere', 'Orangen': 'eine Orange',
+            'Weintrauben': 'eine Weintraube', 'Wassermelonen': 'eine Wassermelone',
+            'Karotten': 'eine Karotte', 'Pilze': 'ein Pilz', 'Kekse': 'ein Keks',
+            'Kuchen': 'ein Kuchen', 'Lollis': 'ein Lolli',
+            'Autos': 'ein Auto', 'Züge': 'ein Zug', 'Raketen': 'eine Rakete',
+            'Segelboote': 'ein Segelboot', 'Hubschrauber': 'ein Hubschrauber',
+            'Fahrräder': 'ein Fahrrad',
+            'Blumen': 'eine Blume', 'Bäume': 'ein Baum', 'Regenbögen': 'ein Regenbogen',
+            'Sterne': 'ein Stern', 'Monde': 'ein Mond', 'Sonnen': 'eine Sonne',
+            'Luftballons': 'ein Luftballon', 'Fußbälle': 'ein Fußball', 'Jojos': 'ein Jojo',
+            'Paletten': 'eine Malpalette', 'Kronen': 'eine Krone'
         };
         this.tts = PiperTTSManager.getShared();
         this.music = new MusicManager(SHARED_MUSIC_TRACKS, SHARED_MUSIC_COVERS);
@@ -732,7 +775,7 @@ class CountingGame {
         selectedPositions.forEach((position, index) => {
             const object = document.createElement('div');
             object.className = 'object';
-            object.textContent = this.state.currentObjects[0];
+            object.appendChild(window.emojiImg(this.state.currentObjects[0], '', 'object-emoji'));
             
             // Leichte Drehung für Verspieltheit
             const rot = (Math.random() - 0.5) * 8; // -4° bis +4°

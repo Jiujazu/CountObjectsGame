@@ -2200,3 +2200,42 @@ select.parent-text-input {
 
     .game-area { padding: 0; }
 }
+
+/* === Fluent UI Emoji assets (bundled as <img>) ============================
+   Replaces the OS-default text emojis with consistent, polished 3D PNGs.
+   Layout/animation still live on the parent (.object, .letter-emoji);
+   these rules only handle sizing of the <img> itself. */
+.object > .object-emoji {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    user-select: none;
+    pointer-events: none;
+    -webkit-user-drag: none;
+}
+
+.letter-display .letter-emoji .letter-emoji-img {
+    width: 15rem;
+    height: 15rem;
+    object-fit: contain;
+    animation: objectAppear 0.5s ease-out 0.15s both;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+/* When the PNG fails to load, emoji-render.js swaps in a <span> with the
+   native glyph. Keep it roughly the same size as the image it replaced. */
+.object > .emoji-fallback { font-size: 4.4rem; line-height: 1; }
+.letter-display .letter-emoji .emoji-fallback { font-size: 15rem; line-height: 1; }
+
+@media (max-width: 592px) {
+    .letter-display .letter-emoji .letter-emoji-img { width: 9rem; height: 9rem; }
+    .letter-display .letter-emoji .emoji-fallback { font-size: 9rem; }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+    .letter-display .letter-emoji .letter-emoji-img {
+        width: min(28vmin, 9rem);
+        height: min(28vmin, 9rem);
+    }
+}
