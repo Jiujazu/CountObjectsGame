@@ -685,35 +685,8 @@ body {
     gap: 28px;
 }
 
-.startscreen-cta {
-    margin: 0;
-    font-family: 'Roboto', 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-weight: 700;
-    font-size: clamp(1.6rem, 3.4vw, 2.6rem);
-    color: #232946;
-    letter-spacing: 0.01em;
-    display: inline-flex;
-    align-items: center;
-    gap: 14px;
-    padding: 10px 22px;
-    background: rgba(255, 255, 255, 0.85);
-    border-radius: 999px;
-    box-shadow: 0 6px 22px rgba(35, 41, 70, 0.12);
-    white-space: nowrap;
-}
 @media (prefers-reduced-motion: reduce) {
-    .game-select-btn,
-    .startscreen-cta-wave { animation: none; }
-}
-.startscreen-cta-wave {
-    display: inline-block;
-    transform-origin: 70% 70%;
-    animation: ctaPoint 1.4s ease-in-out infinite;
-}
-@keyframes ctaPoint {
-    0%, 100% { transform: translateX(0) rotate(0deg); }
-    40%      { transform: translateX(10px) rotate(-12deg); }
-    70%      { transform: translateX(-2px) rotate(4deg); }
+    .game-select-btn { animation: none; }
 }
 
 .startscreen-icon {
@@ -1371,11 +1344,12 @@ html, body {
 }
 
 .game-select-label {
-    font-size: 1.5rem;
+    font-size: 0.7rem;
     font-family: 'Roboto', 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     font-weight: 700;
-    color: #232946;
-    letter-spacing: 0.02em;
+    color: #6b7280;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
 }
 
 /* Tablet / schmalerer Desktop */
@@ -1386,7 +1360,7 @@ html, body {
         border-radius: 32px;
     }
     .game-select-icon { font-size: 5rem; }
-    .game-select-label { font-size: 1.3rem; }
+    .game-select-label { font-size: 0.65rem; }
     .game-select-menu { gap: 24px; }
 }
 
@@ -1397,10 +1371,6 @@ html, body {
         bottom: 6vh;
         transform: none;
         gap: 18px;
-    }
-    .startscreen-cta {
-        font-size: 1.4rem;
-        padding: 8px 18px;
     }
     .game-select-menu {
         flex-direction: column;
@@ -1433,7 +1403,7 @@ html, body {
         75%      { transform: translate(18px, -10px) rotate(340deg); }
     }
     .game-select-label {
-        font-size: 1.5rem;
+        font-size: 0.7rem;
     }
     /* Video auf Handy ausblenden – es überlappt die Kacheln und hat auf kleinem
        Bildschirm keinen eigenen Mehrwert. */

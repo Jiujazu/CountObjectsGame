@@ -1310,26 +1310,19 @@ document.addEventListener('touchstart', function() {}, {passive: true});
     });
 })();
 
-// --- Startscreen-Sprachansage (für Kinder, die noch nicht lesen) ---
+// --- Startscreen-Sprachansage pro Kachel (fuer Kinder, die noch nicht lesen) ---
 (function() {
     function getTTS() {
         try { return PiperTTSManager.getShared(); } catch (e) { return null; }
     }
-    let ctaSpoken = false;
     let lastSpokenAt = 0;
     function speak(text) {
         const tts = getTTS();
         if (!tts || !tts.enabled) return;
-        // 600ms Debounce, damit Hover-Serien nicht stottern
         const now = performance.now();
         if (now - lastSpokenAt < 600) return;
         lastSpokenAt = now;
         try { tts.speak(text); } catch (e) {}
-    }
-    function speakCTA() {
-        if (ctaSpoken) return;
-        ctaSpoken = true;
-        speak('Tipp ein Spiel!');
     }
     function isStartscreenVisible() {
         const s = document.getElementById('startscreen');
@@ -1337,21 +1330,6 @@ document.addEventListener('touchstart', function() {}, {passive: true});
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        // CTA bei erster Interaktion ansagen (Autoplay-Policy verlangt Geste)
-        const trigger = () => {
-            if (!isStartscreenVisible()) return;
-            speakCTA();
-            window.removeEventListener('pointerdown', trigger, true);
-            window.removeEventListener('touchstart', trigger, true);
-            window.removeEventListener('mousemove', trigger, true);
-            window.removeEventListener('keydown', trigger, true);
-        };
-        window.addEventListener('pointerdown', trigger, true);
-        window.addEventListener('touchstart', trigger, true);
-        window.addEventListener('mousemove', trigger, true);
-        window.addEventListener('keydown', trigger, true);
-
-        // Kachel-spezifische Ansage beim Hover/Fokus (vor allem Desktop)
         document.querySelectorAll('.game-select-btn[data-speak]').forEach(btn => {
             const label = btn.getAttribute('data-speak');
             const announce = () => {
