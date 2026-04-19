@@ -771,7 +771,14 @@ class VisualEffects {
     }
 
     addFloatingText(x, y, text, color = '#ffcc44') {
-        this.floatingTexts.push({ x, y, text, color, life: 80, dy: -1.5 });
+        // Stack-avoidance: if another text is within 40px vertically, offset this one below
+        let adjustedY = y;
+        for (const ft of this.floatingTexts) {
+            if (ft.life > 20 && Math.abs(ft.x - x) < 200 && Math.abs(ft.y - adjustedY) < 40) {
+                adjustedY = ft.y + 44;
+            }
+        }
+        this.floatingTexts.push({ x, y: adjustedY, text, color, life: 80, dy: -1.5 });
     }
 
     update(combo, partyMode) {
@@ -1322,15 +1329,20 @@ class PowerUpManager {
         this.comboJustActivated = null; // set to combo id for one frame when a combo triggers
     }
 
-    trySpawn(x, y, partyMode) {
+    trySpawn(x, y, partyMode, kidsMode) {
         if (this.falling.length >= this.maxFalling) return;
         const chance = partyMode ? 0.5 : 0.25;
         if (Math.random() > chance) return;
-        // Weighted random selection
-        const totalWeight = Object.values(POWERUP_WEIGHTS).reduce((a, b) => a + b, 0);
+        // Kids-Mode: nur positive Power-ups spawnen. Keine tiny/speeddemon/bomb
+        // fuer 3-4jaehrige - die verstehen nicht, dass das Paddle absichtlich
+        // kleiner wird oder der Ball zufaellig explodiert.
+        const weights = kidsMode
+            ? Object.fromEntries(Object.entries(POWERUP_WEIGHTS).filter(([t]) => POWERUP_GOOD[t]))
+            : POWERUP_WEIGHTS;
+        const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0);
         let r = Math.random() * totalWeight;
         let type = 'multiball';
-        for (const [t, w] of Object.entries(POWERUP_WEIGHTS)) {
+        for (const [t, w] of Object.entries(weights)) {
             r -= w;
             if (r <= 0) { type = t; break; }
         }
@@ -1630,10 +1642,10 @@ class LevelManager {
             for (let c = 0; c < BRICK_COLS; c++) {
                 let ch = c < row.length ? row[c] : '.';
                 if (ch === '.' || ch === ' ') continue;
-                if (kidsMode && levelIndex < this.layouts.length) {
-                    if (ch === 'S' && levelIndex < 4) ch = '#';
-                    if ((ch === 'X' || ch === '2' || ch === '3') && levelIndex < 2) ch = '#';
-                    if (ch === 'M' && levelIndex < 3) ch = '#';
+                if (kidsMode) {
+                    if (ch === 'S' && levelIndex < 6) ch = '#';
+                    if ((ch === 'X' || ch === '2' || ch === '3') && levelIndex < 3) ch = '#';
+                    if (ch === 'M' && levelIndex < 4) ch = '#';
                 }
                 const x = BRICK_OFFSET_X + c * (BRICK_W + BRICK_PAD);
                 const y = BRICK_OFFSET_Y + r * (BRICK_H + BRICK_PAD);
@@ -1689,7 +1701,7 @@ class Boss {
         this.easyMode = easyMode;
         const bossNum = Math.floor(levelIndex / 5);
         this.type = ['kraken','phoenix','golem','dragon','hydra'][bossNum % 5];
-        this.maxHp = easyMode ? 20 + bossNum * 5 : 40 + bossNum * 15;
+        this.maxHp = easyMode ? 20 + bossNum * 5 : 30 + bossNum * 10;
         this.hp = this.maxHp;
         this.x = W / 2;
         this.y = 70;
@@ -1735,19 +1747,23 @@ class Boss {
             this.phaseTimer = 0;
             this.phase = (this.phase + 1) % 3;
         }
-        if (this.phase === 0 && this.timer % 40 === 0) {
-            this.projectiles.push({ x: this.x + rnd(-30, 30), y: this.y + this.height / 2, dy: 2.5, r: 5 });
+        if (this.phase === 0 && this.timer % 50 === 0) {
+            this.projectiles.push({ x: this.x + rnd(-30, 30), y: this.y + this.height / 2, dy: 2.2, dx: 0, r: 5, warn: 30 });
         }
-        if (this.phase === 1 && this.timer % 15 === 0) {
-            this.projectiles.push({ x: this.x + rnd(-50, 50), y: this.y + this.height / 2 + 10, dy: 3.5, r: 4 });
+        if (this.phase === 1 && this.timer % 32 === 0) {
+            const spread = rnd(-80, 80);
+            this.projectiles.push({ x: this.x + spread, y: this.y + this.height / 2 + 10, dy: 3.0, dx: spread * 0.01, r: 4, warn: 25 });
         }
         for (const wp of this.weakPoints) {
             if (wp.cooldown > 0) wp.cooldown--;
             wp.active = !(this.phase === 2 && this.phaseTimer < 60);
         }
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
-            this.projectiles[i].y += this.projectiles[i].dy;
-            if (this.projectiles[i].y > H + 10) this.projectiles.splice(i, 1);
+            const p = this.projectiles[i];
+            if (p.warn > 0) { p.warn--; continue; }
+            p.y += p.dy;
+            if (p.dx) p.x += p.dx;
+            if (p.y > H + 10) this.projectiles.splice(i, 1);
         }
     }
 
@@ -1778,6 +1794,7 @@ class Boss {
     checkProjectileHitPaddle(paddle) {
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const p = this.projectiles[i];
+            if (p.warn > 0) continue;
             if (p.y + p.r >= paddle.y && p.y - p.r <= paddle.y + paddle.h &&
                 p.x >= paddle.x && p.x <= paddle.x + paddle.w) {
                 this.projectiles.splice(i, 1);
@@ -1856,8 +1873,21 @@ class Boss {
         ctx.strokeStyle = 'rgba(255,255,255,0.3)';
         ctx.lineWidth = 1;
         ctx.strokeRect(barX, barY, barW, barH);
-        // Projectiles
+        // Projectiles (with telegraph during warn phase)
         for (const p of this.projectiles) {
+            if (p.warn > 0) {
+                const pulse = 0.5 + 0.5 * Math.sin(p.warn * 0.6);
+                ctx.fillStyle = `rgba(255,68,102,${0.25 + 0.35 * pulse})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r + 4 + pulse * 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ffcc33';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r + 2, 0, Math.PI * 2);
+                ctx.stroke();
+                continue;
+            }
             ctx.fillStyle = '#ff4466';
             ctx.shadowColor = '#ff4466';
             ctx.shadowBlur = 6;
@@ -1909,16 +1939,26 @@ class InputManager {
             this.mouseX = clamp(raw, 0, W);
             this.useMouse = true;
         });
-        document.addEventListener('touchmove', (e) => {
-            e.preventDefault();
+        const updateFromTouch = (touch) => {
             const rect = canvas.getBoundingClientRect();
-            const raw = (e.touches[0].clientX - rect.left) * (W / rect.width);
+            const raw = (touch.clientX - rect.left) * (W / rect.width);
             this.mouseX = clamp(raw, 0, W);
             this.useMouse = true;
-        }, { passive: false });
+        };
+        const touchTargets = [canvas, document.getElementById('canvas-holder')].filter(Boolean);
+        for (const target of touchTargets) {
+            target.addEventListener('touchstart', (e) => {
+                if (e.touches && e.touches[0]) updateFromTouch(e.touches[0]);
+                this.clicked = true;
+                e.preventDefault();
+            }, { passive: false });
+            target.addEventListener('touchmove', (e) => {
+                if (e.touches && e.touches[0]) updateFromTouch(e.touches[0]);
+                e.preventDefault();
+            }, { passive: false });
+        }
         const handleClick = () => { this.clicked = true; };
         document.addEventListener('click', handleClick);
-        canvas.addEventListener('touchstart', handleClick);
     }
 
     getDir() {
@@ -2001,7 +2041,7 @@ class Game {
         try { this.tutorialSeen = localStorage.getItem('breakout_tutorialSeen') === 'true'; } catch(e) { this.tutorialSeen = false; }
         this.tutorialStep = 0;
         this.tutorialCards = [
-            { icon: '\uD83D\uDDB1\uFE0F', text: 'Maus oder Pfeiltasten:\nPaddle bewegen' },
+            { icon: '\uD83D\uDC46', text: 'Finger, Maus oder Pfeiltasten:\nPaddle bewegen' },
             { icon: '\uD83E\uDDF1', text: 'Zerst\u00f6re alle\nbunten Steine!' },
             { icon: '\u2B50', text: 'Sammle Power-ups\nf\u00fcr Superkr\u00e4fte!' },
         ];
@@ -2017,17 +2057,68 @@ class Game {
         this.audio.onBeatCallback = () => this.vfx.onBeat(this.partyMode);
         this._applySoundSettings();
 
-        // Back button
-        document.getElementById('back-btn').addEventListener('click', () => {
+        // Body-Klasse fuer Kids-Mode (blendet Score-Zahlen und Puzzle aus)
+        this._applyKidsModeClass();
+
+        // Back button: Bei laufendem Spiel Bestaetigungs-Dialog, sonst direkt.
+        document.getElementById('back-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.state === 'playing' || this.state === 'paused') {
+                this._showQuitConfirm();
+            } else {
+                this.audio.stopMusic();
+                window.location.href = 'index.html';
+            }
+        });
+
+        // Quit confirmation buttons
+        document.getElementById('quit-confirm-yes').addEventListener('click', (e) => {
+            e.stopPropagation();
             this.audio.stopMusic();
             window.location.href = 'index.html';
         });
+        document.getElementById('quit-confirm-no').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._hideQuitConfirm();
+        });
+
+        // Pause button (mobile-friendly)
+        const pauseBtn = document.getElementById('pause-btn');
+        if (pauseBtn) {
+            pauseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.state === 'playing') {
+                    this.pauseGame();
+                } else if (this.state === 'paused') {
+                    this._executePauseAction('resume');
+                }
+            });
+            pauseBtn.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+            }, { passive: true });
+        }
 
         // Play button
         document.getElementById('play-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             this._triggerStart();
         });
+
+        // Eltern-Gate: unauffaelliges Zahnrad oeffnet Einstellungs-Overlay
+        const parentGateBtn = document.getElementById('parent-gate-btn');
+        if (parentGateBtn) {
+            parentGateBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('parent-settings-overlay').classList.remove('hidden');
+            });
+        }
+        const parentCloseBtn = document.getElementById('parent-settings-close');
+        if (parentCloseBtn) {
+            parentCloseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('parent-settings-overlay').classList.add('hidden');
+            });
+        }
 
         // Mode toggle
         const modeBtn = document.getElementById('mode-toggle');
@@ -2037,27 +2128,45 @@ class Game {
             this.kidsMode = !this.kidsMode;
             try { localStorage.setItem('breakout_kidsMode', this.kidsMode.toString()); } catch(e) {}
             this._updateModeBtn(modeBtn);
+            this._applyKidsModeClass();
         });
 
         // Level toggle
         const levelBtn = document.getElementById('level-toggle');
+        levelBtn.textContent = (this.startLevel + 1).toString();
         levelBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.startLevel = (this.startLevel + 1) % 15;
             levelBtn.textContent = (this.startLevel + 1).toString();
         });
 
-        // Skin selector
+        // Skin selector (aus dem Eltern-Overlay heraus, nicht direkt aus Start-Screen)
         this._buildSkinGrid();
         document.getElementById('skins-btn').addEventListener('click', (e) => {
             e.stopPropagation();
-            document.getElementById('start-overlay').classList.add('hidden');
+            document.getElementById('parent-settings-overlay').classList.add('hidden');
             document.getElementById('skins-overlay').classList.remove('hidden');
         });
         document.getElementById('skins-close-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             document.getElementById('skins-overlay').classList.add('hidden');
-            document.getElementById('start-overlay').classList.remove('hidden');
+            document.getElementById('parent-settings-overlay').classList.remove('hidden');
+        });
+
+        // Retry-Buttons auf Game-Over/Win-Overlays (fangen den Klick explizit ab,
+        // damit nicht versehentlich eine Tastatur-Aktion triggert.)
+        document.querySelectorAll('.retry-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.startGame();
+            });
+        });
+
+        // Overlays die NICHT automatisch als Spiel-Start interpretiert werden
+        // duerfen: Klick auf leere Flaeche soll nichts starten.
+        ['parent-settings-overlay', 'skins-overlay', 'quit-confirm-overlay'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('click', (e) => e.stopPropagation());
         });
 
         // Pause menu button clicks
@@ -2086,9 +2195,49 @@ class Game {
         btn.className = 'option-btn' + (this.kidsMode ? ' kids' : '');
     }
 
+    _applyKidsModeClass() {
+        document.body.classList.toggle('kids-mode', !!this.kidsMode);
+    }
+
     _applySoundSettings() {
         if (this.audio.sfxGain) this.audio.sfxGain.gain.value = this.sfxMuted ? 0 : 0.5;
         if (this.audio.musicGain) this.audio.musicGain.gain.value = this.musicMuted ? 0 : 0.35;
+    }
+
+    _speak(text) {
+        // Sprachausgabe fuer 3-4jaehrige Kinder (Nichtleser). Best-effort, kein Fehler,
+        // wenn der Browser keine SpeechSynthesis unterstuetzt oder Effekte stumm sind.
+        if (!this.kidsMode || this.sfxMuted) return;
+        try {
+            const ss = window.speechSynthesis;
+            if (!ss) return;
+            ss.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'de-DE';
+            u.rate = 0.95;
+            u.pitch = 1.15;
+            u.volume = 1.0;
+            ss.speak(u);
+        } catch (e) {}
+    }
+
+    _showQuitConfirm() {
+        this._quitConfirmPrevState = this.state;
+        if (this.state === 'playing') {
+            this.pauseGame();
+            document.getElementById('pause-overlay').classList.add('hidden');
+        }
+        document.getElementById('quit-confirm-overlay').classList.remove('hidden');
+    }
+
+    _hideQuitConfirm() {
+        document.getElementById('quit-confirm-overlay').classList.add('hidden');
+        if (this._quitConfirmPrevState === 'playing') {
+            this._executePauseAction('resume');
+        } else if (this._quitConfirmPrevState === 'paused') {
+            document.getElementById('pause-overlay').classList.remove('hidden');
+        }
+        this._quitConfirmPrevState = null;
     }
 
     _triggerStart() {
@@ -2154,6 +2303,7 @@ class Game {
         this.maxComboEver = 0;
         this.bossesDefeated = 0;
         document.body.classList.remove('party-mode');
+        this._applyKidsModeClass();
         this.levels.currentLevel = this.startLevel;
         this.powerups.reset();
         this.paddle = new Paddle();
@@ -2169,8 +2319,10 @@ class Game {
         this.currentWorld = getWorldForLevel(idx);
         this.bricksDestroyed = 0;
         this.boss = null;
-        const bossInterval = this.kidsMode ? 10 : 5;
-        if (idx > 0 && (idx + 1) % bossInterval === 0) {
+        // Kids-Mode: Keine Boss-Level. 3-4jaehrige Kinder koennen Paddle-Steuerung
+        // nicht mit Projektil-Ausweichen kombinieren - das ueberfordert die
+        // Motorik und ist frustrierend. Normal-Mode: Boss alle 5 Level.
+        if (!this.kidsMode && idx > 0 && (idx + 1) % 5 === 0) {
             this.boss = new Boss(idx, this.currentWorld, this.kidsMode);
             this.bricks = [];
         } else {
@@ -2186,9 +2338,17 @@ class Game {
         this.balls = [new Ball(W / 2, H - 50, Math.cos(angle) * speed, Math.sin(angle) * speed, speed)];
     }
 
+    _updatePauseBtnVisibility() {
+        const btn = document.getElementById('pause-btn');
+        if (!btn) return;
+        const visible = this.state === 'playing' || this.state === 'leveltransition' || this.state === 'paused';
+        btn.classList.toggle('hidden', !visible);
+    }
+
     // --- Main loop ---
     loop() {
         this.update();
+        this._updatePauseBtnVisibility();
         this.draw();
         requestAnimationFrame(() => this.loop());
     }
@@ -2201,6 +2361,7 @@ class Game {
 
         if (this.state === 'start' || this.state === 'gameover' || this.state === 'win') {
             if (!document.getElementById('skins-overlay').classList.contains('hidden')) return;
+            if (!document.getElementById('parent-settings-overlay').classList.contains('hidden')) return;
             if (this.state === 'start') {
                 if (this.input.wantsStart()) this._triggerStart();
             } else {
@@ -2219,9 +2380,14 @@ class Game {
             this.particles.update();
             this.vfx.update(this.combo, this.partyMode);
             if (this.levelTransitionTimer <= 0) {
-                this.state = 'playing';
-                document.getElementById('level-overlay').classList.add('hidden');
                 const nextLvl = this.levels.currentLevel + 1;
+                const maxLvl = this.kidsMode ? 10 : 20;
+                document.getElementById('level-overlay').classList.add('hidden');
+                if (nextLvl >= maxLvl) {
+                    this.winGame();
+                    return;
+                }
+                this.state = 'playing';
                 this.loadLevel(nextLvl);
                 this.audio.startMusic(nextLvl);
                 this.updateHUD();
@@ -2250,12 +2416,17 @@ class Game {
                 if (ball.stuck) {
                     ball.x = this.paddle.x + this.paddle.w / 2 + ball.stuckOffset;
                     ball.y = this.paddle.y - ball.r;
-                    if (this.input.wantsRelease()) {
+                    ball.stickTime = (ball.stickTime || 0) + 1;
+                    const autoRelease = ball.stickTime > 480;
+                    if (this.input.wantsRelease() || autoRelease) {
                         ball.stuck = false;
+                        ball.stickTime = 0;
                         const hitPos = (ball.x - this.paddle.x) / this.paddle.w;
                         const angle = -Math.PI / 2 + (hitPos - 0.5) * 1.2;
                         ball.setAngle(angle, ball.speed);
                     }
+                } else {
+                    ball.stickTime = 0;
                 }
             }
         }
@@ -2344,7 +2515,10 @@ class Game {
                 this.audio.sfx('encourage');
                 this.vfx.triggerShake(4);
                 this.vfx.flash('#4488ff', 0.2);
-                if (this.lives > 0) this.vfx.addFloatingText(W / 2, H / 2, "Versuch's nochmal!", '#44bbff');
+                if (this.lives > 0) {
+                    this.vfx.addFloatingText(W / 2, H / 2, "Versuch's nochmal!", '#44bbff');
+                    this._speak('Nochmal!');
+                }
             } else {
                 this.audio.sfx('loseLife');
                 this.vfx.triggerShake(8);
@@ -2617,10 +2791,11 @@ class Game {
             this.activatePartyMode(600);
         }
         // Powerup drop
-        this.powerups.trySpawn(brick.x + brick.w / 2, brick.y + brick.h / 2, this.partyMode);
+        this.powerups.trySpawn(brick.x + brick.w / 2, brick.y + brick.h / 2, this.partyMode, this.kidsMode);
         // Ball speed increase every 5 bricks
         if (this.bricksDestroyed % 5 === 0) {
-            const maxSpeed = this.levels.getBaseSpeed() + 3;
+            const speedMul = this.kidsMode ? 0.6 : 1;
+            const maxSpeed = (this.levels.getBaseSpeed() + 3) * speedMul;
             for (const b of this.balls) {
                 if (!b.stuck) {
                     const currentSpeed = Math.sqrt(b.dx * b.dx + b.dy * b.dy);
@@ -2827,8 +3002,14 @@ class Game {
         // Show overlay
         const overlay = document.getElementById('level-overlay');
         overlay.classList.remove('hidden');
-        overlay.querySelector('.level-complete-text').textContent = `LEVEL ${this.levels.currentLevel + 1} COMPLETE!`;
-        overlay.querySelector('.level-bonus-text').textContent = `Lives Bonus: +${bonus}`;
+        if (this.kidsMode) {
+            overlay.querySelector('.level-complete-text').textContent = '🎉 Super!';
+            overlay.querySelector('.level-bonus-text').textContent = '';
+            this._speak('Super gemacht!');
+        } else {
+            overlay.querySelector('.level-complete-text').textContent = `LEVEL ${this.levels.currentLevel + 1} COMPLETE!`;
+            overlay.querySelector('.level-bonus-text').textContent = `Lives Bonus: +${bonus}`;
+        }
         // Explode all remaining bricks visually
         for (const brick of this.bricks) {
             if (brick.alive && brick.type === 'steel') {
@@ -2844,6 +3025,7 @@ class Game {
         overlay.classList.remove('hidden');
         overlay.querySelector('.gameover-score').textContent = 'Score: ' + this.score;
         overlay.querySelector('.gameover-highscore').textContent = 'High Score: ' + this.highScore;
+        this._speak('Nochmal!');
     }
 
     winGame() {
@@ -2855,6 +3037,7 @@ class Game {
         overlay.classList.remove('hidden');
         overlay.querySelector('.win-score').textContent = 'Final Score: ' + this.score;
         overlay.querySelector('.win-highscore').textContent = 'High Score: ' + this.highScore;
+        this._speak('Super, du hast gewonnen!');
         // Epic particle explosion
         for (let i = 0; i < 100; i++) {
             this.particles.spawn(rnd(0, W), rnd(0, H), '#fff', 2, { randomColor: true, speed: 4, speedVar: 4, gravity: 0.05 });
@@ -2965,8 +3148,7 @@ class Game {
         const theme = WORLD_THEMES[this.currentWorld];
         const lvl = this.levels.currentLevel + 1;
         const worldLabel = theme ? theme.name : '';
-        const endlessLabel = lvl > 5 ? ' Endlos' : '';
-        document.getElementById('level-display').textContent = worldLabel + endlessLabel + ' L' + lvl;
+        document.getElementById('level-display').textContent = worldLabel + ' L' + lvl;
         document.getElementById('highscore-display').textContent = 'HI: ' + this.highScore;
         const hearts = [];
         for (let i = 0; i < this.lives; i++) hearts.push('\u2764\uFE0F');
@@ -3015,6 +3197,11 @@ class Game {
     }
 
     _updatePauseMenu() {
+        // Waehrend Quit-Confirm laeuft, blockiere Pause-Menue-Interaktionen.
+        if (this._quitConfirmPrevState) {
+            this.input.consumeClick();
+            return;
+        }
         const btns = Array.from(document.querySelectorAll('.pause-menu-btn'));
         if (this.input.consumeMenuUp()) {
             this.pauseMenuIdx = (this.pauseMenuIdx - 1 + btns.length) % btns.length;
@@ -3024,10 +3211,13 @@ class Game {
             this.pauseMenuIdx = (this.pauseMenuIdx + 1) % btns.length;
             this._highlightPauseBtn(btns);
         }
-        if (this.input.consumeMenuConfirm() || this.input.consumeClick()) {
+        if (this.input.consumeMenuConfirm()) {
             this._executePauseAction(btns[this.pauseMenuIdx].dataset.action);
             return;
         }
+        // Clicks werden direkt per Button-Handler behandelt - nicht hier konsumieren,
+        // damit Tippen ausserhalb des Menues nichts ausloest.
+        this.input.consumeClick();
         if (this.input.wantsPause()) {
             this._executePauseAction('resume');
         }
@@ -3072,8 +3262,17 @@ class Game {
     _updateSoundBtns() {
         const btns = Array.from(document.querySelectorAll('.pause-menu-btn'));
         for (const btn of btns) {
-            if (btn.dataset.action === 'toggleMusic') btn.textContent = this.musicMuted ? 'Musik aus' : 'Musik an';
-            if (btn.dataset.action === 'toggleSfx') btn.textContent = this.sfxMuted ? 'Effekte aus' : 'Effekte an';
+            const action = btn.dataset.action;
+            const iconEl = btn.querySelector('.pause-icon');
+            const labelEl = btn.querySelector('.pause-label');
+            if (action === 'toggleMusic') {
+                if (iconEl) iconEl.textContent = this.musicMuted ? '🔇' : '🎵';
+                if (labelEl) labelEl.textContent = this.musicMuted ? 'Musik aus' : 'Musik an';
+            }
+            if (action === 'toggleSfx') {
+                if (iconEl) iconEl.textContent = this.sfxMuted ? '🔕' : '🔔';
+                if (labelEl) labelEl.textContent = this.sfxMuted ? 'Effekte aus' : 'Effekte an';
+            }
         }
     }
 

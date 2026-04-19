@@ -9,18 +9,24 @@
 <body>
     <div id="game-wrapper">
         <button id="back-btn" title="Zurück zum Menü" aria-label="Zurück zum Menü">✕</button>
+        <button id="pause-btn" title="Pause" aria-label="Pause">⏸</button>
         <div id="hud">
             <span id="score-display">Score: 0</span>
             <span id="level-display">Level 1</span>
             <span id="highscore-display">HI: 0</span>
             <span id="lives-display"></span>
         </div>
-        <canvas id="gameCanvas" width="480" height="600"></canvas>
+        <div id="canvas-holder">
+            <canvas id="gameCanvas" width="480" height="600"></canvas>
+        </div>
         <div id="start-overlay">
             <div class="start-text">ULTIMATE<br>BREAKOUT</div>
             <button id="play-btn">SPIELEN</button>
-            <details id="parent-settings">
-                <summary>Einstellungen</summary>
+            <button id="parent-gate-btn" class="parent-gate-btn" title="Eltern-Einstellungen" aria-label="Eltern-Einstellungen">⚙</button>
+        </div>
+        <div id="parent-settings-overlay" class="hidden">
+            <div class="parent-settings-panel">
+                <div class="parent-settings-title">Eltern-Einstellungen</div>
                 <div class="start-options">
                     <div class="start-option-row">
                         <span class="option-label">Modus:</span>
@@ -34,7 +40,8 @@
                         <button id="skins-btn" class="skin-button">Paddle-Skins</button>
                     </div>
                 </div>
-            </details>
+                <button id="parent-settings-close" class="skin-button">Fertig</button>
+            </div>
         </div>
         <div id="tutorial-overlay" class="hidden"></div>
         <div id="skins-overlay" class="hidden">
@@ -43,16 +50,18 @@
             <button id="skins-close-btn" class="skin-button" style="margin-top:12px">Zurück</button>
         </div>
         <div id="game-over-overlay" class="hidden">
-            <div class="gameover-text">GAME OVER</div>
+            <div class="gameover-emoji" aria-hidden="true">💫</div>
+            <div class="gameover-text">Nochmal?</div>
+            <button class="retry-btn" data-action="retry">🔄</button>
             <div class="gameover-score"></div>
             <div class="gameover-highscore"></div>
-            <div class="start-sub">Klick oder Leertaste zum Neustarten</div>
         </div>
         <div id="win-overlay" class="hidden">
-            <div class="win-text">DU BIST EINE LEGENDE!</div>
+            <div class="win-emoji" aria-hidden="true">🎉</div>
+            <div class="win-text">Super!</div>
+            <button class="retry-btn" data-action="retry">🔄</button>
             <div class="win-score"></div>
             <div class="win-highscore"></div>
-            <div class="start-sub">Klick oder Leertaste zum Neustarten</div>
         </div>
         <div id="level-overlay" class="hidden">
             <div class="level-complete-text"></div>
@@ -61,13 +70,20 @@
         <div id="pause-overlay" class="hidden">
             <div class="pause-text">PAUSE</div>
             <div class="pause-menu">
-                <button class="pause-menu-btn selected" data-action="resume">Weiterspielen</button>
-                <button class="pause-menu-btn" data-action="toggleMusic">Musik an</button>
-                <button class="pause-menu-btn" data-action="toggleSfx">Effekte an</button>
-                <button class="pause-menu-btn" data-action="restart">Neustart</button>
-                <button class="pause-menu-btn" data-action="quit">Hauptmen&uuml;</button>
+                <button class="pause-menu-btn selected" data-action="resume"><span class="pause-icon">▶</span><span class="pause-label">Weiter</span></button>
+                <button class="pause-menu-btn" data-action="toggleMusic"><span class="pause-icon">🎵</span><span class="pause-label">Musik an</span></button>
+                <button class="pause-menu-btn" data-action="toggleSfx"><span class="pause-icon">🔔</span><span class="pause-label">Effekte an</span></button>
+                <button class="pause-menu-btn" data-action="restart"><span class="pause-icon">🔄</span><span class="pause-label">Neustart</span></button>
+                <button class="pause-menu-btn" data-action="quit"><span class="pause-icon">🏠</span><span class="pause-label">Menü</span></button>
             </div>
-            <div class="pause-hint">Pfeiltasten + Enter</div>
+        </div>
+        <div id="quit-confirm-overlay" class="hidden">
+            <div class="quit-confirm-emoji" aria-hidden="true">👋</div>
+            <div class="quit-confirm-text">Wirklich beenden?</div>
+            <div class="quit-confirm-buttons">
+                <button id="quit-confirm-no" class="quit-confirm-btn quit-no" aria-label="Nein, weiterspielen">✔</button>
+                <button id="quit-confirm-yes" class="quit-confirm-btn quit-yes" aria-label="Ja, beenden">✖</button>
+            </div>
         </div>
     </div>
     <script src="breakout.js"></script>
