@@ -81,6 +81,7 @@ const POWERUP_COMBOS = [
 const WORLD_THEMES = [
     { // World 1: Weltraum (default, levels 0-1)
         name: 'WELTRAUM',
+        emoji: '🚀',
         bg: '#111133',
         starColor: '#ccccff',
         brickColors: ['#ff4466','#ff6644','#ff8844','#ffcc44','#44ff88','#44bbff','#aa66ff'],
@@ -90,6 +91,7 @@ const WORLD_THEMES = [
     },
     { // World 2: Unterwasser (levels 2-3)
         name: 'TIEFSEE',
+        emoji: '🐠',
         bg: '#0a1a2e',
         starColor: '#44aacc',
         brickColors: ['#22ccaa','#44ddbb','#66eedd','#88ffee','#44aadd','#2288bb','#55ccff'],
@@ -99,6 +101,7 @@ const WORLD_THEMES = [
     },
     { // World 3: Vulkan (levels 4-5)
         name: 'VULKAN',
+        emoji: '🌋',
         bg: '#1a0a0a',
         starColor: '#ff8844',
         brickColors: ['#ff2200','#ff4400','#ff6600','#ff8800','#ffaa00','#ffcc22','#ffee44'],
@@ -108,6 +111,7 @@ const WORLD_THEMES = [
     },
     { // World 4: Bonbon-Land (levels 6-7)
         name: 'BONBON',
+        emoji: '🍭',
         bg: '#1a0a20',
         starColor: '#ff88cc',
         brickColors: ['#ff66aa','#ff88cc','#ffaadd','#cc88ff','#88ccff','#88ffcc','#ffff88'],
@@ -117,6 +121,7 @@ const WORLD_THEMES = [
     },
     { // World 5: Neon-City (levels 8+)
         name: 'NEON',
+        emoji: '✨',
         bg: '#0a0a1a',
         starColor: '#00ffaa',
         brickColors: ['#00ff88','#00ffcc','#00ccff','#4488ff','#8844ff','#cc44ff','#ff44cc'],
@@ -2216,6 +2221,8 @@ class InputManager {
         this.mouseX = W / 2;
         this.useMouse = false;
         this.clicked = false;
+        this.pointerDown = false;
+        this.released = false;
         this.konamiSeq = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
         this.konamiIdx = 0;
         this.konamiTriggered = false;
@@ -2257,15 +2264,28 @@ class InputManager {
             target.addEventListener('touchstart', (e) => {
                 if (e.touches && e.touches[0]) updateFromTouch(e.touches[0]);
                 this.clicked = true;
+                this.pointerDown = true;
                 e.preventDefault();
             }, { passive: false });
             target.addEventListener('touchmove', (e) => {
                 if (e.touches && e.touches[0]) updateFromTouch(e.touches[0]);
                 e.preventDefault();
             }, { passive: false });
+            // Release-on-up: wichtig fuer den „festhalten zum Zielen, loslassen
+            // zum Schiessen"-Workflow nach Ball-Verlust.
+            target.addEventListener('touchend', () => {
+                if (this.pointerDown) { this.pointerDown = false; this.released = true; }
+            }, { passive: true });
+            target.addEventListener('touchcancel', () => {
+                if (this.pointerDown) { this.pointerDown = false; this.released = true; }
+            }, { passive: true });
         }
         const handleClick = () => { this.clicked = true; };
         document.addEventListener('click', handleClick);
+        document.addEventListener('mousedown', () => { this.pointerDown = true; });
+        document.addEventListener('mouseup', () => {
+            if (this.pointerDown) { this.pointerDown = false; this.released = true; }
+        });
     }
 
     getDir() {
@@ -2277,6 +2297,11 @@ class InputManager {
 
     consumeClick() {
         if (this.clicked) { this.clicked = false; return true; }
+        return false;
+    }
+
+    consumeRelease() {
+        if (this.released) { this.released = false; return true; }
         return false;
     }
 
@@ -2302,6 +2327,12 @@ class InputManager {
     wantsRelease() {
         return this.keys[' '] || this.consumeClick();
     }
+
+    // Gesture fuer manuellen Start-Kleber: Finger halten -> Paddle bewegen,
+    // Finger loslassen -> Ball schiesst. Leertaste funktioniert weiterhin sofort.
+    wantsReleaseUp() {
+        return this.keys[' '] || this.consumeRelease();
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2319,7 +2350,7 @@ class Game {
         this.levels = new LevelManager();
         this.input = new InputManager(this.canvas);
 
-        this.state = 'start';
+        this.state = 'init';
         this.score = 0;
         this.lives = 3;
         this.combo = 0;
@@ -2354,14 +2385,6 @@ class Game {
         // Sound settings
         try { this.musicMuted = localStorage.getItem('breakout_musicMuted') === 'true'; } catch(e) { this.musicMuted = false; }
         try { this.sfxMuted = localStorage.getItem('breakout_sfxMuted') === 'true'; } catch(e) { this.sfxMuted = false; }
-        // Tutorial
-        try { this.tutorialSeen = localStorage.getItem('breakout_tutorialSeen') === 'true'; } catch(e) { this.tutorialSeen = false; }
-        this.tutorialStep = 0;
-        this.tutorialCards = [
-            { icon: '\uD83D\uDC46', text: 'Finger, Maus oder Pfeiltasten:\nPaddle bewegen' },
-            { icon: '\uD83E\uDDF1', text: 'Zerst\u00f6re alle\nbunten Steine!' },
-            { icon: '\u2B50', text: 'Sammle Power-ups\nf\u00fcr Superkr\u00e4fte!' },
-        ];
         // Pause menu
         this.pauseMenuIdx = 0;
         // Skins
@@ -2414,12 +2437,6 @@ class Game {
                 e.stopPropagation();
             }, { passive: true });
         }
-
-        // Play button
-        document.getElementById('play-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            this._triggerStart();
-        });
 
         // Eltern-Gate: unauffaelliges Zahnrad oeffnet das neu gestaltete
         // Eltern-Einstellungsmenue (gleiche Optik wie „Buchstaben"/„Zaehlen").
@@ -2498,6 +2515,10 @@ class Game {
         });
 
         this.updateHUD();
+        // Spiel startet direkt mit am Paddle klebendem Ball. Kein Tutorial, kein
+        // Spielen-Button. Erstes Drücken+Loslassen schiesst den Ball ab und
+        // weckt den Audio-Context (Autoplay-Gate).
+        this.startGame();
         this.loop();
     }
 
@@ -2568,74 +2589,27 @@ class Game {
             if (this.sfxMuted) this._cancelSpeech();
             this._applySoundSettings();
         });
-        // TTS-Backend-Auswahl
-        const googleConfig = $('bp-google-config');
+        // TTS-Backend-Auswahl: Thorsten (Piper) vs. Standard (Browser).
         document.querySelectorAll('input[name="bp-voice"]').forEach(r => {
-            r.addEventListener('change', (e) => {
+            r.addEventListener('change', () => {
                 const tts = this._tts();
                 if (tts) tts.setBackend(r.value);
-                if (googleConfig) googleConfig.toggleAttribute('hidden', r.value !== 'google');
                 this._renderTtsStatus();
             });
         });
-        // Google TTS Key/Voice
-        this._populateGoogleVoiceSelect();
-        const keyInput = $('bp-google-key');
-        const voiceInput = $('bp-google-voice');
-        if (keyInput) {
-            keyInput.addEventListener('input', () => {
-                const tts = this._tts();
-                if (tts) tts.setGoogleKey(keyInput.value);
-                this._renderTtsStatus();
-            });
-        }
-        if (voiceInput) {
-            voiceInput.addEventListener('change', () => {
-                const tts = this._tts();
-                if (tts) tts.setGoogleVoice(voiceInput.value);
-            });
-        }
-        const testBtn = $('bp-google-test');
-        if (testBtn) {
-            testBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const tts = this._tts();
-                if (!tts) return;
-                tts.setGoogleKey(keyInput.value);
-                tts.setGoogleVoice(voiceInput.value);
-                const prev = tts.backend;
-                tts.backend = 'google';
-                await tts.speak('Hallo, ich bin deine neue Stimme.');
-                tts.backend = prev;
-                this._renderTtsStatus();
-            });
-        }
     }
 
     _tts() {
-        // PiperTTSManager wird erst nach DOM-Init via shared.js verfuegbar.
-        // Shared-Instanz verwenden, damit sich alle Spiele das gleiche Modell
-        // und die gleichen Einstellungen teilen.
-        if (!window.PiperTTSManager) return null;
+        // PiperTTSManager wird von shared.js als klassisches Script im globalen
+        // Script-Scope deklariert (nicht auf window.*). Die Shared-Instanz sorgt
+        // dafuer, dass alle Spiele dasselbe Modell und dieselben Einstellungen
+        // (Backend-Auswahl, Google-Key, …) verwenden.
+        if (typeof PiperTTSManager === 'undefined') return null;
         if (!this._ttsInstance) {
-            try { this._ttsInstance = window.PiperTTSManager.getShared('de_DE-thorsten-medium'); }
+            try { this._ttsInstance = PiperTTSManager.getShared('de_DE-thorsten-medium'); }
             catch(e) { this._ttsInstance = null; }
         }
         return this._ttsInstance;
-    }
-
-    _populateGoogleVoiceSelect() {
-        const sel = document.getElementById('bp-google-voice');
-        if (!sel || sel.options.length > 0) return;
-        const voices = (typeof GOOGLE_CHIRP_VOICES !== 'undefined') ? GOOGLE_CHIRP_VOICES : [];
-        const tts = this._tts();
-        const current = tts ? tts.googleVoice : 'de-DE-Chirp3-HD-Leda';
-        voices.forEach(v => {
-            const o = document.createElement('option');
-            o.value = v.id; o.textContent = v.label;
-            if (v.id === current) o.selected = true;
-            sel.appendChild(o);
-        });
     }
 
     _openParentSettings() {
@@ -2679,17 +2653,17 @@ class Game {
         // Mute-Toggles
         if ($('bp-music-toggle')) $('bp-music-toggle').checked = !this.musicMuted;
         if ($('bp-sfx-toggle')) $('bp-sfx-toggle').checked = !this.sfxMuted;
-        // Stimme
+        // Stimme: in breakout nur Thorsten (Piper) oder Standard (Browser)
+        // waehlbar. Falls ein anderes Spiel 'google' eingestellt hat, fallen wir
+        // in der Anzeige auf Piper zurueck; das google-Backend bleibt aber
+        // funktional, falls dort konfiguriert.
         const tts = this._tts();
         if (tts) {
             const backend = tts.backend || 'piper';
+            const uiBackend = (backend === 'browser') ? 'browser' : 'piper';
             document.querySelectorAll('input[name="bp-voice"]').forEach(r => {
-                r.checked = (r.value === backend);
+                r.checked = (r.value === uiBackend);
             });
-            const gc = $('bp-google-config');
-            if (gc) gc.toggleAttribute('hidden', backend !== 'google');
-            if ($('bp-google-key')) $('bp-google-key').value = tts.googleKey || '';
-            this._populateGoogleVoiceSelect();
         }
         this._renderTtsStatus();
     }
@@ -2824,41 +2798,25 @@ class Game {
         this._quitConfirmPrevState = null;
     }
 
-    _triggerStart() {
-        if (!this.tutorialSeen) {
-            this.tutorialSeen = true;
-            try { localStorage.setItem('breakout_tutorialSeen', 'true'); } catch(e) {}
-            this.tutorialStep = 0;
-            this.state = 'tutorial';
-            this.hideAllOverlays();
-            this._showTutorialCard();
-            return;
-        }
-        this.startGame();
-    }
-
-    _showTutorialCard() {
-        const overlay = document.getElementById('tutorial-overlay');
-        overlay.classList.remove('hidden');
-        const card = this.tutorialCards[this.tutorialStep];
-        let dotsHtml = '';
-        for (let i = 0; i < this.tutorialCards.length; i++) {
-            dotsHtml += '<div class="tut-dot' + (i === this.tutorialStep ? ' active' : '') + '"></div>';
-        }
-        overlay.innerHTML = '<div class="tut-card"><div class="tut-icon">' + card.icon +
-            '</div><div class="tut-text">' + card.text.replace('\n', '<br>') +
-            '</div><div class="tut-next">' + (this.tutorialStep < this.tutorialCards.length - 1 ? 'Klick oder Enter' : 'LOS!') +
-            '</div><div class="tut-dots">' + dotsHtml + '</div></div>';
-    }
-
-    _advanceTutorial() {
-        this.tutorialStep++;
-        if (this.tutorialStep >= this.tutorialCards.length) {
-            document.getElementById('tutorial-overlay').classList.add('hidden');
-            this.startGame();
-        } else {
-            this._showTutorialCard();
-        }
+    _armAudioUnlock() {
+        if (this._audioUnlockArmed) return;
+        this._audioUnlockArmed = true;
+        const unlock = () => {
+            document.removeEventListener('pointerdown', unlock, true);
+            document.removeEventListener('keydown', unlock, true);
+            try {
+                if (this.audio.ctx && this.audio.ctx.state === 'suspended') {
+                    this.audio.ctx.resume().catch(() => {});
+                }
+            } catch(_) {}
+            // Falls der erste startMusic-Aufruf beim Autoplay-Gate fehlgeschlagen ist,
+            // jetzt erneut versuchen. Im Pause- oder Over-Zustand nichts tun.
+            if (this.state === 'playing' && !this.audio.bgAudio && !this.musicMuted) {
+                try { this.audio.startMusic(this.levels.currentLevel); } catch(_) {}
+            }
+        };
+        document.addEventListener('pointerdown', unlock, true);
+        document.addEventListener('keydown', unlock, true);
     }
 
     _showPowerupIntro(type) {
@@ -2874,8 +2832,13 @@ class Game {
     startGame() {
         this.audio.init();
         this._applySoundSettings();
-        // Klick vom Play-Button verwerfen, sonst wuerde er sofort den geklebten Ball loesen.
+        // Browser blockieren Autoplay bis zur ersten Nutzer-Geste. Da das Spiel
+        // direkt laeuft (ohne Play-Button), beim ersten Pointerdown/Keydown den
+        // Audio-Context entsperren und die Musik ggf. nachstarten.
+        this._armAudioUnlock();
+        // Etwaige vorherige Klicks verwerfen, damit der geklebte Ball nicht sofort fliegt.
         this.input.consumeClick();
+        this.input.consumeRelease();
         this.state = 'playing';
         this.score = 0;
         this.lives = this.kidsMode ? 5 : 3;
@@ -2900,7 +2863,7 @@ class Game {
         this.updateHUD();
         if (this.kidsMode) {
             const lvl = this.startLevel + 1;
-            this._speak('Los geht\u2019s! Level ' + this._numberWord(lvl) + '! Tippe zum Starten.');
+            this._speak('Los geht\u2019s! Level ' + this._numberWord(lvl) + '!');
         }
     }
 
@@ -2953,19 +2916,10 @@ class Game {
     }
 
     update() {
-        if (this.state === 'tutorial') {
-            if (this.input.wantsStart()) this._advanceTutorial();
-            return;
-        }
-
-        if (this.state === 'start' || this.state === 'gameover' || this.state === 'win') {
+        if (this.state === 'gameover' || this.state === 'win') {
             if (!document.getElementById('skins-overlay').classList.contains('hidden')) return;
             if (!document.getElementById('parent-settings-overlay').classList.contains('hidden')) return;
-            if (this.state === 'start') {
-                if (this.input.wantsStart()) this._triggerStart();
-            } else {
-                if (this.input.wantsStart()) this.startGame();
-            }
+            if (this.input.wantsStart()) this.startGame();
             return;
         }
 
@@ -3010,11 +2964,13 @@ class Game {
         this.paddle.update(this.input.getDir(), this.input.mouseX, this.input.useMouse);
 
         // Stuck-Handling: Magnet-Power-up ODER manueller Start-Kleber nach Ball-Verlust.
-        // Release pro Frame nur EINMAL abfragen, damit ein einzelner Tap bei
-        // Multiball+Magnet ALLE klebenden Baelle gleichzeitig loest (sonst
-        // konsumiert die erste Iteration den Click und die restlichen Baelle
-        // bleiben unnoetig kleben).
-        let releaseRequested = null;
+        // manualStick-Baelle loesen sich erst beim Loslassen des Fingers
+        // (wantsReleaseUp), damit der Spieler erst das Paddle hinziehen und
+        // dann zielgenau abfeuern kann. Magnet loest wie bisher auf Tap.
+        const anyManualStick = this.balls.some(b => b.stuck && b.manualStick);
+        const manualReleaseRequested = anyManualStick ? this.input.wantsReleaseUp() : false;
+        const magnetReleaseRequested = (!anyManualStick && this.balls.some(b => b.stuck && !b.manualStick))
+            ? this.input.wantsRelease() : false;
         for (const ball of this.balls) {
             if (!ball.stuck) { ball.stickTime = 0; continue; }
             ball.x = this.paddle.x + this.paddle.w / 2 + (ball.stuckOffset || 0);
@@ -3022,11 +2978,15 @@ class Game {
             ball.stickTime = (ball.stickTime || 0) + 1;
             // Kurze Schonfrist, damit ein noch nicht konsumierter Klick (z.B. vom
             // "Spielen"-Button) den Ball nicht sofort abfeuert.
-            if (ball.stickTime <= 8) { this.input.consumeClick(); continue; }
-            if (releaseRequested === null) releaseRequested = this.input.wantsRelease();
+            if (ball.stickTime <= 8) {
+                this.input.consumeClick();
+                this.input.consumeRelease();
+                continue;
+            }
             // Magnet: Auto-Release nach 8s. Manueller Start: Tipp erforderlich.
             const autoRelease = !ball.manualStick && ball.stickTime > 480;
-            if (releaseRequested || autoRelease) {
+            const released = ball.manualStick ? manualReleaseRequested : magnetReleaseRequested;
+            if (released || autoRelease) {
                 ball.stuck = false;
                 ball.manualStick = false;
                 ball.stickTime = 0;
@@ -3121,9 +3081,8 @@ class Game {
                 this.vfx.triggerShake(4);
                 this.vfx.flash('#4488ff', 0.2);
                 if (this.lives > 0) {
-                    this.vfx.addFloatingText(W / 2, H / 2 - 10, 'Ball verloren!', '#ff8844');
-                    this.vfx.addFloatingText(W / 2, H / 2 + 20, 'Tipp zum Starten!', '#44bbff');
-                    this._speak('Oh, ein Ball ist weg! Tippe zum Starten.');
+                    this.vfx.addFloatingText(W / 2, H / 2, '👆 Ziehen, loslassen!', '#44bbff');
+                    this._speak('Ziehen, loslassen!');
                 }
             } else {
                 this.audio.sfx('loseLife');
@@ -3777,8 +3736,11 @@ class Game {
         document.getElementById('score-display').textContent = 'Score: ' + this.score;
         const theme = WORLD_THEMES[this.currentWorld];
         const lvl = this.levels.currentLevel + 1;
-        const worldLabel = theme ? theme.name : '';
-        document.getElementById('level-display').textContent = worldLabel + ' L' + lvl;
+        const isKids = !!this.kidsMode;
+        const label = isKids
+            ? (theme && theme.emoji ? theme.emoji : '') + ' L' + lvl
+            : (theme ? theme.name + ' L' + lvl : 'L' + lvl);
+        document.getElementById('level-display').textContent = label;
         document.getElementById('highscore-display').textContent = 'HI: ' + this.highScore;
         const hearts = [];
         for (let i = 0; i < this.lives; i++) hearts.push('\u2764\uFE0F');
@@ -3934,7 +3896,7 @@ class Game {
     }
 
     hideAllOverlays() {
-        ['start-overlay', 'game-over-overlay', 'win-overlay', 'level-overlay', 'pause-overlay', 'skins-overlay', 'tutorial-overlay'].forEach(id => {
+        ['game-over-overlay', 'win-overlay', 'level-overlay', 'pause-overlay', 'skins-overlay'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
         });
