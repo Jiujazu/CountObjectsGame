@@ -148,6 +148,14 @@ class PiperTTSManager {
         this.progress = 0;   // 0..1 Modell-Download-Fortschritt
         this.status = 'init'; // init | downloading | ready | fallback (gilt nur fuer piper-Backend)
         this._currentAudio = null;
+        // Queue-Semantik: speak() reiht neue Ansagen hinter die laufende ein,
+        // statt sie zu ueberlappen. cancel() setzt den Cancel-Marker auf die
+        // aktuelle Generation, wodurch sowohl laufende als auch wartende
+        // Ansagen abbrechen - noetig wenn das Kind tippt oder eine neue
+        // Aufgabe startet.
+        this._speakGen = 0;
+        this._cancelGen = 0;
+        this._currentSpeak = null;
         // Backend-Wahl: 'piper' (default, lokal) | 'google' (Chirp 3 HD, API-Key) | 'browser'
         this.backend = this._loadSetting('tts-backend', 'piper');
         this.googleKey = this._loadSetting('google-tts-key', '');
@@ -198,14 +206,30 @@ class PiperTTSManager {
             this.status = 'fallback';
         }
     }
-    async speak(text) {
+    speak(text) {
+        const myGen = ++this._speakGen;
+        const prev = this._currentSpeak;
+        const task = (async () => {
+            try { if (prev) await prev; } catch (e) {}
+            if (this._cancelGen >= myGen) return;
+            await this._speakImmediate(text, myGen);
+        })();
+        this._currentSpeak = task;
+        task.finally(() => {
+            if (this._currentSpeak === task) this._currentSpeak = null;
+        });
+        return task;
+    }
+    cancel() {
+        this._cancelGen = this._speakGen;
         this._stop();
-        if (window.speechSynthesis) window.speechSynthesis.cancel();
+    }
+    async _speakImmediate(text, myGen) {
         if (!this.enabled || this.backend === 'browser') {
             return this.fallback.speak(text);
         }
         if (this.backend === 'google') {
-            return this._speakGoogle(text);
+            return this._speakGoogle(text, myGen);
         }
         if (!this.ready) return this.fallback.speak(text);
         try {
@@ -213,6 +237,7 @@ class PiperTTSManager {
                 window._piper.predict({ text, voiceId: this.voiceId }),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('piper-timeout')), 4000))
             ]);
+            if (this._cancelGen >= myGen) return;
             const url = URL.createObjectURL(wav);
             const audio = new Audio(url);
             // Piper-Thorsten spricht fuer Vorschulkinder etwas zu schnell.
@@ -221,7 +246,11 @@ class PiperTTSManager {
             audio.playbackRate = 0.9;
             this._currentAudio = audio;
             return new Promise((resolve) => {
-                const cleanup = () => { URL.revokeObjectURL(url); this._currentAudio = null; resolve(); };
+                const cleanup = () => {
+                    URL.revokeObjectURL(url);
+                    if (this._currentAudio === audio) this._currentAudio = null;
+                    resolve();
+                };
                 audio.onended = cleanup;
                 audio.onerror = cleanup;
                 audio.play().catch(cleanup);
@@ -231,7 +260,7 @@ class PiperTTSManager {
             return this.fallback.speak(text);
         }
     }
-    async _speakGoogle(text) {
+    async _speakGoogle(text, myGen) {
         if (!this.googleKey) { this.googleStatus = 'no-key'; return this.fallback.speak(text); }
         try {
             const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.googleKey)}`;
@@ -252,12 +281,16 @@ class PiperTTSManager {
             }
             const data = await res.json();
             if (!data.audioContent) { this.googleStatus = 'error'; return this.fallback.speak(text); }
+            if (this._cancelGen >= myGen) return;
             this.googleStatus = 'ready';
             const audio = new Audio('data:audio/mp3;base64,' + data.audioContent);
             audio.preservesPitch = true;
             this._currentAudio = audio;
             return new Promise((resolve) => {
-                const cleanup = () => { this._currentAudio = null; resolve(); };
+                const cleanup = () => {
+                    if (this._currentAudio === audio) this._currentAudio = null;
+                    resolve();
+                };
                 audio.onended = cleanup;
                 audio.onerror = cleanup;
                 audio.play().catch(cleanup);
@@ -272,6 +305,9 @@ class PiperTTSManager {
         if (this._currentAudio) {
             try { this._currentAudio.pause(); } catch (e) {}
             this._currentAudio = null;
+        }
+        if (window.speechSynthesis) {
+            try { window.speechSynthesis.cancel(); } catch (e) {}
         }
     }
     setEnabled(v) { this.enabled = !!v; }

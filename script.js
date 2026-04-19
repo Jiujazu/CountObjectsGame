@@ -197,6 +197,10 @@ class GameLogic {
         if (this.game.state.isProcessing) return;
         this.game.state.isProcessing = true;
 
+        // Kind hat getippt: laufende Instruktion abbrechen, damit die neue
+        // Rueckmeldung (Success/Wrong) nicht mit der alten Stimme ueberlappt.
+        if (this.game.tts && typeof this.game.tts.cancel === 'function') this.game.tts.cancel();
+
         if (number === this.game.state.correctAnswer) {
             this.game.state.wrongStreak = 0;
             this.game.state.score += this.game.state.level * 10;
@@ -208,8 +212,7 @@ class GameLogic {
                 document.removeEventListener('keydown', skipKeyHandler);
                 document.removeEventListener('click', skipClickHandler);
                 // Laufende TTS abbrechen, damit der Wechsel sich instant anfuehlt
-                if (this.game.tts && typeof this.game.tts._stop === 'function') this.game.tts._stop();
-                if (window.speechSynthesis) window.speechSynthesis.cancel();
+                if (this.game.tts && typeof this.game.tts.cancel === 'function') this.game.tts.cancel();
                 // Auto-Dismiss-Timeout abbrechen
                 if (this.game.ui._celebrationTimeout) {
                     clearTimeout(this.game.ui._celebrationTimeout);
@@ -248,10 +251,11 @@ class GameLogic {
             this.game.playSound('wrong');
             this.game.shakeObjects();
             const willHint = this.game.state.wrongStreak >= 3;
-            // Phrasen wie "Zähl nochmal nach!" brauchen die Aufgabe danach wirklich wieder
-            Promise.resolve(this.game.speakWrong(number)).then(() => {
-                if (!willHint) this.game.speakInstruction();
-            });
+            // Phrasen wie "Zähl nochmal nach!" brauchen die Aufgabe danach wirklich wieder.
+            // TTS queued intern, die Instruktion spielt also nach speakWrong.
+            // Beide werden durch ein erneutes cancel() beim naechsten Tap verworfen.
+            this.game.speakWrong(number);
+            if (!willHint) this.game.speakInstruction();
             // Nach 3 Fehlversuchen: Hinweis geben
             if (willHint) {
                 this.game.state.wrongStreak = 0;
@@ -271,6 +275,8 @@ class GameLogic {
     async nextLevel() {
         this.game.state.level++;
         this.game.state.wrongStreak = 0;
+        // Vor neuer Aufgabe: alle noch laufenden/gepufferten Ansagen verwerfen.
+        if (this.game.tts && typeof this.game.tts.cancel === 'function') this.game.tts.cancel();
         await this.createNewChallenge();
         this.game.ui.updateDisplay();
         this.game.ui.updateLevelIndicator();
