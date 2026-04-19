@@ -158,33 +158,28 @@ const TIMING = {
 // Kindgerechte, variierende TTS-Phrasen. Platzhalter: {word}, {letter}.
 const TTS_PHRASES = {
     instruction: [
-        '{word}. Mit welchem Buchstaben fängt {word} an?',
-        'Hör gut zu: {word}. Welcher Buchstabe ist am Anfang?',
-        '{word}. Welcher Buchstabe kommt ganz zuerst?',
-        'Das Wort heißt {word}. Mit welchem Buchstaben beginnt es?',
-        '{word}. Kannst du den ersten Buchstaben hören?',
-        'Finde den ersten Buchstaben von {word}.',
+        '{word} - welcher Buchstabe?',
+        '{word}. Wie fängt es an?',
+        '{word}. Erster Buchstabe?',
+        'Hör zu: {word}. Welcher Buchstabe?',
     ],
     correct: [
         'Genau! {letter} wie {word}!',
-        'Super gemacht! {word} beginnt mit {letter}!',
-        'Richtig! Das ist ein {letter}, wie in {word}!',
-        'Klasse! {letter} ist richtig!',
-        'Toll! {word} fängt mit {letter} an!',
-        'Bravo! {letter} wie {word}, genau richtig!',
+        'Super! {letter}!',
+        'Richtig! {letter} wie {word}!',
+        'Klasse, {letter}!',
+        'Bravo! {letter} wie {word}!',
     ],
     wrong: [
-        'Hm, das war nicht der erste Buchstabe. Hör nochmal gut hin!',
-        'Nicht ganz. Probier es nochmal!',
-        'Das war\'s noch nicht. Versuch einen anderen Buchstaben!',
-        'Ups, leider falsch. Hör nochmal genau hin!',
-        'Noch nicht ganz richtig. Du schaffst das!',
+        'Hör nochmal hin!',
+        'Probier nochmal!',
+        'Fast! Nochmal!',
+        'Nicht ganz. Nochmal!',
     ],
     hint: [
-        'Tipp: {word} beginnt mit {letter}.',
-        'Hör mal: {word} fängt mit {letter} an.',
-        'Am Anfang von {word} kommt ein {letter}.',
-        'Der erste Buchstabe von {word} ist ein {letter}.',
+        '{word} beginnt mit {letter}.',
+        'Am Anfang: {letter}.',
+        '{letter} wie {word}.',
     ],
 };
 
