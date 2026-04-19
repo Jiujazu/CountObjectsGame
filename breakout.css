@@ -42,20 +42,26 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 52px 8px 12px;
+    padding: 8px 108px 8px 12px;
     color: #e0e0ff;
     font-size: 0.95rem;
     font-weight: 600;
     letter-spacing: 0.05em;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     flex: 0 0 auto;
     min-height: 40px;
+    overflow: hidden;
 }
 
 #level-display {
     color: #ffcc44;
     font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 0 1 auto;
+    min-width: 0;
 }
 
 #highscore-display {
@@ -66,6 +72,8 @@ body {
 #lives-display {
     font-size: 1.2rem;
     letter-spacing: 2px;
+    white-space: nowrap;
+    flex: 0 0 auto;
 }
 
 #back-btn,
@@ -744,7 +752,7 @@ body.kids-mode #puzzle-container {
 /* Very small screens: compact HUD to avoid wrapping */
 @media (max-width: 360px) {
     #hud {
-        padding: 4px 96px 4px 6px;
+        padding: 4px 88px 4px 6px;
         font-size: 0.72rem;
         gap: 4px;
     }
@@ -759,7 +767,7 @@ body.kids-mode #puzzle-container {
 /* Mobile + portrait fine-tuning */
 @media (max-width: 600px) {
     #hud {
-        padding: 6px 100px 6px 8px;
+        padding: 6px 104px 6px 8px;
         font-size: 0.85rem;
         min-height: 38px;
     }
@@ -794,7 +802,7 @@ body.kids-mode #puzzle-container {
 @media (max-height: 520px) {
     /* Landscape phones: compact */
     #hud {
-        padding: 4px 100px 4px 8px;
+        padding: 4px 104px 4px 8px;
         font-size: 0.8rem;
         min-height: 32px;
     }

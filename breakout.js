@@ -81,6 +81,7 @@ const POWERUP_COMBOS = [
 const WORLD_THEMES = [
     { // World 1: Weltraum (default, levels 0-1)
         name: 'WELTRAUM',
+        emoji: '🚀',
         bg: '#111133',
         starColor: '#ccccff',
         brickColors: ['#ff4466','#ff6644','#ff8844','#ffcc44','#44ff88','#44bbff','#aa66ff'],
@@ -90,6 +91,7 @@ const WORLD_THEMES = [
     },
     { // World 2: Unterwasser (levels 2-3)
         name: 'TIEFSEE',
+        emoji: '🐠',
         bg: '#0a1a2e',
         starColor: '#44aacc',
         brickColors: ['#22ccaa','#44ddbb','#66eedd','#88ffee','#44aadd','#2288bb','#55ccff'],
@@ -99,6 +101,7 @@ const WORLD_THEMES = [
     },
     { // World 3: Vulkan (levels 4-5)
         name: 'VULKAN',
+        emoji: '🌋',
         bg: '#1a0a0a',
         starColor: '#ff8844',
         brickColors: ['#ff2200','#ff4400','#ff6600','#ff8800','#ffaa00','#ffcc22','#ffee44'],
@@ -108,6 +111,7 @@ const WORLD_THEMES = [
     },
     { // World 4: Bonbon-Land (levels 6-7)
         name: 'BONBON',
+        emoji: '🍭',
         bg: '#1a0a20',
         starColor: '#ff88cc',
         brickColors: ['#ff66aa','#ff88cc','#ffaadd','#cc88ff','#88ccff','#88ffcc','#ffff88'],
@@ -117,6 +121,7 @@ const WORLD_THEMES = [
     },
     { // World 5: Neon-City (levels 8+)
         name: 'NEON',
+        emoji: '✨',
         bg: '#0a0a1a',
         starColor: '#00ffaa',
         brickColors: ['#00ff88','#00ffcc','#00ccff','#4488ff','#8844ff','#cc44ff','#ff44cc'],
@@ -2216,6 +2221,8 @@ class InputManager {
         this.mouseX = W / 2;
         this.useMouse = false;
         this.clicked = false;
+        this.pointerDown = false;
+        this.released = false;
         this.konamiSeq = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
         this.konamiIdx = 0;
         this.konamiTriggered = false;
@@ -2257,15 +2264,28 @@ class InputManager {
             target.addEventListener('touchstart', (e) => {
                 if (e.touches && e.touches[0]) updateFromTouch(e.touches[0]);
                 this.clicked = true;
+                this.pointerDown = true;
                 e.preventDefault();
             }, { passive: false });
             target.addEventListener('touchmove', (e) => {
                 if (e.touches && e.touches[0]) updateFromTouch(e.touches[0]);
                 e.preventDefault();
             }, { passive: false });
+            // Release-on-up: wichtig fuer den „festhalten zum Zielen, loslassen
+            // zum Schiessen"-Workflow nach Ball-Verlust.
+            target.addEventListener('touchend', () => {
+                if (this.pointerDown) { this.pointerDown = false; this.released = true; }
+            }, { passive: true });
+            target.addEventListener('touchcancel', () => {
+                if (this.pointerDown) { this.pointerDown = false; this.released = true; }
+            }, { passive: true });
         }
         const handleClick = () => { this.clicked = true; };
         document.addEventListener('click', handleClick);
+        document.addEventListener('mousedown', () => { this.pointerDown = true; });
+        document.addEventListener('mouseup', () => {
+            if (this.pointerDown) { this.pointerDown = false; this.released = true; }
+        });
     }
 
     getDir() {
@@ -2277,6 +2297,11 @@ class InputManager {
 
     consumeClick() {
         if (this.clicked) { this.clicked = false; return true; }
+        return false;
+    }
+
+    consumeRelease() {
+        if (this.released) { this.released = false; return true; }
         return false;
     }
 
@@ -2301,6 +2326,12 @@ class InputManager {
 
     wantsRelease() {
         return this.keys[' '] || this.consumeClick();
+    }
+
+    // Gesture fuer manuellen Start-Kleber: Finger halten -> Paddle bewegen,
+    // Finger loslassen -> Ball schiesst. Leertaste funktioniert weiterhin sofort.
+    wantsReleaseUp() {
+        return this.keys[' '] || this.consumeRelease();
     }
 }
 
@@ -2358,9 +2389,9 @@ class Game {
         try { this.tutorialSeen = localStorage.getItem('breakout_tutorialSeen') === 'true'; } catch(e) { this.tutorialSeen = false; }
         this.tutorialStep = 0;
         this.tutorialCards = [
-            { icon: '\uD83D\uDC46', text: 'Finger, Maus oder Pfeiltasten:\nPaddle bewegen' },
-            { icon: '\uD83E\uDDF1', text: 'Zerst\u00f6re alle\nbunten Steine!' },
-            { icon: '\u2B50', text: 'Sammle Power-ups\nf\u00fcr Superkr\u00e4fte!' },
+            { icon: '\uD83D\uDC46', text: 'Paddle bewegen' },
+            { icon: '\uD83E\uDDF1', text: 'Steine zerst\u00f6ren!' },
+            { icon: '\u2B50', text: 'Sterne sammeln!' },
         ];
         // Pause menu
         this.pauseMenuIdx = 0;
@@ -2847,7 +2878,7 @@ class Game {
         }
         overlay.innerHTML = '<div class="tut-card"><div class="tut-icon">' + card.icon +
             '</div><div class="tut-text">' + card.text.replace('\n', '<br>') +
-            '</div><div class="tut-next">' + (this.tutorialStep < this.tutorialCards.length - 1 ? 'Klick oder Enter' : 'LOS!') +
+            '</div><div class="tut-next">' + (this.tutorialStep < this.tutorialCards.length - 1 ? 'Weiter \u2192' : 'LOS!') +
             '</div><div class="tut-dots">' + dotsHtml + '</div></div>';
     }
 
@@ -2900,7 +2931,7 @@ class Game {
         this.updateHUD();
         if (this.kidsMode) {
             const lvl = this.startLevel + 1;
-            this._speak('Los geht\u2019s! Level ' + this._numberWord(lvl) + '! Tippe zum Starten.');
+            this._speak('Los geht\u2019s! Level ' + this._numberWord(lvl) + '!');
         }
     }
 
@@ -3010,11 +3041,13 @@ class Game {
         this.paddle.update(this.input.getDir(), this.input.mouseX, this.input.useMouse);
 
         // Stuck-Handling: Magnet-Power-up ODER manueller Start-Kleber nach Ball-Verlust.
-        // Release pro Frame nur EINMAL abfragen, damit ein einzelner Tap bei
-        // Multiball+Magnet ALLE klebenden Baelle gleichzeitig loest (sonst
-        // konsumiert die erste Iteration den Click und die restlichen Baelle
-        // bleiben unnoetig kleben).
-        let releaseRequested = null;
+        // manualStick-Baelle loesen sich erst beim Loslassen des Fingers
+        // (wantsReleaseUp), damit der Spieler erst das Paddle hinziehen und
+        // dann zielgenau abfeuern kann. Magnet loest wie bisher auf Tap.
+        const anyManualStick = this.balls.some(b => b.stuck && b.manualStick);
+        const manualReleaseRequested = anyManualStick ? this.input.wantsReleaseUp() : false;
+        const magnetReleaseRequested = (!anyManualStick && this.balls.some(b => b.stuck && !b.manualStick))
+            ? this.input.wantsRelease() : false;
         for (const ball of this.balls) {
             if (!ball.stuck) { ball.stickTime = 0; continue; }
             ball.x = this.paddle.x + this.paddle.w / 2 + (ball.stuckOffset || 0);
@@ -3022,11 +3055,15 @@ class Game {
             ball.stickTime = (ball.stickTime || 0) + 1;
             // Kurze Schonfrist, damit ein noch nicht konsumierter Klick (z.B. vom
             // "Spielen"-Button) den Ball nicht sofort abfeuert.
-            if (ball.stickTime <= 8) { this.input.consumeClick(); continue; }
-            if (releaseRequested === null) releaseRequested = this.input.wantsRelease();
+            if (ball.stickTime <= 8) {
+                this.input.consumeClick();
+                this.input.consumeRelease();
+                continue;
+            }
             // Magnet: Auto-Release nach 8s. Manueller Start: Tipp erforderlich.
             const autoRelease = !ball.manualStick && ball.stickTime > 480;
-            if (releaseRequested || autoRelease) {
+            const released = ball.manualStick ? manualReleaseRequested : magnetReleaseRequested;
+            if (released || autoRelease) {
                 ball.stuck = false;
                 ball.manualStick = false;
                 ball.stickTime = 0;
@@ -3121,9 +3158,8 @@ class Game {
                 this.vfx.triggerShake(4);
                 this.vfx.flash('#4488ff', 0.2);
                 if (this.lives > 0) {
-                    this.vfx.addFloatingText(W / 2, H / 2 - 10, 'Ball verloren!', '#ff8844');
-                    this.vfx.addFloatingText(W / 2, H / 2 + 20, 'Tipp zum Starten!', '#44bbff');
-                    this._speak('Oh, ein Ball ist weg! Tippe zum Starten.');
+                    this.vfx.addFloatingText(W / 2, H / 2, '👆 Ziehen, loslassen!', '#44bbff');
+                    this._speak('Ziehen, loslassen!');
                 }
             } else {
                 this.audio.sfx('loseLife');
@@ -3777,8 +3813,11 @@ class Game {
         document.getElementById('score-display').textContent = 'Score: ' + this.score;
         const theme = WORLD_THEMES[this.currentWorld];
         const lvl = this.levels.currentLevel + 1;
-        const worldLabel = theme ? theme.name : '';
-        document.getElementById('level-display').textContent = worldLabel + ' L' + lvl;
+        const isKids = !!this.kidsMode;
+        const label = isKids
+            ? (theme && theme.emoji ? theme.emoji : '') + ' L' + lvl
+            : (theme ? theme.name + ' L' + lvl : 'L' + lvl);
+        document.getElementById('level-display').textContent = label;
         document.getElementById('highscore-display').textContent = 'HI: ' + this.highScore;
         const hearts = [];
         for (let i = 0; i < this.lives; i++) hearts.push('\u2764\uFE0F');
