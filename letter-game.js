@@ -321,6 +321,9 @@ class LetterGame {
     }
 
     async _createChallenge() {
+        // Vor neuer Aufgabe: laufende Ansage (z.B. "Super, A wie Apfel") verwerfen,
+        // damit sie nicht in die neue Instruktion hineinspricht.
+        if (this.tts && typeof this.tts.cancel === 'function') this.tts.cancel();
         // Zufaelligen Buchstaben waehlen
         const letters = this.state.activeLetters;
         this.state.currentLetter = letters[Math.floor(Math.random() * letters.length)];
@@ -370,6 +373,9 @@ class LetterGame {
     async _handleLetterClick(letter) {
         if (this.state.isProcessing) return;
         this.state.isProcessing = true;
+        // Kind hat getippt: laufende/gepufferte Ansagen abbrechen, sonst
+        // ueberlappen die alten mit der neuen Rueckmeldung.
+        if (this.tts && typeof this.tts.cancel === 'function') this.tts.cancel();
         const slot = document.getElementById('answer-slot');
         slot.textContent = letter;
         slot.classList.add('filled');
@@ -879,9 +885,8 @@ class LetterGame {
     _doClose() {
         // Ausstehende Timeouts (Next-Challenge, Wrong-Reset, Hint-Hide) stoppen
         this._clearPendingTimeouts();
-        // Laufende Sprachausgabe abbrechen
-        if (this.tts && typeof this.tts._stop === 'function') this.tts._stop();
-        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        // Laufende Sprachausgabe abbrechen (inkl. gepufferter Queue)
+        if (this.tts && typeof this.tts.cancel === 'function') this.tts.cancel();
         // Eltern-Menue schliessen falls offen
         if (this._parentMenuCleanup) this._parentMenuCleanup();
         // Visuelle Reste aufraeumen
