@@ -212,8 +212,9 @@ class PiperTTSManager {
         this._speakGen = 0;
         this._cancelGen = 0;
         this._currentSpeak = null;
-        // Backend-Wahl: 'piper' (default, lokal) | 'google' (Chirp 3 HD, API-Key) | 'browser'
-        this.backend = this._loadSetting('tts-backend', 'piper');
+        // Backend-Wahl: 'google' (default, Chirp 3 HD, API-Key) | 'piper' (lokal) | 'browser'
+        // Fallback-Kette fuer 'google': Google -> Piper -> Browser.
+        this.backend = this._loadSetting('tts-backend', 'google');
         this.googleKey = this._loadSetting('google-tts-key', '');
         this.googleVoice = this._loadSetting('google-tts-voice', 'de-DE-Chirp3-HD-Leda');
         this.googleStatus = this.googleKey ? 'ready' : 'no-key'; // ready | no-key | error
@@ -307,7 +308,7 @@ class PiperTTSManager {
         }
     }
     async _speakGoogle(text, myGen) {
-        if (!this.googleKey) { this.googleStatus = 'no-key'; return this.fallback.speak(text); }
+        if (!this.googleKey) { this.googleStatus = 'no-key'; return this._speakFallbackChain(text, myGen); }
         try {
             const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.googleKey)}`;
             const res = await fetch(url, {
@@ -323,10 +324,10 @@ class PiperTTSManager {
                 const body = await res.text().catch(() => '');
                 console.warn('[GoogleTTS] HTTP', res.status, body.slice(0, 200));
                 this.googleStatus = 'error';
-                return this.fallback.speak(text);
+                return this._speakFallbackChain(text, myGen);
             }
             const data = await res.json();
-            if (!data.audioContent) { this.googleStatus = 'error'; return this.fallback.speak(text); }
+            if (!data.audioContent) { this.googleStatus = 'error'; return this._speakFallbackChain(text, myGen); }
             if (this._cancelGen >= myGen) return;
             this.googleStatus = 'ready';
             // Base64-MP3 in ArrayBuffer umwandeln und ueber WebAudio abspielen.
@@ -338,8 +339,27 @@ class PiperTTSManager {
         } catch (e) {
             console.warn('[GoogleTTS] Fehler:', e);
             this.googleStatus = 'error';
-            return this.fallback.speak(text);
+            return this._speakFallbackChain(text, myGen);
         }
+    }
+    // Google -> Piper -> Browser: wenn Google ausfaellt, Piper probieren
+    // (falls Modell geladen), sonst Browser-SpeechSynthesis.
+    async _speakFallbackChain(text, myGen) {
+        if (this.ready && window._piper) {
+            try {
+                const wav = await Promise.race([
+                    window._piper.predict({ text, voiceId: this.voiceId }),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('piper-timeout')), 4000))
+                ]);
+                if (this._cancelGen >= myGen) return;
+                const arrayBuffer = await wav.arrayBuffer();
+                if (this._cancelGen >= myGen) return;
+                return await this._playViaWebAudio(arrayBuffer, 0.9, myGen);
+            } catch (e) {
+                console.warn('[PiperTTS] Fallback-Synthese fehlgeschlagen:', e);
+            }
+        }
+        return this.fallback.speak(text);
     }
     // Decodiert einen Audio-ArrayBuffer (WAV/MP3) ueber den geteilten
     // AudioContext und spielt ihn ueber eine BufferSource ab. iOS Safari

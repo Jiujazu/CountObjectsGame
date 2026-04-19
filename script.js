@@ -486,14 +486,41 @@ class CountingGame {
             });
         }
 
-        // --- Voice-Backend (nur piper / browser) ---
+        // --- Voice-Backend (google / piper / browser) ---
         overlay.querySelectorAll('input[name="pc-voice"]').forEach(r => {
             r.addEventListener('change', () => {
                 if (!r.checked) return;
                 this.tts.setBackend(r.value);
+                this._updateGoogleConfigVisibility();
                 this._renderParentTtsStatus();
             });
         });
+
+        // --- Google-Chirp-Konfiguration ---
+        const googleKey = document.getElementById('pc-google-key');
+        if (googleKey) {
+            googleKey.addEventListener('input', () => {
+                this.tts.setGoogleKey(googleKey.value);
+                this._renderParentTtsStatus();
+            });
+        }
+        const googleVoice = document.getElementById('pc-google-voice');
+        if (googleVoice) {
+            if (typeof GOOGLE_CHIRP_VOICES !== 'undefined') {
+                googleVoice.innerHTML = GOOGLE_CHIRP_VOICES
+                    .map(v => `<option value="${v.id}">${v.label}</option>`).join('');
+            }
+            googleVoice.addEventListener('change', () => {
+                this.tts.setGoogleVoice(googleVoice.value);
+            });
+        }
+        const googleTest = document.getElementById('pc-google-test');
+        if (googleTest) {
+            googleTest.addEventListener('click', () => {
+                try { this.tts.cancel(); } catch (e) {}
+                this.tts.speak('HALLO! ICH BIN DEINE NEUE STIMME.');
+            });
+        }
 
         // --- Schliessen ---
         const close = () => this._closeParentMenu();
@@ -532,6 +559,11 @@ class CountingGame {
         overlay.querySelectorAll('input[name="pc-voice"]').forEach(r => {
             r.checked = (r.value === this.tts.backend);
         });
+        const googleKey = document.getElementById('pc-google-key');
+        if (googleKey) googleKey.value = this.tts.googleKey || '';
+        const googleVoice = document.getElementById('pc-google-voice');
+        if (googleVoice) googleVoice.value = this.tts.googleVoice || 'de-DE-Chirp3-HD-Leda';
+        this._updateGoogleConfigVisibility();
 
         overlay.classList.remove('hidden');
 
@@ -563,11 +595,32 @@ class CountingGame {
         }
     }
 
+    _updateGoogleConfigVisibility() {
+        const cfg = document.getElementById('pc-google-config');
+        if (!cfg) return;
+        if (this.tts.backend === 'google') cfg.classList.remove('hidden');
+        else cfg.classList.add('hidden');
+    }
+
     _renderParentTtsStatus() {
         const statusEl = document.getElementById('pc-tts-status');
         if (!statusEl) return;
         statusEl.classList.remove('ready', 'fallback');
         const backend = this.tts.backend;
+        if (backend === 'google') {
+            const gs = this.tts.googleStatus;
+            if (gs === 'no-key') {
+                statusEl.textContent = '○ Kein API-Key hinterlegt – Fallback aktiv';
+                statusEl.classList.add('fallback');
+            } else if (gs === 'error') {
+                statusEl.textContent = '○ Google-Fehler – Fallback aktiv';
+                statusEl.classList.add('fallback');
+            } else {
+                statusEl.textContent = '● Google Chirp 3 HD bereit';
+                statusEl.classList.add('ready');
+            }
+            return;
+        }
         if (backend === 'browser') {
             statusEl.textContent = '● Browser-Stimme aktiv';
             statusEl.classList.add('ready');
@@ -1237,38 +1290,6 @@ document.addEventListener('touchstart', function() {}, {passive: true});
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
         createRipple(x, y);
         playPlickSound();
-    });
-})();
-
-// --- Startscreen-Sprachansage pro Kachel (fuer Kinder, die noch nicht lesen) ---
-(function() {
-    function getTTS() {
-        try { return PiperTTSManager.getShared(); } catch (e) { return null; }
-    }
-    let lastSpokenAt = 0;
-    function speak(text) {
-        const tts = getTTS();
-        if (!tts || !tts.enabled) return;
-        const now = performance.now();
-        if (now - lastSpokenAt < 600) return;
-        lastSpokenAt = now;
-        try { tts.speak(text); } catch (e) {}
-    }
-    function isStartscreenVisible() {
-        const s = document.getElementById('startscreen');
-        return s && s.style.display !== 'none' && !s.classList.contains('hide');
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.game-select-btn[data-speak]').forEach(btn => {
-            const label = btn.getAttribute('data-speak');
-            const announce = () => {
-                if (!isStartscreenVisible()) return;
-                speak(label);
-            };
-            btn.addEventListener('mouseenter', announce);
-            btn.addEventListener('focus', announce);
-        });
     });
 })();
 

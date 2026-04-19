@@ -589,6 +589,24 @@ class LetterGame {
         overlay.querySelectorAll('input[name="lp-voice"]').forEach(r => {
             r.checked = (r.value === this.tts.backend);
         });
+        const googleKeyInput = document.getElementById('lp-google-key');
+        const googleVoiceSel = document.getElementById('lp-google-voice');
+        const googleTestBtn = document.getElementById('lp-google-test');
+        const googleConfig = document.getElementById('lp-google-config');
+        const setGoogleConfigVisible = () => {
+            if (!googleConfig) return;
+            if (this.tts.backend === 'google') googleConfig.classList.remove('hidden');
+            else googleConfig.classList.add('hidden');
+        };
+        if (googleKeyInput) googleKeyInput.value = this.tts.googleKey || '';
+        if (googleVoiceSel) {
+            if (typeof GOOGLE_CHIRP_VOICES !== 'undefined') {
+                googleVoiceSel.innerHTML = GOOGLE_CHIRP_VOICES
+                    .map(v => `<option value="${v.id}">${v.label}</option>`).join('');
+            }
+            googleVoiceSel.value = this.tts.googleVoice || 'de-DE-Chirp3-HD-Leda';
+        }
+        setGoogleConfigVisible();
         updateCount();
         syncPresetActive();
 
@@ -698,19 +716,53 @@ class LetterGame {
             localStorage.setItem('letter-sfx', sfxCb.checked ? 'true' : 'false');
         });
 
-        // ---- Stimme (Piper / Browser) ----
+        // ---- Stimme (Google / Piper / Browser) ----
         overlay.querySelectorAll('input[name="lp-voice"]').forEach(r => {
             addListener(r, 'change', () => {
-                if (r.checked) this.tts.setBackend(r.value);
+                if (r.checked) {
+                    this.tts.setBackend(r.value);
+                    setGoogleConfigVisible();
+                }
                 renderStatus();
             });
         });
+        if (googleKeyInput) {
+            addListener(googleKeyInput, 'input', () => {
+                this.tts.setGoogleKey(googleKeyInput.value);
+                renderStatus();
+            });
+        }
+        if (googleVoiceSel) {
+            addListener(googleVoiceSel, 'change', () => {
+                this.tts.setGoogleVoice(googleVoiceSel.value);
+            });
+        }
+        if (googleTestBtn) {
+            addListener(googleTestBtn, 'click', () => {
+                try { this.tts.cancel(); } catch (e) {}
+                this.tts.speak('HALLO! ICH BIN DEINE NEUE STIMME.');
+            });
+        }
 
         // ---- TTS-Status live anzeigen ----
         const renderStatus = () => {
             if (!statusEl) return;
             statusEl.classList.remove('ready', 'fallback');
             const backend = this.tts.backend;
+            if (backend === 'google') {
+                const gs = this.tts.googleStatus;
+                if (gs === 'no-key') {
+                    statusEl.textContent = '○ Kein API-Key hinterlegt – Fallback aktiv';
+                    statusEl.classList.add('fallback');
+                } else if (gs === 'error') {
+                    statusEl.textContent = '○ Google-Fehler – Fallback aktiv';
+                    statusEl.classList.add('fallback');
+                } else {
+                    statusEl.textContent = '● Google Chirp 3 HD bereit';
+                    statusEl.classList.add('ready');
+                }
+                return;
+            }
             if (backend === 'browser') {
                 statusEl.textContent = '● Browser-Stimme aktiv';
                 statusEl.classList.add('ready');
