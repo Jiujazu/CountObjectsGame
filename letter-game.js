@@ -430,7 +430,6 @@ class LetterGame {
             }
             // 3-4jaehrige brechen nach 2 Fehlversuchen emotional ab, nicht erst nach 3.
             if (this.state.wrongStreak >= 2) {
-                this.state.wrongStreak = 0;
                 this._showHint();
             }
             this.state.isProcessing = false;
@@ -456,6 +455,10 @@ class LetterGame {
     }
 
     _showHint() {
+        // Nach einem Hint soll das Kind wieder einen fairen ersten Versuch haben,
+        // bevor der naechste Hint automatisch ausgeloest wird - egal ob der Hint
+        // ueber den Button oder nach 2 Fehlversuchen getriggert wurde.
+        this.state.wrongStreak = 0;
         const letter = this.state.currentLetter;
         const entry = ANLAUT_TABLE[letter];
         // Wort NICHT automatisch einblenden: Pre-Reader kann es nicht lesen,
@@ -870,13 +873,20 @@ class LetterGame {
         }
         const cleanup = () => {
             overlay.remove();
-            document.removeEventListener('keydown', kh);
+            document.removeEventListener('keydown', kh, true);
         };
         const kh = (e) => {
-            if (e.key === 'Escape') cleanup();
-            if (e.key === 'Enter') { cleanup(); this._doClose(); }
+            if (e.key === 'Escape' || e.key === 'Enter') {
+                // Capture-Phase + stopImmediatePropagation, damit der Spiel-weite
+                // _handleKeyDown (ESC → closeGame) nicht parallel einen neuen
+                // Overlay aufmacht, waehrend der alte geschlossen wird.
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                cleanup();
+                if (e.key === 'Enter') this._doClose();
+            }
         };
-        document.addEventListener('keydown', kh);
+        document.addEventListener('keydown', kh, true);
         document.getElementById('letter-close-yes').addEventListener('click', () => { cleanup(); this._doClose(); });
         document.getElementById('letter-close-no').addEventListener('click', cleanup);
         overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });

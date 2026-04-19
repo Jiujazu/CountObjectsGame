@@ -420,6 +420,9 @@ class CountingGame {
     }
 
     _initParentMenu() {
+        // Vorherige Listener abbauen, damit sich beim Re-Open des Spiels
+        // keine Long-Press-Timer stapeln.
+        this._teardownParentMenu();
         const indicator = document.getElementById('level-indicator');
         if (!indicator) return;
         let pressTimer = null;
@@ -435,6 +438,21 @@ class CountingGame {
         indicator.addEventListener('mouseleave', cancelPress);
         indicator.addEventListener('touchstart', startPress, { passive: true });
         indicator.addEventListener('touchend', cancelPress);
+        this._parentMenuBindings = [
+            { el: indicator, type: 'mousedown', fn: startPress },
+            { el: indicator, type: 'mouseup', fn: cancelPress },
+            { el: indicator, type: 'mouseleave', fn: cancelPress },
+            { el: indicator, type: 'touchstart', fn: startPress },
+            { el: indicator, type: 'touchend', fn: cancelPress },
+        ];
+    }
+
+    _teardownParentMenu() {
+        if (!this._parentMenuBindings) return;
+        this._parentMenuBindings.forEach(({ el, type, fn }) => {
+            el.removeEventListener(type, fn);
+        });
+        this._parentMenuBindings = [];
     }
 
     _buildVoiceOptions(current) {
@@ -913,13 +931,19 @@ class CountingGame {
 
         const cleanup = () => {
             overlay.remove();
-            document.removeEventListener('keydown', keyHandler);
+            document.removeEventListener('keydown', keyHandler, true);
         };
         const keyHandler = (e) => {
-            if (e.key === 'Escape') { cleanup(); }
-            if (e.key === 'Enter') { cleanup(); this._doCloseGame(); }
+            if (e.key === 'Escape' || e.key === 'Enter') {
+                // Capture-Phase + stopImmediatePropagation, damit der Game-ESC-Handler
+                // nicht parallel feuert und einen zweiten Overlay erzeugt.
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                cleanup();
+                if (e.key === 'Enter') this._doCloseGame();
+            }
         };
-        document.addEventListener('keydown', keyHandler);
+        document.addEventListener('keydown', keyHandler, true);
         document.getElementById('close-confirm-yes').addEventListener('click', () => { cleanup(); this._doCloseGame(); });
         document.getElementById('close-confirm-no').addEventListener('click', cleanup);
         overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
@@ -1091,6 +1115,9 @@ class CountingGame {
 
     // --- Event-Listener für das Spiel deaktivieren ---
     disableGameEvents() {
+        // Eltern-Menue-Longpress-Listener abbauen, sonst verdoppeln sie sich
+        // beim naechsten startGame().
+        this._teardownParentMenu();
         // Zahlen-Buttons
         document.querySelectorAll('.number-btn').forEach(btn => {
             btn.removeEventListener('click', btn._numberClickHandler);
