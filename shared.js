@@ -634,6 +634,18 @@ class MusicOverlay {
                 .music-overlay-close:hover {
                     background: #232946; color: #FFD166; transform: scale(1.1);
                 }
+                .music-overlay-stop {
+                    margin-top: 32px;
+                    background: #EF476F; border: none; color: #fff;
+                    font-size: 1.4rem; font-weight: 700;
+                    border-radius: 24px; padding: 14px 28px;
+                    cursor: pointer;
+                    box-shadow: 0 4px 14px #EF476F44;
+                    transition: background 0.18s, transform 0.18s;
+                    text-transform: uppercase; letter-spacing: 0.05em;
+                }
+                .music-overlay-stop:hover { transform: scale(1.05); background: #D93A5F; }
+                .music-overlay-stop:disabled { opacity: 0.45; cursor: default; transform: none; }
                 @media (max-width: 900px) {
                     .music-overlay-grid { grid-template-columns: repeat(3, 1fr); gap: 28px; }
                 }
@@ -683,6 +695,30 @@ class MusicOverlay {
             this.grid.appendChild(btn);
         });
         dialog.appendChild(this.grid);
+
+        // Stop-Button: stoppt die Hintergrundmusik komplett (nicht nur pausieren).
+        // Bleibt sichtbar, damit Kinder zwischen Tracks und Stille wechseln koennen.
+        const stopBtn = document.createElement('button');
+        stopBtn.className = 'music-overlay-stop';
+        stopBtn.type = 'button';
+        stopBtn.textContent = '\u23F9\uFE0F Stop';
+        stopBtn.setAttribute('aria-label', 'Musik stoppen');
+        const updateStopState = () => {
+            const hasMusic = !!(this.musicManager.backgroundMusic && !this.musicManager.backgroundMusic.paused);
+            stopBtn.disabled = !hasMusic;
+        };
+        updateStopState();
+        stopBtn.onclick = () => {
+            this.musicManager.musicEnabled = false;
+            this.musicManager.stopBackgroundMusic();
+            if (typeof this.musicManager._updateMusicButton === 'function') {
+                this.musicManager._updateMusicButton();
+            }
+            this.grid.querySelectorAll('.music-overlay-cover-btn').forEach(b => b.classList.remove('active'));
+            updateStopState();
+        };
+        dialog.appendChild(stopBtn);
+
         this.overlay.appendChild(dialog);
         document.body.appendChild(this.overlay);
         if (activeBtn && typeof activeBtn.scrollIntoView === 'function') {

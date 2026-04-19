@@ -13,7 +13,8 @@
 </head>
 <body>
     <div id="game-wrapper">
-        <button id="pause-btn" title="Menü" aria-label="Menü">⏸️</button>
+        <button id="back-btn" title="Zurück zum Menü" aria-label="Zurück zum Menü">🏠</button>
+        <button id="pause-btn" title="Menü" aria-label="Menü">⚙️</button>
         <div id="hud">
             <span id="level-display">L 1</span>
             <span id="lives-display"></span>
@@ -79,6 +80,7 @@
                                 <span class="parent-helper">Schaltet die Hintergrundmusik ein oder aus.</span>
                             </span>
                         </label>
+                        <button type="button" class="parent-btn parent-btn-secondary" id="bp-music-picker-btn">🎵 Musik-Auswahl öffnen</button>
                         <label class="parent-toggle">
                             <span class="parent-toggle-control"><input type="checkbox" id="bp-sfx-toggle"></span>
                             <span class="parent-toggle-text">
@@ -138,14 +140,6 @@
             <div class="level-complete-text"></div>
             <div class="level-bonus-text"></div>
         </div>
-        <div id="quit-confirm-overlay" class="hidden">
-            <div class="quit-confirm-emoji" aria-hidden="true">👋</div>
-            <div class="quit-confirm-text">Wirklich beenden?</div>
-            <div class="quit-confirm-buttons">
-                <button id="quit-confirm-no" class="quit-confirm-btn quit-no" aria-label="Nein, weiterspielen">✔</button>
-                <button id="quit-confirm-yes" class="quit-confirm-btn quit-yes" aria-label="Ja, beenden">✕</button>
-            </div>
-        </div>
     </div>
     <!-- Piper TTS (gleich wie bei „Buchstaben"/„Zaehlen"): laedt das
          Thorsten-Modell offline, mit automatischem Fallback auf die
@@ -159,6 +153,7 @@
     </script>
     <script type="module" src="piper-loader.js"></script>
     <script src="shared.js"></script>
+    <script src="game-ui.js"></script>
     <script src="breakout.js"></script>
 </body>
 </html>
