@@ -771,7 +771,14 @@ class VisualEffects {
     }
 
     addFloatingText(x, y, text, color = '#ffcc44') {
-        this.floatingTexts.push({ x, y, text, color, life: 80, dy: -1.5 });
+        // Stack-avoidance: if another text is within 40px vertically, offset this one below
+        let adjustedY = y;
+        for (const ft of this.floatingTexts) {
+            if (ft.life > 20 && Math.abs(ft.x - x) < 200 && Math.abs(ft.y - adjustedY) < 40) {
+                adjustedY = ft.y + 44;
+            }
+        }
+        this.floatingTexts.push({ x, y: adjustedY, text, color, life: 80, dy: -1.5 });
     }
 
     update(combo, partyMode) {
@@ -1635,10 +1642,10 @@ class LevelManager {
             for (let c = 0; c < BRICK_COLS; c++) {
                 let ch = c < row.length ? row[c] : '.';
                 if (ch === '.' || ch === ' ') continue;
-                if (kidsMode && levelIndex < this.layouts.length) {
-                    if (ch === 'S' && levelIndex < 4) ch = '#';
-                    if ((ch === 'X' || ch === '2' || ch === '3') && levelIndex < 2) ch = '#';
-                    if (ch === 'M' && levelIndex < 3) ch = '#';
+                if (kidsMode) {
+                    if (ch === 'S' && levelIndex < 6) ch = '#';
+                    if ((ch === 'X' || ch === '2' || ch === '3') && levelIndex < 3) ch = '#';
+                    if (ch === 'M' && levelIndex < 4) ch = '#';
                 }
                 const x = BRICK_OFFSET_X + c * (BRICK_W + BRICK_PAD);
                 const y = BRICK_OFFSET_Y + r * (BRICK_H + BRICK_PAD);
@@ -1694,7 +1701,7 @@ class Boss {
         this.easyMode = easyMode;
         const bossNum = Math.floor(levelIndex / 5);
         this.type = ['kraken','phoenix','golem','dragon','hydra'][bossNum % 5];
-        this.maxHp = easyMode ? 20 + bossNum * 5 : 40 + bossNum * 15;
+        this.maxHp = easyMode ? 20 + bossNum * 5 : 30 + bossNum * 10;
         this.hp = this.maxHp;
         this.x = W / 2;
         this.y = 70;
@@ -1740,19 +1747,23 @@ class Boss {
             this.phaseTimer = 0;
             this.phase = (this.phase + 1) % 3;
         }
-        if (this.phase === 0 && this.timer % 40 === 0) {
-            this.projectiles.push({ x: this.x + rnd(-30, 30), y: this.y + this.height / 2, dy: 2.5, r: 5 });
+        if (this.phase === 0 && this.timer % 50 === 0) {
+            this.projectiles.push({ x: this.x + rnd(-30, 30), y: this.y + this.height / 2, dy: 2.2, dx: 0, r: 5, warn: 30 });
         }
-        if (this.phase === 1 && this.timer % 15 === 0) {
-            this.projectiles.push({ x: this.x + rnd(-50, 50), y: this.y + this.height / 2 + 10, dy: 3.5, r: 4 });
+        if (this.phase === 1 && this.timer % 32 === 0) {
+            const spread = rnd(-80, 80);
+            this.projectiles.push({ x: this.x + spread, y: this.y + this.height / 2 + 10, dy: 3.0, dx: spread * 0.01, r: 4, warn: 25 });
         }
         for (const wp of this.weakPoints) {
             if (wp.cooldown > 0) wp.cooldown--;
             wp.active = !(this.phase === 2 && this.phaseTimer < 60);
         }
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
-            this.projectiles[i].y += this.projectiles[i].dy;
-            if (this.projectiles[i].y > H + 10) this.projectiles.splice(i, 1);
+            const p = this.projectiles[i];
+            if (p.warn > 0) { p.warn--; continue; }
+            p.y += p.dy;
+            if (p.dx) p.x += p.dx;
+            if (p.y > H + 10) this.projectiles.splice(i, 1);
         }
     }
 
@@ -1783,6 +1794,7 @@ class Boss {
     checkProjectileHitPaddle(paddle) {
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const p = this.projectiles[i];
+            if (p.warn > 0) continue;
             if (p.y + p.r >= paddle.y && p.y - p.r <= paddle.y + paddle.h &&
                 p.x >= paddle.x && p.x <= paddle.x + paddle.w) {
                 this.projectiles.splice(i, 1);
@@ -1861,8 +1873,21 @@ class Boss {
         ctx.strokeStyle = 'rgba(255,255,255,0.3)';
         ctx.lineWidth = 1;
         ctx.strokeRect(barX, barY, barW, barH);
-        // Projectiles
+        // Projectiles (with telegraph during warn phase)
         for (const p of this.projectiles) {
+            if (p.warn > 0) {
+                const pulse = 0.5 + 0.5 * Math.sin(p.warn * 0.6);
+                ctx.fillStyle = `rgba(255,68,102,${0.25 + 0.35 * pulse})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r + 4 + pulse * 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ffcc33';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r + 2, 0, Math.PI * 2);
+                ctx.stroke();
+                continue;
+            }
             ctx.fillStyle = '#ff4466';
             ctx.shadowColor = '#ff4466';
             ctx.shadowBlur = 6;
@@ -2355,9 +2380,14 @@ class Game {
             this.particles.update();
             this.vfx.update(this.combo, this.partyMode);
             if (this.levelTransitionTimer <= 0) {
-                this.state = 'playing';
-                document.getElementById('level-overlay').classList.add('hidden');
                 const nextLvl = this.levels.currentLevel + 1;
+                const maxLvl = this.kidsMode ? 10 : 20;
+                document.getElementById('level-overlay').classList.add('hidden');
+                if (nextLvl >= maxLvl) {
+                    this.winGame();
+                    return;
+                }
+                this.state = 'playing';
                 this.loadLevel(nextLvl);
                 this.audio.startMusic(nextLvl);
                 this.updateHUD();
@@ -2386,12 +2416,17 @@ class Game {
                 if (ball.stuck) {
                     ball.x = this.paddle.x + this.paddle.w / 2 + ball.stuckOffset;
                     ball.y = this.paddle.y - ball.r;
-                    if (this.input.wantsRelease()) {
+                    ball.stickTime = (ball.stickTime || 0) + 1;
+                    const autoRelease = ball.stickTime > 480;
+                    if (this.input.wantsRelease() || autoRelease) {
                         ball.stuck = false;
+                        ball.stickTime = 0;
                         const hitPos = (ball.x - this.paddle.x) / this.paddle.w;
                         const angle = -Math.PI / 2 + (hitPos - 0.5) * 1.2;
                         ball.setAngle(angle, ball.speed);
                     }
+                } else {
+                    ball.stickTime = 0;
                 }
             }
         }
@@ -2759,7 +2794,8 @@ class Game {
         this.powerups.trySpawn(brick.x + brick.w / 2, brick.y + brick.h / 2, this.partyMode, this.kidsMode);
         // Ball speed increase every 5 bricks
         if (this.bricksDestroyed % 5 === 0) {
-            const maxSpeed = this.levels.getBaseSpeed() + 3;
+            const speedMul = this.kidsMode ? 0.6 : 1;
+            const maxSpeed = (this.levels.getBaseSpeed() + 3) * speedMul;
             for (const b of this.balls) {
                 if (!b.stuck) {
                     const currentSpeed = Math.sqrt(b.dx * b.dx + b.dy * b.dy);
@@ -3112,8 +3148,7 @@ class Game {
         const theme = WORLD_THEMES[this.currentWorld];
         const lvl = this.levels.currentLevel + 1;
         const worldLabel = theme ? theme.name : '';
-        const endlessLabel = lvl > 5 ? ' Endlos' : '';
-        document.getElementById('level-display').textContent = worldLabel + endlessLabel + ' L' + lvl;
+        document.getElementById('level-display').textContent = worldLabel + ' L' + lvl;
         document.getElementById('highscore-display').textContent = 'HI: ' + this.highScore;
         const hearts = [];
         for (let i = 0; i < this.lives; i++) hearts.push('\u2764\uFE0F');

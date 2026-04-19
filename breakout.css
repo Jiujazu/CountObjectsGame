@@ -256,7 +256,9 @@ body {
 body.kids-mode .gameover-score,
 body.kids-mode .gameover-highscore,
 body.kids-mode .win-score,
-body.kids-mode .win-highscore {
+body.kids-mode .win-highscore,
+body.kids-mode #score-display,
+body.kids-mode #highscore-display {
     display: none;
 }
 
@@ -800,6 +802,21 @@ body.warp-mode #gameCanvas {
    relevant und nimmt Fingerplatz weg. */
 body.kids-mode #puzzle-container {
     display: none !important;
+}
+
+/* Very small screens: compact HUD to avoid wrapping */
+@media (max-width: 360px) {
+    #hud {
+        padding: 4px 96px 4px 6px;
+        font-size: 0.72rem;
+        gap: 4px;
+    }
+    #highscore-display { font-size: 0.65rem; }
+    #lives-display { font-size: 0.95rem; letter-spacing: 1px; }
+    #back-btn, #pause-btn {
+        width: 34px; height: 34px; font-size: 1rem;
+    }
+    #pause-btn { right: 46px; }
 }
 
 /* Mobile + portrait fine-tuning */
