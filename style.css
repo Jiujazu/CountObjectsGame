@@ -1298,6 +1298,78 @@ html, body {
     filter: drop-shadow(0 3px 6px rgba(0,0,0,0.12));
 }
 
+/* --- Konkrete, animierte Kachel-Inhalte (fuer Nicht-Leser) --- */
+.tile-art {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 1em;
+}
+
+/* Zählen: drei Tiere, die nacheinander hüpfen */
+.tile-art--counting .tile-emoji {
+    font-size: 3.4rem;
+    display: inline-block;
+    animation: tileHop 1.6s ease-in-out infinite;
+}
+.tile-art--counting .tile-emoji:nth-child(1) { animation-delay: 0s;    }
+.tile-art--counting .tile-emoji:nth-child(2) { animation-delay: 0.2s;  }
+.tile-art--counting .tile-emoji:nth-child(3) { animation-delay: 0.4s;  }
+@keyframes tileHop {
+    0%, 60%, 100% { transform: translateY(0); }
+    20%           { transform: translateY(-14px); }
+    35%           { transform: translateY(-4px); }
+}
+
+/* Buchstaben: A B C wechseln nacheinander die Farbe und wippen */
+.tile-art--letters {
+    gap: 6px;
+}
+.tile-art--letters .tile-letter {
+    font-family: 'Roboto', 'Open Sans', Arial, sans-serif;
+    font-weight: 900;
+    font-size: 3.6rem;
+    line-height: 1;
+    display: inline-block;
+    animation: tileLetter 2.4s ease-in-out infinite;
+}
+.tile-art--letters .tile-letter:nth-child(1) { color: #E63946; animation-delay: 0s;   }
+.tile-art--letters .tile-letter:nth-child(2) { color: #118AB2; animation-delay: 0.4s; }
+.tile-art--letters .tile-letter:nth-child(3) { color: #06A77D; animation-delay: 0.8s; }
+@keyframes tileLetter {
+    0%, 70%, 100% { transform: scale(1) rotate(0deg); }
+    20%           { transform: scale(1.25) rotate(-6deg); }
+    40%           { transform: scale(1.1)  rotate(6deg); }
+}
+
+/* Breakout: Backsteine mit einem Ball, der davor hüpft */
+.tile-art--breakout {
+    position: relative;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 4px;
+}
+.tile-art--breakout .tile-bricks {
+    display: inline-flex;
+    gap: 1px;
+}
+.tile-art--breakout .tile-bricks > span {
+    font-size: 2.6rem;
+    line-height: 1;
+}
+.tile-art--breakout .tile-ball {
+    font-size: 2.4rem;
+    display: inline-block;
+    animation: tileBall 1.2s ease-in-out infinite;
+}
+@keyframes tileBall {
+    0%, 100% { transform: translate(-30px, 0) rotate(0deg); }
+    25%      { transform: translate(-10px, -14px) rotate(120deg); }
+    50%      { transform: translate(10px, 0) rotate(240deg); }
+    75%      { transform: translate(30px, -14px) rotate(340deg); }
+}
+
 .game-select-label {
     font-size: 1.5rem;
     font-family: 'Roboto', 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -1338,7 +1410,7 @@ html, body {
         flex-direction: row;
         width: 80vw;
         max-width: 360px;
-        height: 96px;
+        height: 104px;
         border-radius: 26px;
         gap: 20px;
         padding: 0 24px;
@@ -1347,9 +1419,26 @@ html, body {
     }
     .game-select-icon {
         font-size: 3.6rem;
+        width: 90px;
+        justify-content: center;
+    }
+    .tile-art--counting .tile-emoji { font-size: 2rem; }
+    .tile-art--letters  .tile-letter { font-size: 2.2rem; }
+    .tile-art--breakout .tile-bricks > span { font-size: 1.6rem; }
+    .tile-art--breakout .tile-ball { font-size: 1.4rem; animation-duration: 1.4s; }
+    @keyframes tileBall {
+        0%, 100% { transform: translate(-18px, 0) rotate(0deg); }
+        25%      { transform: translate(-6px, -10px) rotate(120deg); }
+        50%      { transform: translate(6px, 0) rotate(240deg); }
+        75%      { transform: translate(18px, -10px) rotate(340deg); }
     }
     .game-select-label {
         font-size: 1.5rem;
+    }
+    /* Video auf Handy ausblenden – es überlappt die Kacheln und hat auf kleinem
+       Bildschirm keinen eigenen Mehrwert. */
+    .startscreen-video {
+        display: none;
     }
 }
 

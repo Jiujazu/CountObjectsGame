@@ -23,16 +23,29 @@
                 <span class="startscreen-cta-text">Tipp ein Spiel!</span>
             </h1>
             <div class="game-select-menu" id="game-select-menu">
-                <button class="game-select-btn game-select-btn--counting" data-game="counting" aria-label="Zählen">
-                    <span class="game-select-icon">🔢</span>
+                <button class="game-select-btn game-select-btn--counting" data-game="counting" data-speak="Zählspiel" aria-label="Zählen">
+                    <span class="game-select-icon tile-art tile-art--counting" aria-hidden="true">
+                        <span class="tile-emoji">🐶</span>
+                        <span class="tile-emoji">🐱</span>
+                        <span class="tile-emoji">🦊</span>
+                    </span>
                     <span class="game-select-label">Zählen</span>
                 </button>
-                <button class="game-select-btn game-select-btn--letters" data-game="letters" aria-label="Buchstaben">
-                    <span class="game-select-icon">🔤</span>
+                <button class="game-select-btn game-select-btn--letters" data-game="letters" data-speak="Buchstabenspiel" aria-label="Buchstaben">
+                    <span class="game-select-icon tile-art tile-art--letters" aria-hidden="true">
+                        <span class="tile-letter">A</span>
+                        <span class="tile-letter">B</span>
+                        <span class="tile-letter">C</span>
+                    </span>
                     <span class="game-select-label">Buchstaben</span>
                 </button>
-                <button class="game-select-btn game-select-btn--breakout" data-game="breakout" aria-label="Breakout">
-                    <span class="game-select-icon">🧱</span>
+                <button class="game-select-btn game-select-btn--breakout" data-game="breakout" data-speak="Breakout: Ball und Steine" aria-label="Breakout">
+                    <span class="game-select-icon tile-art tile-art--breakout" aria-hidden="true">
+                        <span class="tile-bricks">
+                            <span>🧱</span><span>🧱</span><span>🧱</span>
+                        </span>
+                        <span class="tile-ball">⚽</span>
+                    </span>
                     <span class="game-select-label">Breakout</span>
                 </button>
             </div>
