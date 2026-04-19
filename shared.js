@@ -148,6 +148,12 @@ class PiperTTSManager {
         this.progress = 0;   // 0..1 Modell-Download-Fortschritt
         this.status = 'init'; // init | downloading | ready | fallback (gilt nur fuer piper-Backend)
         this._currentAudio = null;
+        // WebAudio-BufferSource der laufenden Ansage. iOS Safari blockiert
+        // HTMLAudioElement.play(), wenn der Call nach asynchroner WASM-
+        // Inferenz ausserhalb des User-Gesture-Fensters landet. Der Shared-
+        // AudioContext ist beim ersten Tap (Spielstart) bereits entsperrt,
+        // darum spielen wir TTS primaer darueber ab.
+        this._currentSource = null;
         // Queue-Semantik: speak() reiht neue Ansagen hinter die laufende ein,
         // statt sie zu ueberlappen. cancel() setzt den Cancel-Marker auf die
         // aktuelle Generation, wodurch sowohl laufende als auch wartende
@@ -238,23 +244,13 @@ class PiperTTSManager {
                 new Promise((_, reject) => setTimeout(() => reject(new Error('piper-timeout')), 4000))
             ]);
             if (this._cancelGen >= myGen) return;
-            const url = URL.createObjectURL(wav);
-            const audio = new Audio(url);
+            const arrayBuffer = await wav.arrayBuffer();
+            if (this._cancelGen >= myGen) return;
             // Piper-Thorsten spricht fuer Vorschulkinder etwas zu schnell.
-            // preservesPitch verhindert den Chipmunk-Effekt beim Verlangsamen.
-            audio.preservesPitch = true;
-            audio.playbackRate = 0.9;
-            this._currentAudio = audio;
-            return new Promise((resolve) => {
-                const cleanup = () => {
-                    URL.revokeObjectURL(url);
-                    if (this._currentAudio === audio) this._currentAudio = null;
-                    resolve();
-                };
-                audio.onended = cleanup;
-                audio.onerror = cleanup;
-                audio.play().catch(cleanup);
-            });
+            // playbackRate 0.9 senkt leicht die Tonhoehe - ok fuer maennliche
+            // Stimme. WebAudio unterstuetzt kein preservesPitch, das ist der
+            // Preis fuer iOS-Kompatibilitaet.
+            return await this._playViaWebAudio(arrayBuffer, 0.9, myGen);
         } catch (e) {
             console.warn('[PiperTTS] Synthese fehlgeschlagen, Fallback:', e);
             return this.fallback.speak(text);
@@ -283,28 +279,70 @@ class PiperTTSManager {
             if (!data.audioContent) { this.googleStatus = 'error'; return this.fallback.speak(text); }
             if (this._cancelGen >= myGen) return;
             this.googleStatus = 'ready';
-            const audio = new Audio('data:audio/mp3;base64,' + data.audioContent);
-            audio.preservesPitch = true;
-            this._currentAudio = audio;
-            return new Promise((resolve) => {
-                const cleanup = () => {
-                    if (this._currentAudio === audio) this._currentAudio = null;
-                    resolve();
-                };
-                audio.onended = cleanup;
-                audio.onerror = cleanup;
-                audio.play().catch(cleanup);
-            });
+            // Base64-MP3 in ArrayBuffer umwandeln und ueber WebAudio abspielen.
+            // Google liefert schon mit speakingRate: 0.85, daher playbackRate 1.
+            const binary = atob(data.audioContent);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return await this._playViaWebAudio(bytes.buffer, 1, myGen);
         } catch (e) {
             console.warn('[GoogleTTS] Fehler:', e);
             this.googleStatus = 'error';
             return this.fallback.speak(text);
         }
     }
+    // Decodiert einen Audio-ArrayBuffer (WAV/MP3) ueber den geteilten
+    // AudioContext und spielt ihn ueber eine BufferSource ab. iOS Safari
+    // erlaubt WebAudio-Playback, sobald der Context einmal ueber eine
+    // Nutzer-Geste entsperrt wurde - die Piper-Inferenz-Latenz ist damit
+    // unkritisch, weil wir keinen HTMLAudioElement.play() im Gesture-Block
+    // brauchen.
+    async _playViaWebAudio(arrayBuffer, playbackRate, myGen) {
+        const ctx = SharedAudio.getContext();
+        if (ctx.state === 'suspended') {
+            try { await ctx.resume(); } catch (e) {}
+        }
+        // Safari unterstuetzt sowohl die callback- als auch die promise-
+        // basierte decodeAudioData-Signatur; wir rufen die Callback-Variante
+        // auf und wrappen sie selbst in ein Promise, damit aeltere iOS-
+        // Versionen nicht an der fehlenden Promise-Rueckgabe scheitern.
+        const audioBuffer = await new Promise((resolve, reject) => {
+            try {
+                const p = ctx.decodeAudioData(arrayBuffer, resolve, reject);
+                if (p && typeof p.then === 'function') p.then(resolve, reject);
+            } catch (e) { reject(e); }
+        });
+        if (this._cancelGen >= myGen) return;
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        if (playbackRate && playbackRate !== 1) {
+            try { source.playbackRate.value = playbackRate; } catch (e) {}
+        }
+        source.connect(ctx.destination);
+        this._currentSource = source;
+        return new Promise((resolve) => {
+            let done = false;
+            const cleanup = () => {
+                if (done) return;
+                done = true;
+                if (this._currentSource === source) this._currentSource = null;
+                try { source.disconnect(); } catch (e) {}
+                resolve();
+            };
+            source.onended = cleanup;
+            try { source.start(0); } catch (e) { cleanup(); }
+        });
+    }
     _stop() {
         if (this._currentAudio) {
             try { this._currentAudio.pause(); } catch (e) {}
             this._currentAudio = null;
+        }
+        if (this._currentSource) {
+            try { this._currentSource.onended = null; } catch (e) {}
+            try { this._currentSource.stop(0); } catch (e) {}
+            try { this._currentSource.disconnect(); } catch (e) {}
+            this._currentSource = null;
         }
         if (window.speechSynthesis) {
             try { window.speechSynthesis.cancel(); } catch (e) {}
