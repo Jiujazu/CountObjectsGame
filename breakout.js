@@ -821,7 +821,9 @@ class Brick {
             if (this.x > this.originX + this.moveRange || this.x < this.originX - this.moveRange) {
                 this.moveDir *= -1;
             }
-            this.x = clamp(this.x, 2, W - this.w - 2);
+            const clamped = clamp(this.x, 2, W - this.w - 2);
+            if (clamped !== this.x) this.moveDir *= -1;
+            this.x = clamped;
         }
         if (this.type === 'gold') {
             this.sparkleTimer++;
@@ -934,14 +936,17 @@ class Ball {
         this.y += this.dy * speedMult;
         this.trail.push({ x: this.x, y: this.y });
         if (this.trail.length > 14) this.trail.shift();
-        // Stuck detection: if ball stays in upper third too long, nudge it down
+        // Anti-stuck: nur bei echter Endlosschleife (fast horizontaler Ball im
+        // oberen Drittel) umlenken, sonst wirkt der spontane Richtungswechsel
+        // wie ein unsichtbarer Block. Feedback laeuft ueber justNudged im Loop.
         this.stuckTimer++;
-        if (this.stuckTimer > 300 && this.y < H * 0.35) {
-            // Force ball downward with a strong angle
-            const currentSpeed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
-            this.dy = Math.abs(currentSpeed) * 0.85;
-            this.dx = (Math.random() - 0.5) * currentSpeed * 0.6;
+        const speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+        const horizontalRatio = speed > 0.001 ? Math.abs(this.dy) / speed : 1;
+        if (this.stuckTimer > 600 && this.y < H * 0.35 && horizontalRatio < 0.25) {
+            this.dy = Math.abs(speed) * 0.85;
+            this.dx = (Math.random() - 0.5) * speed * 0.6;
             this.stuckTimer = 0;
+            this.justNudged = true;
         }
     }
 
@@ -2791,6 +2796,15 @@ class Game {
         for (const ball of this.balls) {
             ball.update(speedMult);
 
+            // Sichtbares Feedback wenn Anti-Stuck den Ball umgelenkt hat
+            if (ball.justNudged) {
+                ball.justNudged = false;
+                this.particles.spawn(ball.x, ball.y, '#44ffaa', 14, {
+                    speed: 3, speedVar: 2, size: 2, sizeVar: 2
+                });
+                this.vfx.addFloatingText(ball.x, ball.y - 12, 'AUTO', '#44ffaa');
+            }
+
             // Boss collision
             if (this.boss && !this.boss.defeated && !ball.stuck) {
                 if (this.boss.checkBallHit(ball)) {
@@ -3081,11 +3095,15 @@ class Game {
 
     destroyBrick(brick) {
         if (!brick.alive || brick.type === 'steel') return;
-        brick.alive = false;
-        this.onBrickDestroyed(brick, null, brick.type === 'explosive');
+        // Explosive an chainExplosion delegieren - die setzt selbst alive=false
+        // und verteilt die Kette. Vorher wurde alive=false zuerst gesetzt,
+        // wodurch chainExplosion sofort wegen !alive abbrach (Kette tot).
         if (brick.type === 'explosive') {
             this.chainExplosion(brick, 0);
+            return;
         }
+        brick.alive = false;
+        this.onBrickDestroyed(brick, null, false);
     }
 
     onBrickDestroyed(brick, ball, isExplosion = false) {
