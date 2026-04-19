@@ -2450,13 +2450,18 @@ class Game {
         this._buildSkinGrid();
         document.getElementById('bp-skins-btn').addEventListener('click', (e) => {
             e.stopPropagation();
-            document.getElementById('parent-settings-overlay').classList.add('hidden');
+            // _closeParentSettings statt nur `hidden` setzen, damit der
+            // TTS-Status-Timer sauber gestoppt wird (sonst laeuft der Poller
+            // im Hintergrund weiter, waehrend das Skins-Menue offen ist).
+            this._closeParentSettings();
             document.getElementById('skins-overlay').classList.remove('hidden');
         });
         document.getElementById('skins-close-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             document.getElementById('skins-overlay').classList.add('hidden');
-            document.getElementById('parent-settings-overlay').classList.remove('hidden');
+            // Re-sync der Parent-Settings-UI, falls sich zwischendurch etwas
+            // geaendert hat (z.B. frisch geladener Piper-Status).
+            this._openParentSettings();
         });
 
         // Retry-Buttons auf Game-Over/Win-Overlays (fangen den Klick explizit ab,
@@ -2540,13 +2545,27 @@ class Game {
         });
         // Musik/SFX-Toggles
         $('bp-music-toggle').addEventListener('change', (e) => {
-            this.musicMuted = !e.target.checked;
+            const on = e.target.checked;
+            this.musicMuted = !on;
             try { localStorage.setItem('breakout_musicMuted', this.musicMuted.toString()); } catch(_) {}
+            // Wenn der Slider vorher auf 0 stand (automatisch als "stumm"
+            // interpretiert), wuerde ein einfacher Toggle-On nichts hoerbar
+            // machen - deshalb setzen wir eine sinnvolle Default-Lautstaerke
+            // zurueck. Entsprechend aktualisieren wir den Slider-UI-State.
+            if (on && this.audio && (this.audio._musicBaseVolume ?? 0) <= 0.001) {
+                this._setMusicVolumePct(13);
+                if ($('bp-vol-slider')) $('bp-vol-slider').value = 13;
+                if ($('bp-vol-val')) $('bp-vol-val').textContent = '13%';
+                this.musicMuted = false;
+            }
             this._applySoundSettings();
         });
         $('bp-sfx-toggle').addEventListener('change', (e) => {
             this.sfxMuted = !e.target.checked;
             try { localStorage.setItem('breakout_sfxMuted', this.sfxMuted.toString()); } catch(_) {}
+            // Laufende TTS/SpeechSynthesis sofort abbrechen, damit das Kind
+            // nicht verwirrt ist, wenn der Effekte-Toggle scheinbar nichts tut.
+            if (this.sfxMuted) this._cancelSpeech();
             this._applySoundSettings();
         });
         // TTS-Backend-Auswahl
@@ -2739,6 +2758,17 @@ class Game {
     _applySoundSettings() {
         if (this.audio.sfxGain) this.audio.sfxGain.gain.value = this.sfxMuted ? 0 : 0.5;
         this.audio.setMusicMuted(this.musicMuted);
+    }
+
+    _cancelSpeech() {
+        // Bricht sowohl die Piper-basierte als auch die SpeechSynthesis-Variante
+        // ab - wichtig, wenn der Effekte-Toggle waehrend einer laufenden
+        // Ansage ausgeschaltet wird.
+        try {
+            const tts = this._ttsInstance;
+            if (tts && typeof tts._stop === 'function') tts._stop();
+        } catch(_) {}
+        try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch(_) {}
     }
 
     _speak(text) {
@@ -2980,6 +3010,11 @@ class Game {
         this.paddle.update(this.input.getDir(), this.input.mouseX, this.input.useMouse);
 
         // Stuck-Handling: Magnet-Power-up ODER manueller Start-Kleber nach Ball-Verlust.
+        // Release pro Frame nur EINMAL abfragen, damit ein einzelner Tap bei
+        // Multiball+Magnet ALLE klebenden Baelle gleichzeitig loest (sonst
+        // konsumiert die erste Iteration den Click und die restlichen Baelle
+        // bleiben unnoetig kleben).
+        let releaseRequested = null;
         for (const ball of this.balls) {
             if (!ball.stuck) { ball.stickTime = 0; continue; }
             ball.x = this.paddle.x + this.paddle.w / 2 + (ball.stuckOffset || 0);
@@ -2988,9 +3023,10 @@ class Game {
             // Kurze Schonfrist, damit ein noch nicht konsumierter Klick (z.B. vom
             // "Spielen"-Button) den Ball nicht sofort abfeuert.
             if (ball.stickTime <= 8) { this.input.consumeClick(); continue; }
+            if (releaseRequested === null) releaseRequested = this.input.wantsRelease();
             // Magnet: Auto-Release nach 8s. Manueller Start: Tipp erforderlich.
             const autoRelease = !ball.manualStick && ball.stickTime > 480;
-            if (this.input.wantsRelease() || autoRelease) {
+            if (releaseRequested || autoRelease) {
                 ball.stuck = false;
                 ball.manualStick = false;
                 ball.stickTime = 0;
