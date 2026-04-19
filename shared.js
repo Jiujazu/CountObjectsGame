@@ -197,13 +197,15 @@ class PiperTTSManager {
         this.enabled = true; // kann per Eltern-Menue deaktiviert werden
         this.progress = 0;   // 0..1 Modell-Download-Fortschritt
         this.status = 'init'; // init | downloading | ready | fallback (gilt nur fuer piper-Backend)
-        this._currentAudio = null;
         // WebAudio-BufferSource der laufenden Ansage. iOS Safari blockiert
         // HTMLAudioElement.play(), wenn der Call nach asynchroner WASM-
         // Inferenz ausserhalb des User-Gesture-Fensters landet. Der Shared-
         // AudioContext ist beim ersten Tap (Spielstart) bereits entsperrt,
         // darum spielen wir TTS primaer darueber ab.
         this._currentSource = null;
+        // Cleanup-Handler der aktuell laufenden Playback-Promise. Wird von
+        // _stop() aufgerufen, damit cancel() die Queue nicht deadlockt.
+        this._currentCleanup = null;
         // Queue-Semantik: speak() reiht neue Ansagen hinter die laufende ein,
         // statt sie zu ueberlappen. cancel() setzt den Cancel-Marker auf die
         // aktuelle Generation, wodurch sowohl laufende als auch wartende
@@ -309,38 +311,58 @@ class PiperTTSManager {
     }
     async _speakGoogle(text, myGen) {
         if (!this.googleKey) { this.googleStatus = 'no-key'; return this._speakFallbackChain(text, myGen); }
-        try {
-            const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.googleKey)}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    input: { text },
-                    voice: { languageCode: 'de-DE', name: this.googleVoice },
-                    audioConfig: { audioEncoding: 'MP3', speakingRate: 0.85, pitch: 0 }
-                })
-            });
-            if (!res.ok) {
-                const body = await res.text().catch(() => '');
-                console.warn('[GoogleTTS] HTTP', res.status, body.slice(0, 200));
-                this.googleStatus = 'error';
-                return this._speakFallbackChain(text, myGen);
-            }
-            const data = await res.json();
-            if (!data.audioContent) { this.googleStatus = 'error'; return this._speakFallbackChain(text, myGen); }
+        const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.googleKey)}`;
+        const body = JSON.stringify({
+            input: { text },
+            voice: { languageCode: 'de-DE', name: this.googleVoice },
+            audioConfig: { audioEncoding: 'MP3', speakingRate: 0.85, pitch: 0 }
+        });
+        // Kurze Backoff-Serie fuer 429/5xx: TTS-Quota-Peaks sind voruebergehend,
+        // ein sofortiger Fallback auf Browser-Stimme wechselt die Klangfarbe
+        // mitten im Spiel - Retry vermeidet das fuer die haeufigsten Faelle.
+        const DELAYS = [0, 400, 1200];
+        let lastStatus = 0;
+        for (let attempt = 0; attempt < DELAYS.length; attempt++) {
             if (this._cancelGen >= myGen) return;
-            this.googleStatus = 'ready';
-            // Base64-MP3 in ArrayBuffer umwandeln und ueber WebAudio abspielen.
-            // Google liefert schon mit speakingRate: 0.85, daher playbackRate 1.
-            const binary = atob(data.audioContent);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-            return await this._playViaWebAudio(bytes.buffer, 1, myGen);
-        } catch (e) {
-            console.warn('[GoogleTTS] Fehler:', e);
-            this.googleStatus = 'error';
-            return this._speakFallbackChain(text, myGen);
+            if (DELAYS[attempt] > 0) {
+                await new Promise(r => setTimeout(r, DELAYS[attempt]));
+                if (this._cancelGen >= myGen) return;
+            }
+            let res;
+            try {
+                res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body
+                });
+            } catch (e) {
+                console.warn('[GoogleTTS] Netzwerkfehler:', e);
+                continue; // naechster Versuch
+            }
+            if (res.ok) {
+                const data = await res.json().catch(() => null);
+                if (!data || !data.audioContent) {
+                    this.googleStatus = 'error';
+                    return this._speakFallbackChain(text, myGen);
+                }
+                if (this._cancelGen >= myGen) return;
+                this.googleStatus = 'ready';
+                // Base64-MP3 in ArrayBuffer umwandeln und ueber WebAudio abspielen.
+                // Google liefert schon mit speakingRate: 0.85, daher playbackRate 1.
+                const binary = atob(data.audioContent);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                return await this._playViaWebAudio(bytes.buffer, 1, myGen);
+            }
+            lastStatus = res.status;
+            const errBody = await res.text().catch(() => '');
+            console.warn('[GoogleTTS] HTTP', res.status, errBody.slice(0, 200));
+            // 4xx (ausser 429) sind Client-Fehler und werden durch Retry nicht
+            // besser - sofort in die Fallback-Kette gehen.
+            if (res.status !== 429 && res.status < 500) break;
         }
+        this.googleStatus = 'error';
+        return this._speakFallbackChain(text, myGen);
     }
     // Google -> Piper -> Browser: wenn Google ausfaellt, Piper probieren
     // (falls Modell geladen), sonst Browser-SpeechSynthesis.
@@ -369,8 +391,13 @@ class PiperTTSManager {
     // brauchen.
     async _playViaWebAudio(arrayBuffer, playbackRate, myGen) {
         const ctx = SharedAudio.getContext();
+        // iOS Safari verlangt den resume() synchron in der User-Geste. Der
+        // AudioUnlock-Shim erledigt das beim ersten Tap; hier nur noch einen
+        // synchronen Versuch als Sicherheitsnetz - KEIN await, sonst laeuft
+        // resume() garantiert ausserhalb des Gesten-Fensters und iOS bleibt
+        // stumm.
         if (ctx.state === 'suspended') {
-            try { await ctx.resume(); } catch (e) {}
+            try { ctx.resume(); } catch (e) {}
         }
         // Safari unterstuetzt sowohl die callback- als auch die promise-
         // basierte decodeAudioData-Signatur; wir rufen die Callback-Variante
@@ -390,29 +417,40 @@ class PiperTTSManager {
         }
         source.connect(ctx.destination);
         this._currentSource = source;
+        // Cleanup muss von aussen aufrufbar sein, damit _stop() das Promise
+        // aktiv aufloesen kann. Ohne diesen Haken blockiert ein laufender
+        // cancel() die gesamte speak()-Queue (Promise haengt auf onended,
+        // das _stop() vorher auf null setzt) -> TTS bleibt dauerhaft stumm.
         return new Promise((resolve) => {
             let done = false;
             const cleanup = () => {
                 if (done) return;
                 done = true;
+                source.onended = null;
+                this._currentCleanup = null;
                 if (this._currentSource === source) this._currentSource = null;
                 try { source.disconnect(); } catch (e) {}
                 resolve();
             };
+            this._currentCleanup = cleanup;
             source.onended = cleanup;
             try { source.start(0); } catch (e) { cleanup(); }
         });
     }
     _stop() {
-        if (this._currentAudio) {
-            try { this._currentAudio.pause(); } catch (e) {}
-            this._currentAudio = null;
-        }
         if (this._currentSource) {
-            try { this._currentSource.onended = null; } catch (e) {}
-            try { this._currentSource.stop(0); } catch (e) {}
-            try { this._currentSource.disconnect(); } catch (e) {}
+            const source = this._currentSource;
             this._currentSource = null;
+            try { source.stop(0); } catch (e) {}
+            try { source.disconnect(); } catch (e) {}
+        }
+        // Cleanup zuletzt: loest das Playback-Promise auf und gibt die Queue
+        // frei. Muss nach stop()/disconnect() laufen, damit die Source
+        // tatsaechlich aus ist, wenn das naechste speak() beginnt.
+        if (this._currentCleanup) {
+            const cleanup = this._currentCleanup;
+            this._currentCleanup = null;
+            try { cleanup(); } catch (e) {}
         }
         if (window.speechSynthesis) {
             try { window.speechSynthesis.cancel(); } catch (e) {}

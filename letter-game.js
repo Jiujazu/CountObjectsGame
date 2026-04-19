@@ -62,44 +62,6 @@ const TIMING = {
     STATUS_POLL_MS: 500,       // Eltern-Menue: TTS-Status-Refresh
 };
 
-// Lautier-Mapping (Silbenmethode): Buchstabe -> Text, den TTS als Laut spricht.
-// Vokale klingen ohnehin wie ihr Laut. Plosive (B/D/G/K/P/T) brauchen einen
-// Kurzvokal-Anker, sonst nicht isoliert sprechbar. Dauerlaute werden verlaengert.
-// Fuer C/V/Y/Q wird bewusst der Buchstaben-Name statt des Phonems verwendet,
-// weil ihre Phoneme mit K/F/J kollidieren wuerden. Das Kind soll beim Hint
-// nicht dieselbe Lautfolge hoeren wie beim falschen Buchstaben.
-const LAUTIERT_MAP = {
-    'A': 'A',
-    'B': 'Buh',
-    'C': 'Zeh',    // Buchstaben-Name [tseː] - Phonem [k] wuerde mit K kollidieren
-    'D': 'Duh',
-    'E': 'E',
-    'F': 'Fff',
-    'G': 'Guh',
-    'H': 'Ha',
-    'I': 'I',
-    'J': 'Ja',     // J wie in Jojo = [j] - Y nutzt 'Ypsilon', daher keine Kollision
-    'K': 'Kuh',
-    'L': 'Lll',
-    'M': 'Mmm',
-    'N': 'Nnn',
-    'O': 'O',
-    'P': 'Puh',
-    'Q': 'Kuh',    // Q fast nur in Qu-Kombi [kv] - fuer Kind wie K anfuehlen
-    'R': 'Rrr',
-    'S': 'Sss',
-    'T': 'Tuh',
-    'U': 'U',
-    'V': 'Vau',    // Buchstaben-Name [faʊ̯] - Phonem [f] wuerde mit F kollidieren
-    'W': 'Www',
-    'X': 'Iks',
-    'Y': 'Ypsilon', // Buchstaben-Name - Phonem [j] wuerde mit J/Jot kollidieren
-    'Z': 'Tsss',
-    'Ä': 'Ä',
-    'Ö': 'Ö',
-    'Ü': 'Ü',
-};
-
 // Kindgerechte, variierende TTS-Phrasen. Platzhalter: {word}, {letter}.
 const TTS_PHRASES = {
     instruction: [
@@ -157,9 +119,6 @@ class LetterGame {
             // Wort als Spoiler ausblenden; wird bei richtiger Antwort eingeblendet.
             // Persistiert, damit Eltern-Einstellung nach Reload erhalten bleibt.
             showWord: LetterGame._loadFlag('letter-showword', false),
-            // Silbenmethode standardmaessig AN: Vorschulkinder lernen Buchstaben ueber Laute ("Buh"),
-            // nicht ueber Namen ("Be"). Nur AUS, wenn Eltern explizit deaktivieren.
-            lautierEnabled: LetterGame._loadFlag('letter-lautiert', true),
         };
         this.soundEnabled = true;
         this.speechEnabled = true;
@@ -363,11 +322,6 @@ class LetterGame {
         this._speakInstruction();
     }
 
-    _letterForSpeech(letter) {
-        if (!this.state.lautierEnabled) return letter;
-        return LAUTIERT_MAP[letter] || letter;
-    }
-
     async _speakInstruction() {
         if (!this.speechEnabled) return;
         const entry = ANLAUT_TABLE[this.state.currentLetter];
@@ -397,7 +351,7 @@ class LetterGame {
             // Sound & TTS
             if (this.soundEnabled) SharedAudio.playSuccessMelody();
             if (this.speechEnabled) {
-                await this.tts.speak(_pickTTS('correct', { letter: this._letterForSpeech(letter), word: ANLAUT_TABLE[letter].word }));
+                await this.tts.speak(_pickTTS('correct', { letter, word: ANLAUT_TABLE[letter].word }));
             }
             // Puzzle Fortschritt
             this.puzzle.revealNextPiece();
@@ -474,7 +428,7 @@ class LetterGame {
         // und der visuelle Gross-Buchstaben-Hint + die TTS-Ansage reichen.
         // TTS Hinweis nur wenn Sprache aktiviert
         if (this.speechEnabled) {
-            this.tts.speak(_pickTTS('hint', { word: entry.word, letter: this._letterForSpeech(letter) }));
+            this.tts.speak(_pickTTS('hint', { word: entry.word, letter }));
         }
         // Visueller Hinweis: richtigen Key blinken lassen
         const key = document.querySelector(`.letter-key[data-letter="${letter}"]`);
@@ -540,7 +494,6 @@ class LetterGame {
         const levelDisplay = document.getElementById('lp-level-display');
         const showWordCb = document.getElementById('lp-showword');
         const vkbCb = document.getElementById('lp-vkb');
-        const lautiertCb = document.getElementById('lp-lautiert');
         const volSlider = document.getElementById('lp-vol-slider');
         const volVal = document.getElementById('lp-vol-val');
         const musicCb = document.getElementById('lp-music-toggle');
@@ -580,7 +533,6 @@ class LetterGame {
         if (levelDisplay) levelDisplay.textContent = this.state.level;
         if (showWordCb) showWordCb.checked = this.state.showWord;
         if (vkbCb) vkbCb.checked = this.state.showVirtualKeyboard;
-        if (lautiertCb) lautiertCb.checked = this.state.lautierEnabled;
         const currentVolPct = Math.round((this.music.volume ?? 0.25) * 100);
         if (volSlider) volSlider.value = currentVolPct;
         if (volVal) volVal.textContent = currentVolPct + '%';
@@ -687,10 +639,6 @@ class LetterGame {
             this.state.showVirtualKeyboard = vkbCb.checked;
             localStorage.setItem('letter-vkb', this.state.showVirtualKeyboard ? 'true' : 'false');
             this._buildKeyboard();
-        });
-        addListener(lautiertCb, 'change', () => {
-            this.state.lautierEnabled = lautiertCb.checked;
-            localStorage.setItem('letter-lautiert', this.state.lautierEnabled ? 'true' : 'false');
         });
 
         // ---- Audio ----
