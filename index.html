@@ -18,16 +18,20 @@
     <div class="startscreen" id="startscreen">
         <canvas id="trail-canvas"></canvas>
         <div class="startscreen-content">
+            <h1 class="startscreen-cta" aria-hidden="true">
+                <span class="startscreen-cta-wave">👉</span>
+                <span class="startscreen-cta-text">Tipp ein Spiel!</span>
+            </h1>
             <div class="game-select-menu" id="game-select-menu">
-                <button class="game-select-btn" data-game="counting">
+                <button class="game-select-btn game-select-btn--counting" data-game="counting" aria-label="Zählen">
                     <span class="game-select-icon">🔢</span>
-                    <span class="game-select-label">Zaehlen</span>
+                    <span class="game-select-label">Zählen</span>
                 </button>
-                <button class="game-select-btn" data-game="letters">
+                <button class="game-select-btn game-select-btn--letters" data-game="letters" aria-label="Buchstaben">
                     <span class="game-select-icon">🔤</span>
                     <span class="game-select-label">Buchstaben</span>
                 </button>
-                <button class="game-select-btn" data-game="breakout">
+                <button class="game-select-btn game-select-btn--breakout" data-game="breakout" aria-label="Breakout">
                     <span class="game-select-icon">🧱</span>
                     <span class="game-select-label">Breakout</span>
                 </button>

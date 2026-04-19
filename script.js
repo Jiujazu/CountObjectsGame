@@ -1146,11 +1146,10 @@ document.addEventListener('touchstart', function() {}, {passive: true});
         ctx = canvas.getContext('2d');
         resizeCanvas();
         trail = [];
+        // Außerhalb des Viewports starten: keine Ruhe-Blase in der Bildmitte,
+        // die die Aufmerksamkeit von den Spielauswahl-Kacheln wegzieht.
         for (let i = 0; i < NUM_POINTS; i++) {
-            trail.push({
-                x: window.innerWidth/2,
-                y: window.innerHeight/2
-            });
+            trail.push({ x: -9999, y: -9999 });
         }
         frameCount = 0;
         running = true;
@@ -1191,7 +1190,7 @@ document.addEventListener('touchstart', function() {}, {passive: true});
         ctx.shadowBlur = 0;
     }
 
-    let mouse = { x: window.innerWidth/2, y: window.innerHeight/2 };
+    let mouse = { x: -9999, y: -9999 };
     function onMouseMove(e) {
         mouse.x = e.touches ? e.touches[0].clientX : e.clientX;
         mouse.y = e.touches ? e.touches[0].clientY : e.clientY;
