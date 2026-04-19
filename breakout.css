@@ -262,6 +262,14 @@ body.kids-mode #highscore-display {
     display: none;
 }
 
+/* Eltern-Test-Mode: Skip-Level-Button nur sichtbar wenn aktiv */
+.pause-parent-only { display: none !important; }
+body.parent-mode-test .pause-parent-only { display: flex !important; }
+
+/* Mode-Toggle Farb-Varianten */
+.option-btn.kids { border-color: rgba(68, 255, 136, 0.6); color: #44ff88; }
+.option-btn.parent { border-color: rgba(255, 204, 68, 0.6); color: #ffcc44; }
+
 .win-text {
     font-size: clamp(1.6rem, 7.5vw, 2.4rem);
     font-weight: 900;
