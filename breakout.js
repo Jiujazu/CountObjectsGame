@@ -2610,14 +2610,15 @@ class Game {
         document.addEventListener('keydown', unlock, true);
     }
 
-    _showPowerupIntro(type) {
+    _showPowerupIntro(type, stackIdx = 0) {
         if (this.seenPowerups[type]) return;
         this.seenPowerups[type] = true;
         try { localStorage.setItem('breakout_seenPowerups', JSON.stringify(this.seenPowerups)); } catch(e) {}
         const name = POWERUP_NAMES_DE[type] || type.toUpperCase();
         const hint = POWERUP_HINTS_DE[type] || '';
-        this.vfx.addFloatingText(W / 2, H / 2 - 40, name + '!', POWERUP_COLORS[type]);
-        if (hint) this.vfx.addFloatingText(W / 2, H / 2 - 15, hint, '#e0e0ff');
+        const yOff = stackIdx * 50;
+        this.vfx.addFloatingText(W / 2, H / 2 - 40 + yOff, name + '!', POWERUP_COLORS[type]);
+        if (hint) this.vfx.addFloatingText(W / 2, H / 2 - 15 + yOff, hint, '#e0e0ff');
     }
 
     startGame() {
@@ -2964,11 +2965,16 @@ class Game {
         }
 
         const collected = this.powerups.update(this.paddle);
-        for (const type of collected) {
+        if (collected.length > 0) {
+            // Mehrere Powerups in einem Frame einsammeln ueberfordert sonst
+            // Ohren und Augen: nur ein SFX und eine Sprachansage, Floating-
+            // Texte vertikal versetzen, damit sie nicht ueberlappen.
             this.audio.sfx('powerup');
-            this._showPowerupIntro(type);
-            this._speakPowerup(type);
-            this.applyPowerup(type);
+            this._speakPowerup(collected[0]);
+            collected.forEach((type, idx) => {
+                this._showPowerupIntro(type, idx);
+                this.applyPowerup(type, idx);
+            });
         }
 
         // Power-up combo check
@@ -3195,9 +3201,9 @@ class Game {
         }
     }
 
-    applyPowerup(type) {
+    applyPowerup(type, stackIdx = 0) {
         this.powerups.activate(type);
-        this.vfx.addFloatingText(this.paddle.x + this.paddle.w / 2, this.paddle.y - 20,
+        this.vfx.addFloatingText(this.paddle.x + this.paddle.w / 2, this.paddle.y - 20 - stackIdx * 18,
             type.toUpperCase() + '!', POWERUP_COLORS[type]);
         switch (type) {
             case 'multiball':
@@ -3546,17 +3552,16 @@ class Game {
         // Powerup HUD (canvas)
         this.powerups.drawHUD(ctx);
 
-        // Combo text
+        // Combo text - unter dem Paddle, mit textBaseline bottom, damit der
+        // Text sauber in die 18 px unterhalb des Paddles passt und es nicht
+        // mehr ueberlappt.
         if (this.combo >= 5) {
             ctx.fillStyle = this.partyMode ? `hsl(${Date.now()/8%360},100%,70%)` : '#ffcc44';
-            ctx.font = 'bold 14px system-ui';
+            ctx.font = 'bold 12px system-ui';
             ctx.textAlign = 'center';
-            ctx.fillText(`${this.combo}x COMBO!`, W / 2, H - 6);
-            if (this.combo >= 15 && !this.partyMode) {
-                ctx.fillStyle = 'rgba(255,200,100,0.5)';
-                ctx.font = 'bold 11px system-ui';
-                ctx.fillText(`NOCH ${20 - this.combo}...`, W / 2, H - 50);
-            }
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(`${this.combo}x COMBO!`, W / 2, H - 2);
+            ctx.textBaseline = 'alphabetic';
         }
 
         // Party mode banner
