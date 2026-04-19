@@ -3641,6 +3641,38 @@ class Game {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// RESIZE - Canvas fuellt den verfuegbaren Platz, behaelt aber das
+// logische 4:5-Verhaeltnis bei. Ohne das steht das Canvas auf dem
+// Desktop in seiner intrinsischen 480x600-Groesse und laesst rundherum
+// riesige ungenutzte Flaechen. Die Zeichenlogik bleibt in W/H-Koords -
+// input/output skaliert via getBoundingClientRect.
+// ═══════════════════════════════════════════════════════════════
+function resizeBreakoutCanvas() {
+    const canvas = document.getElementById('gameCanvas');
+    const holder = document.getElementById('canvas-holder');
+    if (!canvas || !holder) return;
+    const style = getComputedStyle(holder);
+    const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+    const padY = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+    const availW = Math.max(0, holder.clientWidth - padX);
+    const availH = Math.max(0, holder.clientHeight - padY);
+    if (availW <= 0 || availH <= 0) return;
+    const aspect = W / H;
+    let w = availW, h = availH;
+    if (w / h > aspect) { w = h * aspect; } else { h = w / aspect; }
+    canvas.style.width = Math.floor(w) + 'px';
+    canvas.style.height = Math.floor(h) + 'px';
+}
+window.addEventListener('resize', resizeBreakoutCanvas);
+window.addEventListener('orientationchange', resizeBreakoutCanvas);
+if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(resizeBreakoutCanvas);
+    const holder = document.getElementById('canvas-holder');
+    if (holder) ro.observe(holder);
+}
+resizeBreakoutCanvas();
+
+// ═══════════════════════════════════════════════════════════════
 // BOOTSTRAP
 // ═══════════════════════════════════════════════════════════════
 new Game();

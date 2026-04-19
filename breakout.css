@@ -130,12 +130,14 @@ body {
     box-shadow: 0 0 40px rgba(100, 100, 255, 0.15);
     max-width: 100%;
     max-height: 100%;
-    width: auto;
-    height: auto;
     aspect-ratio: 480 / 600;
     cursor: none;
     touch-action: none;
     -webkit-tap-highlight-color: transparent;
+    /* Die tatsaechliche Display-Groesse wird in JS (resizeBreakoutCanvas)
+       gesetzt, damit der Canvas den verfuegbaren Platz im canvas-holder
+       fuellt - reine CSS-Skalierung laesst ihn sonst auf Desktop in seiner
+       intrinsischen 480x600-Groesse stehen. */
 }
 
 /* Overlays */
