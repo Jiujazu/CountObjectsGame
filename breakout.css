@@ -28,7 +28,12 @@ body {
 #game-wrapper {
     position: relative;
     width: 100%;
-    max-width: 900px;
+    /* Wrapper-Breite an die Canvas-Aspektratio koppeln: so bleiben Home-/
+       Pause-Button nah am Spielfeld, auch wenn Breakout auf breiten Desktops
+       mehr horizontalen Platz einnimmt. --game-aspect wird in breakout.js
+       dynamisch gesetzt (Default 0.8 = 480/600). 96px Puffer = Platz fuer
+       die runden Ecken-Buttons links/rechts vom Canvas. */
+    max-width: calc((100dvh - 56px) * var(--game-aspect, 0.8) + 96px);
     height: 100vh;
     height: 100dvh;
     display: flex;
@@ -132,6 +137,9 @@ body {
     max-height: 100%;
     width: auto;
     height: auto;
+    /* aspect-ratio wird in breakout.js passend zur adaptiven Spielfeldgroesse
+       gesetzt (canvas.style.aspectRatio). Fallback auf 0.8 fuer den kurzen
+       Moment vor der JS-Initialisierung. */
     aspect-ratio: 480 / 600;
     cursor: none;
     touch-action: none;

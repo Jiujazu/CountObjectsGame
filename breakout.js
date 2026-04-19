@@ -3,7 +3,23 @@
 // ULTIMATE BREAKOUT - The craziest breakout game ever made
 // ═══════════════════════════════════════════════════════════════
 
-const W = 480, H = 600;
+// Spielfeldgroesse adaptiv an das Fenster anpassen: H bleibt fix bei 600 (vertikale
+// Spiel-Dynamik bleibt gleich), W waechst mit dem Viewport-Aspekt, damit auf dem
+// Desktop weniger leere Flaeche rechts/links bleibt. BRICK_COLS ist konstant 8,
+// d.h. bei breiterem W werden die Brick-Saeulen nur staerker zentriert.
+const H = 600;
+const W = (() => {
+    if (typeof window === 'undefined') return 480;
+    const hudReserve = 56;
+    const availH = Math.max(400, window.innerHeight - hudReserve);
+    const availW = Math.max(320, window.innerWidth);
+    const viewportAspect = availW / availH;
+    // Unteres Ende = klassisches Portraet (0.8 -> 480/600), oberes Ende leicht
+    // ueber Quadrat (1.05) damit das Spiel auf breiten Displays spuerbar mehr
+    // Flaeche nutzt, aber die Ecken nicht komplett leer wirken.
+    const gameAspect = Math.max(0.8, Math.min(1.05, viewportAspect));
+    return Math.round(H * gameAspect);
+})();
 const BRICK_ROWS = 7, BRICK_COLS = 8;
 const BRICK_W = 52, BRICK_H = 18, BRICK_PAD = 4;
 const BRICK_OFFSET_X = (W - (BRICK_COLS * (BRICK_W + BRICK_PAD) - BRICK_PAD)) / 2;
@@ -2100,6 +2116,15 @@ class InputManager {
 class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
+        // Adaptive Canvas-Groesse: interne Aufloesung = W/H, CSS-Aspekt nachziehen
+        // damit das Canvas passend skaliert. Wrapper liest --game-aspect, um die
+        // HUD-Buttons nah am Spielfeld zu halten.
+        this.canvas.width = W;
+        this.canvas.height = H;
+        this.canvas.style.aspectRatio = `${W} / ${H}`;
+        try {
+            document.documentElement.style.setProperty('--game-aspect', String(W / H));
+        } catch (_) {}
         this.ctx = this.canvas.getContext('2d');
         this.audio = new AudioEngine();
         // Hintergrundmusik: gleicher Shared MusicManager wie "Zaehlen"/"Buchstaben".
@@ -3006,14 +3031,57 @@ class Game {
                 const isFireball = ball.fireball;
 
                 // Bounce (unless fireball and not steel)
+                //
+                // Die Bounce-Richtung wird aus der Bewegungsrichtung des Balls
+                // abgeleitet, nicht aus dem kleinsten Ueberlapp. So werden
+                // "Geister-Bounces" vermieden, die auftreten wenn der Ball aus
+                // der vorherigen Kollision noch im Brick steckt: dann wird die
+                // Kollisions-Seite anhand der aktuellen Richtung bestimmt und
+                // der Ball wird direkt aus dem Brick herausgeschoben, sodass
+                // er im naechsten Frame nicht erneut mit demselben oder einem
+                // bereits zerstoerten Nachbarn kollidiert.
                 if (!isFireball || brick.type === 'steel') {
-                    const overlapLeft = ball.x + ball.r - brick.x;
-                    const overlapRight = brick.x + brick.w - (ball.x - ball.r);
-                    const overlapTop = ball.y + ball.r - brick.y;
-                    const overlapBottom = brick.y + brick.h - (ball.y - ball.r);
-                    const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
-                    if (minOverlap === overlapLeft || minOverlap === overlapRight) ball.dx = -ball.dx;
-                    else ball.dy = -ball.dy;
+                    // Eintrittstiefe in der jeweiligen Bewegungsrichtung.
+                    // Grosser Wert (+Infinity) wenn der Ball sich auf dieser
+                    // Achse gar nicht bewegt -> Achse scheidet aus.
+                    const penX = ball.dx > 0 ? (ball.x + ball.r - brick.x)
+                               : ball.dx < 0 ? (brick.x + brick.w - (ball.x - ball.r))
+                               : Infinity;
+                    const penY = ball.dy > 0 ? (ball.y + ball.r - brick.y)
+                               : ball.dy < 0 ? (brick.y + brick.h - (ball.y - ball.r))
+                               : Infinity;
+                    // Fallback fuer den seltenen Fall dx=dy=0: klassischer
+                    // Minimum-Overlap, damit zumindest irgendeine Seite
+                    // gewaehlt wird.
+                    let bounceAxis;
+                    if (penX === Infinity && penY === Infinity) {
+                        const overlapLeft = ball.x + ball.r - brick.x;
+                        const overlapRight = brick.x + brick.w - (ball.x - ball.r);
+                        const overlapTop = ball.y + ball.r - brick.y;
+                        const overlapBottom = brick.y + brick.h - (ball.y - ball.r);
+                        const minH = Math.min(overlapLeft, overlapRight);
+                        const minV = Math.min(overlapTop, overlapBottom);
+                        bounceAxis = minH < minV ? 'x' : 'y';
+                    } else {
+                        bounceAxis = penX < penY ? 'x' : 'y';
+                    }
+                    if (bounceAxis === 'x') {
+                        ball.dx = -ball.dx;
+                        // Ball aus der Brickbox heraus schieben, damit er im
+                        // naechsten Frame nicht mehr ueberlappt. clamp verhindert,
+                        // dass der Ball in die Seitenwand geschoben wird
+                        // (degenerierter Sandwich-Fall mit moving bricks).
+                        let nx = ball.dx > 0 ? brick.x + brick.w + ball.r + 0.1
+                                             : brick.x - ball.r - 0.1;
+                        ball.x = clamp(nx, ball.r, W - ball.r);
+                    } else {
+                        ball.dy = -ball.dy;
+                        let ny = ball.dy > 0 ? brick.y + brick.h + ball.r + 0.1
+                                             : brick.y - ball.r - 0.1;
+                        // Keine untere Clamp-Grenze: unterhalb H darf der Ball
+                        // sein (er faellt ins Leere = Leben verloren).
+                        ball.y = Math.max(ball.r, ny);
+                    }
                 }
 
                 if (brick.type === 'steel') {
