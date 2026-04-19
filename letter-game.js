@@ -1,38 +1,131 @@
 // === letter-game.js: Buchstabenspiel (nutzt shared.js) ===
 
-// Deutsche Anlauttabelle: Buchstabe -> Emoji + Wort
-// Wortwahl kindgerecht: kurze, bekannte Substantive; lange Vokale vor Plosiven,
-// damit der Anlaut nicht vom Folgekonsonanten ueberdeckt wird.
+// Deutsche Anlauttabelle: Buchstabe -> Liste {emoji, word}.
+// Auswahlregeln aus den UX-Reviews (Commits 60cb2ec, 0ac3ac0):
+// - Vokale (A/E/I/O/U/Ä/Ö/Ü): langer Vokal vor Plosiven, damit der Anlaut
+//   nicht vom Folgekonsonanten ueberdeckt wird (Ameise statt Apfel,
+//   Adler [aː], Iglu [iː], Oma [oː], Uhr [uː]).
+// - S: keine St-/Sp-/Sch-Woerter, da diese als "sht/shp/sh" gesprochen
+//   werden und den reinen S-Laut nicht trainieren.
+// - Homophon-Buchstaben (C/V/Y/Q/X) bleiben einzel-Eintrag: erscheinen nur
+//   im "Komplett"-Preset und sollen keine zusaetzliche Verwirrung stiften.
+// - Mehrere Varianten pro Buchstabe, damit dasselbe Kind nicht immer
+//   dasselbe Wort hoert. Reihenfolge egal - Picker zieht zufaellig.
 const ANLAUT_TABLE = {
-    'A': { emoji: '🐜', word: 'Ameise' },
-    'B': { emoji: '🐻', word: 'Bär' },
-    'C': { emoji: '🤡', word: 'Clown' },
-    'D': { emoji: '🐬', word: 'Delfin' },
-    'E': { emoji: '🐘', word: 'Elefant' },
-    'F': { emoji: '🐟', word: 'Fisch' },
-    'G': { emoji: '🦒', word: 'Giraffe' },
-    'H': { emoji: '🐶', word: 'Hund' },
-    'I': { emoji: '🦔', word: 'Igel' },
-    'J': { emoji: '🪀', word: 'Jojo' },
-    'K': { emoji: '🐱', word: 'Katze' },
-    'L': { emoji: '🦁', word: 'Löwe' },
-    'M': { emoji: '🐭', word: 'Maus' },
-    'N': { emoji: '👃', word: 'Nase' },
-    'O': { emoji: '👂', word: 'Ohr' },
-    'P': { emoji: '🐧', word: 'Pinguin' },
-    'Q': { emoji: '🪼', word: 'Qualle' },
-    'R': { emoji: '🚀', word: 'Rakete' },
-    'S': { emoji: '☀️', word: 'Sonne' },
-    'T': { emoji: '🐯', word: 'Tiger' },
-    'U': { emoji: '🦉', word: 'Uhu' },
-    'V': { emoji: '🐦', word: 'Vogel' },
-    'W': { emoji: '🐋', word: 'Wal' },
-    'X': { emoji: 'custom:xylophon.svg', word: 'Xylophon' },
-    'Y': { emoji: '🧘', word: 'Yoga' },
-    'Z': { emoji: '🦓', word: 'Zebra' },
-    'Ä': { emoji: '🍏', word: 'Äpfel' },
-    'Ö': { emoji: '🛢️', word: 'Öl' },
-    'Ü': { emoji: '🎁', word: 'Überraschung' }
+    'A': [
+        { emoji: '🐜', word: 'Ameise' },
+        { emoji: '🦅', word: 'Adler' },
+    ],
+    'B': [
+        { emoji: '🐻', word: 'Bär' },
+        { emoji: '🌳', word: 'Baum' },
+        { emoji: '⚽', word: 'Ball' },
+    ],
+    'C': [
+        { emoji: '🤡', word: 'Clown' },
+    ],
+    'D': [
+        { emoji: '🐬', word: 'Delfin' },
+        { emoji: '🦕', word: 'Dino' },
+    ],
+    'E': [
+        { emoji: '🐘', word: 'Elefant' },
+    ],
+    'F': [
+        { emoji: '🐟', word: 'Fisch' },
+        { emoji: '🦊', word: 'Fuchs' },
+        { emoji: '🐸', word: 'Frosch' },
+    ],
+    'G': [
+        { emoji: '🦒', word: 'Giraffe' },
+        { emoji: '🎸', word: 'Gitarre' },
+    ],
+    'H': [
+        { emoji: '🐶', word: 'Hund' },
+        { emoji: '🐰', word: 'Hase' },
+        { emoji: '🏠', word: 'Haus' },
+    ],
+    'I': [
+        { emoji: '🦔', word: 'Igel' },
+        { emoji: '🧊', word: 'Iglu' },
+    ],
+    'J': [
+        { emoji: '🪀', word: 'Jojo' },
+        { emoji: '🧥', word: 'Jacke' },
+    ],
+    'K': [
+        { emoji: '🐱', word: 'Katze' },
+        { emoji: '🐮', word: 'Kuh' },
+        { emoji: '👑', word: 'Krone' },
+    ],
+    'L': [
+        { emoji: '🦁', word: 'Löwe' },
+        { emoji: '🍭', word: 'Lolli' },
+        { emoji: '💡', word: 'Lampe' },
+    ],
+    'M': [
+        { emoji: '🐭', word: 'Maus' },
+        { emoji: '🌙', word: 'Mond' },
+        { emoji: '🐞', word: 'Marienkäfer' },
+    ],
+    'N': [
+        { emoji: '👃', word: 'Nase' },
+        { emoji: '🥜', word: 'Nuss' },
+    ],
+    'O': [
+        { emoji: '👂', word: 'Ohr' },
+        { emoji: '👵', word: 'Oma' },
+    ],
+    'P': [
+        { emoji: '🐧', word: 'Pinguin' },
+        { emoji: '🐼', word: 'Panda' },
+        { emoji: '🍄', word: 'Pilz' },
+    ],
+    'Q': [
+        { emoji: '🪼', word: 'Qualle' },
+    ],
+    'R': [
+        { emoji: '🚀', word: 'Rakete' },
+        { emoji: '🌈', word: 'Regenbogen' },
+    ],
+    'S': [
+        { emoji: '☀️', word: 'Sonne' },
+        { emoji: '🧦', word: 'Socke' },
+    ],
+    'T': [
+        { emoji: '🐯', word: 'Tiger' },
+        { emoji: '🍅', word: 'Tomate' },
+    ],
+    'U': [
+        { emoji: '🦉', word: 'Uhu' },
+        { emoji: '⌚', word: 'Uhr' },
+    ],
+    'V': [
+        { emoji: '🐦', word: 'Vogel' },
+    ],
+    'W': [
+        { emoji: '🐋', word: 'Wal' },
+        { emoji: '☁️', word: 'Wolke' },
+    ],
+    'X': [
+        { emoji: 'custom:xylophon.svg', word: 'Xylophon' },
+    ],
+    'Y': [
+        { emoji: '🧘', word: 'Yoga' },
+    ],
+    'Z': [
+        { emoji: '🦓', word: 'Zebra' },
+        { emoji: '🚂', word: 'Zug' },
+    ],
+    'Ä': [
+        { emoji: '🍏', word: 'Äpfel' },
+    ],
+    'Ö': [
+        { emoji: '🛢️', word: 'Öl' },
+    ],
+    'Ü': [
+        { emoji: '🎁', word: 'Überraschung' },
+    ],
 };
 
 const ALL_LETTERS = Object.keys(ANLAUT_TABLE);
@@ -106,6 +199,7 @@ class LetterGame {
         this.state = {
             level: 1,
             currentLetter: '',
+            currentEntry: null,
             wrongStreak: 0,
             isProcessing: false,
             activeLetters: LetterGame._loadActiveLetters(),
@@ -131,6 +225,54 @@ class LetterGame {
         // Transientes Eltern-Menue: gesetzt solange Overlay offen ist,
         // gesammelte Listener + Poll-Timer werden bei _closeParentMenu entfernt.
         this._parentMenuTransient = null;
+        // Shuffle-Bag-Zustand fuer zufaellige Buchstaben-/Wortauswahl ohne
+        // Direkt-Wiederholungen. _letterBag ist eine gemischte Queue der
+        // aktiven Buchstaben; _lastLetter verhindert Repeat ueber Bag-Grenze;
+        // _lastWordIdx merkt pro Buchstabe das zuletzt gezogene Wort.
+        this._letterBag = null;
+        this._lastLetter = null;
+        this._lastWordIdx = {};
+    }
+
+    _invalidateLetterBag() {
+        this._letterBag = null;
+    }
+
+    // Zieht den naechsten Buchstaben aus einem Shuffle-Bag. Vorteil gegenueber
+    // reinem Math.random(): jeder aktive Buchstabe kommt einmal pro Runde dran
+    // (keine Haeufung), und es gibt keinen Direkt-Repeat beim Bag-Wechsel.
+    _pickLetter() {
+        const active = this.state.activeLetters;
+        const stale = this._letterBag && this._letterBag.some(l => !active.includes(l));
+        if (!this._letterBag || this._letterBag.length === 0 || stale) {
+            const bag = [...active];
+            for (let i = bag.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [bag[i], bag[j]] = [bag[j], bag[i]];
+            }
+            if (bag.length > 1 && bag[0] === this._lastLetter) {
+                [bag[0], bag[1]] = [bag[1], bag[0]];
+            }
+            this._letterBag = bag;
+        }
+        const letter = this._letterBag.shift();
+        this._lastLetter = letter;
+        return letter;
+    }
+
+    // Waehlt ein Wort fuer den Buchstaben und vermeidet dabei das zuletzt
+    // benutzte - sonst fuehlt sich die Varianz bei 2-Wort-Buchstaben
+    // (z.B. A: Ameise/Adler) trotz Math.random nach Alternierung an.
+    _pickEntry(letter) {
+        const options = ANLAUT_TABLE[letter];
+        if (options.length === 1) return options[0];
+        const lastIdx = this._lastWordIdx[letter];
+        let idx;
+        do {
+            idx = Math.floor(Math.random() * options.length);
+        } while (idx === lastIdx);
+        this._lastWordIdx[letter] = idx;
+        return options[idx];
     }
 
     static _loadFlag(key, defaultValue) {
@@ -286,12 +428,12 @@ class LetterGame {
         // Vor neuer Aufgabe: laufende Ansage (z.B. "Super, A wie Apfel") verwerfen,
         // damit sie nicht in die neue Instruktion hineinspricht.
         if (this.tts && typeof this.tts.cancel === 'function') this.tts.cancel();
-        // Zufaelligen Buchstaben waehlen
-        const letters = this.state.activeLetters;
-        this.state.currentLetter = letters[Math.floor(Math.random() * letters.length)];
+        // Buchstabe via Shuffle-Bag + Wort ohne Direkt-Repeat ziehen
+        this.state.currentLetter = this._pickLetter();
+        this.state.currentEntry = this._pickEntry(this.state.currentLetter);
         this.state.wrongStreak = 0;
         this.state.isProcessing = false;
-        const entry = ANLAUT_TABLE[this.state.currentLetter];
+        const entry = this.state.currentEntry;
         // Display aktualisieren. Wort wird zunaechst versteckt, damit der Anfangsbuchstabe nicht verraten wird.
         const display = document.getElementById('letter-display');
         const wordClass = this.state.showWord ? 'letter-word' : 'letter-word hidden';
@@ -324,7 +466,8 @@ class LetterGame {
 
     async _speakInstruction() {
         if (!this.speechEnabled) return;
-        const entry = ANLAUT_TABLE[this.state.currentLetter];
+        const entry = this.state.currentEntry;
+        if (!entry) return;
         await this.tts.speak(_pickTTS('instruction', { word: entry.word, letter: this.state.currentLetter }));
     }
 
@@ -351,7 +494,7 @@ class LetterGame {
             // Sound & TTS
             if (this.soundEnabled) SharedAudio.playSuccessMelody();
             if (this.speechEnabled) {
-                await this.tts.speak(_pickTTS('correct', { letter, word: ANLAUT_TABLE[letter].word }));
+                await this.tts.speak(_pickTTS('correct', { letter, word: this.state.currentEntry.word }));
             }
             // Puzzle Fortschritt
             this.puzzle.revealNextPiece();
@@ -422,7 +565,7 @@ class LetterGame {
         // ueber den Button oder nach 2 Fehlversuchen getriggert wurde.
         this.state.wrongStreak = 0;
         const letter = this.state.currentLetter;
-        const entry = ANLAUT_TABLE[letter];
+        const entry = this.state.currentEntry;
         // Wort NICHT automatisch einblenden: Pre-Reader kann es nicht lesen,
         // und der visuelle Gross-Buchstaben-Hint + die TTS-Ansage reichen.
         // TTS Hinweis nur wenn Sprache aktiviert
@@ -577,6 +720,7 @@ class LetterGame {
                 if (!preset) return;
                 this.state.activeLetters = [...preset];
                 localStorage.setItem('letter-active', JSON.stringify(this.state.activeLetters));
+                this._invalidateLetterBag();
                 syncLetterCheckboxes();
                 updateCount();
                 syncPresetActive();
@@ -603,6 +747,7 @@ class LetterGame {
                 }
                 this.state.activeLetters = letters;
                 localStorage.setItem('letter-active', JSON.stringify(letters));
+                this._invalidateLetterBag();
                 updateCount();
                 syncPresetActive();
                 this._buildKeyboard();
@@ -794,6 +939,10 @@ class LetterGame {
         this.state.level = 1;
         this.state.isProcessing = false;
         this.state.wrongStreak = 0;
+        this.state.currentEntry = null;
+        this._letterBag = null;
+        this._lastLetter = null;
+        this._lastWordIdx = {};
         // UI zuruecksetzen
         document.getElementById('letter-game-container').style.display = 'none';
         const startscreen = document.getElementById('startscreen');

@@ -91,6 +91,20 @@ EMOJIS=(
   "1f34f|Green apple|green_apple"
   "1f6e2|Oil drum|oil_drum"
   "1f381|Wrapped gift|wrapped_gift"
+
+  # ----- Letters game: Wort-Varianten pro Buchstabe -----
+  "1f985|Eagle|eagle"           # A: Adler
+  "1f3b8|Guitar|guitar"         # G: Gitarre
+  "1f3e0|House|house"           # H: Haus
+  "1f9ca|Ice|ice"               # I: Iglu
+  "1f9e5|Coat|coat"             # J: Jacke
+  "1f4a1|Light bulb|light_bulb" # L: Lampe
+  "1f95c|Peanuts|peanuts"       # N: Nuss
+  "1f475|Old woman|old_woman|default" # O: Oma
+  "1f9e6|Socks|socks"           # S: Socke
+  "1f345|Tomato|tomato"         # T: Tomate
+  "231a|Watch|watch"            # U: Uhr
+  "2601|Cloud|cloud"            # W: Wolke
 )
 
 urlencode() {
