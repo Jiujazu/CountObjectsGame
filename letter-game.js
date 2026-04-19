@@ -27,7 +27,7 @@ const ANLAUT_TABLE = {
     'U': { emoji: '🦉', word: 'Uhu' },
     'V': { emoji: '🐦', word: 'Vogel' },
     'W': { emoji: '🐋', word: 'Wal' },
-    'X': { emoji: '🎸', word: 'Xylophon' },
+    'X': { emoji: 'custom:xylophon.svg', word: 'Xylophon' },
     'Y': { emoji: '🧘', word: 'Yoga' },
     'Z': { emoji: '🦓', word: 'Zebra' },
     'Ä': { emoji: '🍏', word: 'Äpfel' },
@@ -331,9 +331,13 @@ class LetterGame {
         const display = document.getElementById('letter-display');
         const wordClass = this.state.showWord ? 'letter-word' : 'letter-word hidden';
         display.innerHTML = `
-            <button type="button" class="letter-emoji" id="letter-emoji-btn" aria-label="Nochmal hören">${entry.emoji}</button>
+            <button type="button" class="letter-emoji" id="letter-emoji-btn" aria-label="Nochmal hören"></button>
             <div class="${wordClass}">${entry.word}</div>
         `;
+        const emojiHost = document.getElementById('letter-emoji-btn');
+        if (emojiHost) {
+            emojiHost.appendChild(window.emojiImg(entry.emoji, entry.word, 'letter-emoji-img'));
+        }
         // Emoji ist Haupt-Replay-Trigger: ein Kind, das die Sprachausgabe
         // verpasst hat, versucht instinktiv das Bild anzutippen. Der Mini-
         // 🔊-Button unten bleibt als redundanter Weg, ist aber sekundaer.

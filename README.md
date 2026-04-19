@@ -94,6 +94,14 @@ Das Spiel kann einfach angepasst werden:
 - **Wiederholung**: Anweisungen können wiederholt werden
 - **Einstellbar**: Ton und Sprache können ausgeschaltet werden
 
+## 🎨 Emoji-Grafiken
+
+Die bunten 3D-Emojis in den Spielen **Zählen** und **Buchstaben** stammen aus
+[Microsoft Fluent UI Emoji](https://github.com/microsoft/fluentui-emoji)
+(MIT-Lizenz). Die Assets liegen lokal in `images/emojis/` und können mit
+`bash scripts/fetch-emojis.sh` jederzeit neu heruntergeladen werden.
+Siehe `images/emojis/LICENSE.md` für den vollständigen Lizenztext.
+
 ## 📄 Lizenz
 
 Frei verwendbar für Bildungszwecke.
