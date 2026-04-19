@@ -206,6 +206,13 @@ class PiperTTSManager {
         // Cleanup-Handler der aktuell laufenden Playback-Promise. Wird von
         // _stop() aufgerufen, damit cancel() die Queue nicht deadlockt.
         this._currentCleanup = null;
+        // Audio-Cache fuer wiederkehrende Phrasen (z.B. Powerup-Ansagen im
+        // Breakout, Lob-Phrasen in Zaehl-/Buchstabenspiel). Spart Google-
+        // Abrufe und Piper-Inferenz bei jedem erneuten Vorkommen. Key-Schema
+        // ist backend+stimme-spezifisch; ein Stimm-/Backend-Wechsel invalidiert
+        // daher automatisch, ohne dass wir leeren muessten.
+        this._audioCache = new Map();
+        this._audioCacheMax = 50;
         // Queue-Semantik: speak() reiht neue Ansagen hinter die laufende ein,
         // statt sie zu ueberlappen. cancel() setzt den Cancel-Marker auf die
         // aktuelle Generation, wodurch sowohl laufende als auch wartende
@@ -283,6 +290,29 @@ class PiperTTSManager {
         this._cancelGen = this._speakGen;
         this._stop();
     }
+    _audioCacheKey(backend, text) {
+        if (backend === 'google') return 'g|' + this.googleVoice + '|' + text;
+        if (backend === 'piper')  return 'p|' + this.voiceId + '|' + text;
+        return null;
+    }
+    _audioCacheGet(key) {
+        if (!key) return null;
+        const buf = this._audioCache.get(key);
+        if (!buf) return null;
+        // LRU: an's Ende setzen, damit selten genutzte Eintraege verdraengt werden.
+        this._audioCache.delete(key);
+        this._audioCache.set(key, buf);
+        return buf;
+    }
+    _audioCachePut(key, buf) {
+        if (!key || !buf) return;
+        this._audioCache.delete(key);
+        this._audioCache.set(key, buf);
+        while (this._audioCache.size > this._audioCacheMax) {
+            const oldest = this._audioCache.keys().next().value;
+            this._audioCache.delete(oldest);
+        }
+    }
     async _speakImmediate(text, myGen) {
         if (!this.enabled || this.backend === 'browser') {
             return this.fallback.speak(text);
@@ -291,6 +321,12 @@ class PiperTTSManager {
             return this._speakGoogle(text, myGen);
         }
         if (!this.ready) return this.fallback.speak(text);
+        const cacheKey = this._audioCacheKey('piper', text);
+        const cached = this._audioCacheGet(cacheKey);
+        if (cached) {
+            if (this._cancelGen >= myGen) return;
+            return await this._playViaWebAudio(cached, 0.9, myGen);
+        }
         try {
             const wav = await Promise.race([
                 window._piper.predict({ text, voiceId: this.voiceId }),
@@ -299,6 +335,7 @@ class PiperTTSManager {
             if (this._cancelGen >= myGen) return;
             const arrayBuffer = await wav.arrayBuffer();
             if (this._cancelGen >= myGen) return;
+            this._audioCachePut(cacheKey, arrayBuffer);
             // Piper-Thorsten spricht fuer Vorschulkinder etwas zu schnell.
             // playbackRate 0.9 senkt leicht die Tonhoehe - ok fuer maennliche
             // Stimme. WebAudio unterstuetzt kein preservesPitch, das ist der
@@ -311,6 +348,13 @@ class PiperTTSManager {
     }
     async _speakGoogle(text, myGen) {
         if (!this.googleKey) { this.googleStatus = 'no-key'; return this._speakFallbackChain(text, myGen); }
+        const cacheKey = this._audioCacheKey('google', text);
+        const cached = this._audioCacheGet(cacheKey);
+        if (cached) {
+            if (this._cancelGen >= myGen) return;
+            this.googleStatus = 'ready';
+            return await this._playViaWebAudio(cached, 1, myGen);
+        }
         const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.googleKey)}`;
         const body = JSON.stringify({
             input: { text },
@@ -352,6 +396,7 @@ class PiperTTSManager {
                 const binary = atob(data.audioContent);
                 const bytes = new Uint8Array(binary.length);
                 for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                this._audioCachePut(cacheKey, bytes.buffer);
                 return await this._playViaWebAudio(bytes.buffer, 1, myGen);
             }
             lastStatus = res.status;
@@ -368,6 +413,12 @@ class PiperTTSManager {
     // (falls Modell geladen), sonst Browser-SpeechSynthesis.
     async _speakFallbackChain(text, myGen) {
         if (this.ready && window._piper) {
+            const cacheKey = this._audioCacheKey('piper', text);
+            const cached = this._audioCacheGet(cacheKey);
+            if (cached) {
+                if (this._cancelGen >= myGen) return;
+                return await this._playViaWebAudio(cached, 0.9, myGen);
+            }
             try {
                 const wav = await Promise.race([
                     window._piper.predict({ text, voiceId: this.voiceId }),
@@ -376,6 +427,7 @@ class PiperTTSManager {
                 if (this._cancelGen >= myGen) return;
                 const arrayBuffer = await wav.arrayBuffer();
                 if (this._cancelGen >= myGen) return;
+                this._audioCachePut(cacheKey, arrayBuffer);
                 return await this._playViaWebAudio(arrayBuffer, 0.9, myGen);
             } catch (e) {
                 console.warn('[PiperTTS] Fallback-Synthese fehlgeschlagen:', e);
@@ -403,9 +455,13 @@ class PiperTTSManager {
         // basierte decodeAudioData-Signatur; wir rufen die Callback-Variante
         // auf und wrappen sie selbst in ein Promise, damit aeltere iOS-
         // Versionen nicht an der fehlenden Promise-Rueckgabe scheitern.
+        // Chromium detached den ArrayBuffer beim decodeAudioData - wir geben
+        // eine Kopie rein, damit gecachte Buffer beim naechsten Aufruf noch
+        // dekodiert werden koennen.
+        const decodeInput = arrayBuffer.slice(0);
         const audioBuffer = await new Promise((resolve, reject) => {
             try {
-                const p = ctx.decodeAudioData(arrayBuffer, resolve, reject);
+                const p = ctx.decodeAudioData(decodeInput, resolve, reject);
                 if (p && typeof p.then === 'function') p.then(resolve, reject);
             } catch (e) { reject(e); }
         });
