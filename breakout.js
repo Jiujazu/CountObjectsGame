@@ -346,7 +346,20 @@ class AudioEngine {
             const audio = new Audio(MUSIC_TRACKS[idx]);
             audio.loop = true;
             audio.preload = 'auto';
-            audio.volume = this._musicVolume();
+            // Wenn moeglich ueber WebAudio routen: HTMLAudio wird von Browsern/OS
+            // waehrend SpeechSynthesis oft automatisch abgesenkt ("ducking").
+            // Der WebAudio-Pfad laeuft parallel und bleibt konstant.
+            let routed = false;
+            try {
+                const src = this.ctx.createMediaElementSource(audio);
+                src.connect(this.musicGain);
+                this._bgNode = src;
+                this.musicGain.gain.value = this._musicVolume();
+                audio.volume = 1.0;
+                routed = true;
+            } catch (e) {}
+            this._webAudioMusic = routed;
+            if (!routed) audio.volume = this._musicVolume();
             audio.play().catch(() => {});
             this.bgAudio = audio;
         } catch (e) {}
@@ -354,19 +367,26 @@ class AudioEngine {
     }
 
     _musicVolume() {
-        return this._musicMuted ? 0 : 0.25;
+        // Halbe Lautstaerke: Hintergrundmusik bleibt im Hintergrund, TTS ist vorn.
+        return this._musicMuted ? 0 : 0.125;
     }
 
     setMusicMuted(muted) {
         this._musicMuted = !!muted;
-        if (this.bgAudio) this.bgAudio.volume = this._musicVolume();
+        if (this._webAudioMusic && this.musicGain) {
+            this.musicGain.gain.value = this._musicVolume();
+        } else if (this.bgAudio) {
+            this.bgAudio.volume = this._musicVolume();
+        }
     }
 
     _stopBgAudio() {
+        if (this._bgNode) { try { this._bgNode.disconnect(); } catch(e) {} this._bgNode = null; }
         if (this.bgAudio) {
             try { this.bgAudio.pause(); this.bgAudio.src = ''; } catch(e) {}
             this.bgAudio = null;
         }
+        this._webAudioMusic = false;
     }
 
     stopMusic() {
