@@ -3,14 +3,40 @@
 // === SharedAudio: Zentrales AudioContext-Management ===
 class SharedAudio {
     static _ctx = null;
+    static _unlocked = false;
     static getContext() {
         if (!SharedAudio._ctx || SharedAudio._ctx.state === 'closed') {
             SharedAudio._ctx = new (window.AudioContext || window.webkitAudioContext)();
         }
         return SharedAudio._ctx;
     }
+    // iOS Safari startet den AudioContext "suspended" und entsperrt ihn NUR,
+    // wenn resume() SYNCHRON innerhalb eines Touch-/Click-Handlers laeuft.
+    // Ein spaeter awaited resume() aus async/Promise-Kontext hat keinen
+    // Effekt - dann bleibt der Context stumm. Daher muss jeder Gesten-Pfad
+    // diese Methode aufrufen, bevor irgendetwas anderes passiert.
+    static unlock() {
+        const ctx = SharedAudio.getContext();
+        if (ctx.state === 'suspended') {
+            try { ctx.resume(); } catch (e) {}
+        }
+        // Einmaliges stummes Buffer-Play, damit iOS den Context wirklich als
+        // "vom User initiiert" markiert. Ohne das bleibt decodeAudioData ok,
+        // aber die BufferSource spielt nicht hoerbar ab.
+        if (!SharedAudio._unlocked) {
+            try {
+                const buf = ctx.createBuffer(1, 1, 22050);
+                const src = ctx.createBufferSource();
+                src.buffer = buf;
+                src.connect(ctx.destination);
+                src.start(0);
+                SharedAudio._unlocked = true;
+            } catch (e) {}
+        }
+    }
     static playTone(frequency, duration, type = 'sine', volume = 0.3) {
         const ctx = SharedAudio.getContext();
+        if (ctx.state === 'suspended') { try { ctx.resume(); } catch(e) {} }
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
@@ -24,6 +50,7 @@ class SharedAudio {
     }
     static playStartSound() {
         try {
+            SharedAudio.unlock();
             const ctx = SharedAudio.getContext();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -77,6 +104,35 @@ class SharedAudio {
         osc.stop(ctx.currentTime + 0.35);
     }
 }
+
+// Globaler One-Shot-Unlock: bei der ersten Nutzer-Interaktion den AudioContext
+// synchron entsperren. Ohne das bleibt iOS-Safari nach einem Piper-Fallback-
+// oder Welcome-TTS stumm, weil die spaeteren resume()-Aufrufe ausserhalb der
+// Geste feuern.
+(function installAudioUnlockShim() {
+    if (typeof document === 'undefined') return;
+    const unlock = () => {
+        try { SharedAudio.unlock(); } catch (e) {}
+        // Auch speechSynthesis auf iOS per leerem Utterance "priming", damit
+        // spaetere speak()-Aufrufe aus Promise-Chains nicht verworfen werden.
+        try {
+            if (window.speechSynthesis && !SharedAudio._speechPrimed) {
+                const u = new SpeechSynthesisUtterance('');
+                u.volume = 0;
+                window.speechSynthesis.speak(u);
+                SharedAudio._speechPrimed = true;
+            }
+        } catch (e) {}
+        document.removeEventListener('touchstart', unlock, true);
+        document.removeEventListener('pointerdown', unlock, true);
+        document.removeEventListener('click', unlock, true);
+        document.removeEventListener('keydown', unlock, true);
+    };
+    document.addEventListener('touchstart', unlock, true);
+    document.addEventListener('pointerdown', unlock, true);
+    document.addEventListener('click', unlock, true);
+    document.addEventListener('keydown', unlock, true);
+})();
 
 // === TTSManager: Text-to-Speech ===
 class TTSManager {
