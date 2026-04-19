@@ -135,6 +135,13 @@
                             </div>
                             <div class="parent-voice-options">
                                 <label class="parent-voice-option">
+                                    <input type="radio" name="pc-voice" value="google">
+                                    <span class="parent-voice-text">
+                                        <span class="parent-voice-label">Google Chirp 3 HD (online)</span>
+                                        <span class="parent-helper">Beste Qualität, benötigt eigenen API-Key.</span>
+                                    </span>
+                                </label>
+                                <label class="parent-voice-option">
                                     <input type="radio" name="pc-voice" value="piper">
                                     <span class="parent-voice-text">
                                         <span class="parent-voice-label">Thorsten (offline)</span>
@@ -148,6 +155,17 @@
                                         <span class="parent-helper">Eingebaut, Qualität variiert je nach Gerät.</span>
                                     </span>
                                 </label>
+                            </div>
+                            <div class="parent-google-config" id="pc-google-config">
+                                <div class="parent-field-head">
+                                    <span class="parent-field-label">Google API-Key</span>
+                                </div>
+                                <input type="password" id="pc-google-key" class="parent-input" placeholder="AIza..." autocomplete="off">
+                                <div class="parent-field-head" style="margin-top:8px">
+                                    <span class="parent-field-label">Chirp-Stimme</span>
+                                </div>
+                                <select id="pc-google-voice" class="parent-input"></select>
+                                <button type="button" class="parent-btn parent-btn-secondary" id="pc-google-test" style="margin-top:8px">🔊 Stimme testen</button>
                             </div>
                             <div class="parent-status" id="pc-tts-status"></div>
                         </div>
@@ -278,6 +296,13 @@
                             </div>
                             <div class="parent-voice-options">
                                 <label class="parent-voice-option">
+                                    <input type="radio" name="lp-voice" value="google">
+                                    <span class="parent-voice-text">
+                                        <span class="parent-voice-label">Google Chirp 3 HD (online)</span>
+                                        <span class="parent-helper">Beste Qualität, benötigt eigenen API-Key.</span>
+                                    </span>
+                                </label>
+                                <label class="parent-voice-option">
                                     <input type="radio" name="lp-voice" value="piper">
                                     <span class="parent-voice-text">
                                         <span class="parent-voice-label">Thorsten (offline)</span>
@@ -291,6 +316,17 @@
                                         <span class="parent-helper">Eingebaut, Qualität variiert je nach Gerät.</span>
                                     </span>
                                 </label>
+                            </div>
+                            <div class="parent-google-config" id="lp-google-config">
+                                <div class="parent-field-head">
+                                    <span class="parent-field-label">Google API-Key</span>
+                                </div>
+                                <input type="password" id="lp-google-key" class="parent-input" placeholder="AIza..." autocomplete="off">
+                                <div class="parent-field-head" style="margin-top:8px">
+                                    <span class="parent-field-label">Chirp-Stimme</span>
+                                </div>
+                                <select id="lp-google-voice" class="parent-input"></select>
+                                <button type="button" class="parent-btn parent-btn-secondary" id="lp-google-test" style="margin-top:8px">🔊 Stimme testen</button>
                             </div>
                             <div class="parent-status" id="lp-tts-status"></div>
                         </div>

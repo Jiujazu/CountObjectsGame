@@ -3497,10 +3497,8 @@ class Game {
     }
 
     updateHUD() {
-        const theme = WORLD_THEMES[this.currentWorld];
         const lvl = this.levels.currentLevel + 1;
-        const emoji = theme && theme.emoji ? theme.emoji : '🎮';
-        document.getElementById('level-display').textContent = emoji + ' L ' + lvl;
+        document.getElementById('level-display').textContent = lvl;
         const hearts = [];
         for (let i = 0; i < this.lives; i++) hearts.push('\u2764\uFE0F');
         document.getElementById('lives-display').textContent = hearts.join(' ');
