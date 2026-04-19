@@ -3190,20 +3190,6 @@ class Game {
         this.particles.update();
         this.vfx.update(this.combo, this.partyMode);
         this.audio.setCombo(this.combo);
-        this._updateMusicRate();
-    }
-
-    _updateMusicRate() {
-        const audio = this.audio.bgAudio;
-        if (!audio) return;
-        let target = 1.0;
-        if (this.powerups.isActive('speeddemon')) target = 1.30;
-        else if (this.powerups.isActive('fireball')) target = 1.15;
-        else if (this.powerups.isActive('slowmo')) target = 0.75;
-        if (this.partyMode) target = Math.max(target, 1.2);
-        const cur = audio.playbackRate || 1.0;
-        const next = cur + (target - cur) * 0.08;
-        try { audio.playbackRate = Math.max(0.5, Math.min(1.8, next)); } catch(e) {}
     }
 
     checkBrickCollisions(ball) {
