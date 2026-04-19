@@ -1364,46 +1364,59 @@ html, body {
     .game-select-menu { gap: 24px; }
 }
 
-/* Mobile: vertikal, in die untere Bildschirmhälfte (Daumenzone) */
+/* Mobile: vertikal, Kacheln fuellen nahezu die gesamte Bildschirmhoehe */
 @media (max-width: 600px) {
     .startscreen-content {
-        top: auto;
-        bottom: 6vh;
+        top: 2vh;
+        bottom: 2vh;
+        left: 4vw;
+        right: 4vw;
+        width: auto;
+        height: auto;
         transform: none;
-        gap: 18px;
+        gap: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
     }
     .game-select-menu {
+        flex: 1 1 auto;
         flex-direction: column;
         gap: 14px;
+        width: 100%;
+        padding: 0;
+        align-items: stretch;
     }
     .game-select-btn {
-        flex-direction: row;
-        width: 80vw;
-        max-width: 360px;
-        height: 104px;
-        border-radius: 26px;
-        gap: 20px;
-        padding: 0 24px;
-        justify-content: flex-start;
-        border-width: 5px;
+        flex: 1 1 0;
+        flex-direction: column;
+        width: 100%;
+        max-width: none;
+        height: auto;
+        min-height: 0;
+        border-radius: 32px;
+        gap: 14px;
+        padding: 16px 20px 18px;
+        justify-content: center;
+        border-width: 6px;
     }
     .game-select-icon {
-        font-size: 3.6rem;
-        width: 90px;
+        font-size: 4.6rem;
+        width: auto;
         justify-content: center;
     }
-    .tile-art--counting .tile-emoji { font-size: 2rem; }
-    .tile-art--letters  .tile-letter { font-size: 2.2rem; }
-    .tile-art--breakout .tile-bricks > span { font-size: 1.6rem; }
-    .tile-art--breakout .tile-ball { font-size: 1.4rem; animation-duration: 1.4s; }
+    .tile-art--counting .tile-emoji { font-size: 4rem; }
+    .tile-art--letters  .tile-letter { font-size: 4.6rem; }
+    .tile-art--breakout .tile-bricks > span { font-size: 3rem; }
+    .tile-art--breakout .tile-ball { font-size: 2.6rem; animation-duration: 1.4s; }
     @keyframes tileBall {
-        0%, 100% { transform: translate(-18px, 0) rotate(0deg); }
-        25%      { transform: translate(-6px, -10px) rotate(120deg); }
-        50%      { transform: translate(6px, 0) rotate(240deg); }
-        75%      { transform: translate(18px, -10px) rotate(340deg); }
+        0%, 100% { transform: translate(-36px, 0) rotate(0deg); }
+        25%      { transform: translate(-12px, -14px) rotate(120deg); }
+        50%      { transform: translate(12px, 0) rotate(240deg); }
+        75%      { transform: translate(36px, -14px) rotate(340deg); }
     }
     .game-select-label {
-        font-size: 0.7rem;
+        font-size: 0.75rem;
     }
     /* Video auf Handy ausblenden – es überlappt die Kacheln und hat auf kleinem
        Bildschirm keinen eigenen Mehrwert. */
