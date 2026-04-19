@@ -2350,7 +2350,7 @@ class Game {
         this.levels = new LevelManager();
         this.input = new InputManager(this.canvas);
 
-        this.state = 'start';
+        this.state = 'init';
         this.score = 0;
         this.lives = 3;
         this.combo = 0;
@@ -2385,14 +2385,6 @@ class Game {
         // Sound settings
         try { this.musicMuted = localStorage.getItem('breakout_musicMuted') === 'true'; } catch(e) { this.musicMuted = false; }
         try { this.sfxMuted = localStorage.getItem('breakout_sfxMuted') === 'true'; } catch(e) { this.sfxMuted = false; }
-        // Tutorial
-        try { this.tutorialSeen = localStorage.getItem('breakout_tutorialSeen') === 'true'; } catch(e) { this.tutorialSeen = false; }
-        this.tutorialStep = 0;
-        this.tutorialCards = [
-            { icon: '\uD83D\uDC46', text: 'Paddle bewegen' },
-            { icon: '\uD83E\uDDF1', text: 'Steine zerst\u00f6ren!' },
-            { icon: '\u2B50', text: 'Sterne sammeln!' },
-        ];
         // Pause menu
         this.pauseMenuIdx = 0;
         // Skins
@@ -2445,12 +2437,6 @@ class Game {
                 e.stopPropagation();
             }, { passive: true });
         }
-
-        // Play button
-        document.getElementById('play-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            this._triggerStart();
-        });
 
         // Eltern-Gate: unauffaelliges Zahnrad oeffnet das neu gestaltete
         // Eltern-Einstellungsmenue (gleiche Optik wie „Buchstaben"/„Zaehlen").
@@ -2529,6 +2515,10 @@ class Game {
         });
 
         this.updateHUD();
+        // Spiel startet direkt mit am Paddle klebendem Ball. Kein Tutorial, kein
+        // Spielen-Button. Erstes Drücken+Loslassen schiesst den Ball ab und
+        // weckt den Audio-Context (Autoplay-Gate).
+        this.startGame();
         this.loop();
     }
 
@@ -2599,74 +2589,27 @@ class Game {
             if (this.sfxMuted) this._cancelSpeech();
             this._applySoundSettings();
         });
-        // TTS-Backend-Auswahl
-        const googleConfig = $('bp-google-config');
+        // TTS-Backend-Auswahl: Thorsten (Piper) vs. Standard (Browser).
         document.querySelectorAll('input[name="bp-voice"]').forEach(r => {
-            r.addEventListener('change', (e) => {
+            r.addEventListener('change', () => {
                 const tts = this._tts();
                 if (tts) tts.setBackend(r.value);
-                if (googleConfig) googleConfig.toggleAttribute('hidden', r.value !== 'google');
                 this._renderTtsStatus();
             });
         });
-        // Google TTS Key/Voice
-        this._populateGoogleVoiceSelect();
-        const keyInput = $('bp-google-key');
-        const voiceInput = $('bp-google-voice');
-        if (keyInput) {
-            keyInput.addEventListener('input', () => {
-                const tts = this._tts();
-                if (tts) tts.setGoogleKey(keyInput.value);
-                this._renderTtsStatus();
-            });
-        }
-        if (voiceInput) {
-            voiceInput.addEventListener('change', () => {
-                const tts = this._tts();
-                if (tts) tts.setGoogleVoice(voiceInput.value);
-            });
-        }
-        const testBtn = $('bp-google-test');
-        if (testBtn) {
-            testBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const tts = this._tts();
-                if (!tts) return;
-                tts.setGoogleKey(keyInput.value);
-                tts.setGoogleVoice(voiceInput.value);
-                const prev = tts.backend;
-                tts.backend = 'google';
-                await tts.speak('Hallo, ich bin deine neue Stimme.');
-                tts.backend = prev;
-                this._renderTtsStatus();
-            });
-        }
     }
 
     _tts() {
-        // PiperTTSManager wird erst nach DOM-Init via shared.js verfuegbar.
-        // Shared-Instanz verwenden, damit sich alle Spiele das gleiche Modell
-        // und die gleichen Einstellungen teilen.
-        if (!window.PiperTTSManager) return null;
+        // PiperTTSManager wird von shared.js als klassisches Script im globalen
+        // Script-Scope deklariert (nicht auf window.*). Die Shared-Instanz sorgt
+        // dafuer, dass alle Spiele dasselbe Modell und dieselben Einstellungen
+        // (Backend-Auswahl, Google-Key, …) verwenden.
+        if (typeof PiperTTSManager === 'undefined') return null;
         if (!this._ttsInstance) {
-            try { this._ttsInstance = window.PiperTTSManager.getShared('de_DE-thorsten-medium'); }
+            try { this._ttsInstance = PiperTTSManager.getShared('de_DE-thorsten-medium'); }
             catch(e) { this._ttsInstance = null; }
         }
         return this._ttsInstance;
-    }
-
-    _populateGoogleVoiceSelect() {
-        const sel = document.getElementById('bp-google-voice');
-        if (!sel || sel.options.length > 0) return;
-        const voices = (typeof GOOGLE_CHIRP_VOICES !== 'undefined') ? GOOGLE_CHIRP_VOICES : [];
-        const tts = this._tts();
-        const current = tts ? tts.googleVoice : 'de-DE-Chirp3-HD-Leda';
-        voices.forEach(v => {
-            const o = document.createElement('option');
-            o.value = v.id; o.textContent = v.label;
-            if (v.id === current) o.selected = true;
-            sel.appendChild(o);
-        });
     }
 
     _openParentSettings() {
@@ -2710,17 +2653,17 @@ class Game {
         // Mute-Toggles
         if ($('bp-music-toggle')) $('bp-music-toggle').checked = !this.musicMuted;
         if ($('bp-sfx-toggle')) $('bp-sfx-toggle').checked = !this.sfxMuted;
-        // Stimme
+        // Stimme: in breakout nur Thorsten (Piper) oder Standard (Browser)
+        // waehlbar. Falls ein anderes Spiel 'google' eingestellt hat, fallen wir
+        // in der Anzeige auf Piper zurueck; das google-Backend bleibt aber
+        // funktional, falls dort konfiguriert.
         const tts = this._tts();
         if (tts) {
             const backend = tts.backend || 'piper';
+            const uiBackend = (backend === 'browser') ? 'browser' : 'piper';
             document.querySelectorAll('input[name="bp-voice"]').forEach(r => {
-                r.checked = (r.value === backend);
+                r.checked = (r.value === uiBackend);
             });
-            const gc = $('bp-google-config');
-            if (gc) gc.toggleAttribute('hidden', backend !== 'google');
-            if ($('bp-google-key')) $('bp-google-key').value = tts.googleKey || '';
-            this._populateGoogleVoiceSelect();
         }
         this._renderTtsStatus();
     }
@@ -2855,41 +2798,25 @@ class Game {
         this._quitConfirmPrevState = null;
     }
 
-    _triggerStart() {
-        if (!this.tutorialSeen) {
-            this.tutorialSeen = true;
-            try { localStorage.setItem('breakout_tutorialSeen', 'true'); } catch(e) {}
-            this.tutorialStep = 0;
-            this.state = 'tutorial';
-            this.hideAllOverlays();
-            this._showTutorialCard();
-            return;
-        }
-        this.startGame();
-    }
-
-    _showTutorialCard() {
-        const overlay = document.getElementById('tutorial-overlay');
-        overlay.classList.remove('hidden');
-        const card = this.tutorialCards[this.tutorialStep];
-        let dotsHtml = '';
-        for (let i = 0; i < this.tutorialCards.length; i++) {
-            dotsHtml += '<div class="tut-dot' + (i === this.tutorialStep ? ' active' : '') + '"></div>';
-        }
-        overlay.innerHTML = '<div class="tut-card"><div class="tut-icon">' + card.icon +
-            '</div><div class="tut-text">' + card.text.replace('\n', '<br>') +
-            '</div><div class="tut-next">' + (this.tutorialStep < this.tutorialCards.length - 1 ? 'Weiter \u2192' : 'LOS!') +
-            '</div><div class="tut-dots">' + dotsHtml + '</div></div>';
-    }
-
-    _advanceTutorial() {
-        this.tutorialStep++;
-        if (this.tutorialStep >= this.tutorialCards.length) {
-            document.getElementById('tutorial-overlay').classList.add('hidden');
-            this.startGame();
-        } else {
-            this._showTutorialCard();
-        }
+    _armAudioUnlock() {
+        if (this._audioUnlockArmed) return;
+        this._audioUnlockArmed = true;
+        const unlock = () => {
+            document.removeEventListener('pointerdown', unlock, true);
+            document.removeEventListener('keydown', unlock, true);
+            try {
+                if (this.audio.ctx && this.audio.ctx.state === 'suspended') {
+                    this.audio.ctx.resume().catch(() => {});
+                }
+            } catch(_) {}
+            // Falls der erste startMusic-Aufruf beim Autoplay-Gate fehlgeschlagen ist,
+            // jetzt erneut versuchen. Im Pause- oder Over-Zustand nichts tun.
+            if (this.state === 'playing' && !this.audio.bgAudio && !this.musicMuted) {
+                try { this.audio.startMusic(this.levels.currentLevel); } catch(_) {}
+            }
+        };
+        document.addEventListener('pointerdown', unlock, true);
+        document.addEventListener('keydown', unlock, true);
     }
 
     _showPowerupIntro(type) {
@@ -2905,8 +2832,13 @@ class Game {
     startGame() {
         this.audio.init();
         this._applySoundSettings();
-        // Klick vom Play-Button verwerfen, sonst wuerde er sofort den geklebten Ball loesen.
+        // Browser blockieren Autoplay bis zur ersten Nutzer-Geste. Da das Spiel
+        // direkt laeuft (ohne Play-Button), beim ersten Pointerdown/Keydown den
+        // Audio-Context entsperren und die Musik ggf. nachstarten.
+        this._armAudioUnlock();
+        // Etwaige vorherige Klicks verwerfen, damit der geklebte Ball nicht sofort fliegt.
         this.input.consumeClick();
+        this.input.consumeRelease();
         this.state = 'playing';
         this.score = 0;
         this.lives = this.kidsMode ? 5 : 3;
@@ -2984,19 +2916,10 @@ class Game {
     }
 
     update() {
-        if (this.state === 'tutorial') {
-            if (this.input.wantsStart()) this._advanceTutorial();
-            return;
-        }
-
-        if (this.state === 'start' || this.state === 'gameover' || this.state === 'win') {
+        if (this.state === 'gameover' || this.state === 'win') {
             if (!document.getElementById('skins-overlay').classList.contains('hidden')) return;
             if (!document.getElementById('parent-settings-overlay').classList.contains('hidden')) return;
-            if (this.state === 'start') {
-                if (this.input.wantsStart()) this._triggerStart();
-            } else {
-                if (this.input.wantsStart()) this.startGame();
-            }
+            if (this.input.wantsStart()) this.startGame();
             return;
         }
 
@@ -3973,7 +3896,7 @@ class Game {
     }
 
     hideAllOverlays() {
-        ['start-overlay', 'game-over-overlay', 'win-overlay', 'level-overlay', 'pause-overlay', 'skins-overlay', 'tutorial-overlay'].forEach(id => {
+        ['game-over-overlay', 'win-overlay', 'level-overlay', 'pause-overlay', 'skins-overlay'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
         });

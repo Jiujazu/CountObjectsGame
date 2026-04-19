@@ -13,7 +13,7 @@
 <body>
     <div id="game-wrapper">
         <button id="back-btn" title="Zurück zum Menü" aria-label="Zurück zum Menü">✕</button>
-        <button id="pause-btn" title="Pause" aria-label="Pause">⏸</button>
+        <button id="pause-btn" title="Pause" aria-label="Pause">⏸️</button>
         <div id="hud">
             <span id="score-display">Score: 0</span>
             <span id="level-display">Level 1</span>
@@ -23,11 +23,7 @@
         <div id="canvas-holder">
             <canvas id="gameCanvas" width="480" height="600"></canvas>
         </div>
-        <div id="start-overlay">
-            <div class="start-text">ULTIMATE<br>BREAKOUT</div>
-            <button id="play-btn">SPIELEN</button>
-            <button id="parent-gate-btn" class="parent-gate-btn" title="Eltern-Einstellungen" aria-label="Eltern-Einstellungen">⚙</button>
-        </div>
+        <button id="parent-gate-btn" class="parent-gate-btn" title="Eltern-Einstellungen" aria-label="Eltern-Einstellungen">⚙️</button>
         <div id="parent-settings-overlay" class="parent-overlay hidden">
             <div class="parent-panel">
                 <div class="parent-panel-header">
@@ -92,30 +88,17 @@
                                 <label class="parent-voice-option">
                                     <input type="radio" name="bp-voice" value="piper">
                                     <span class="parent-voice-text">
-                                        <span class="parent-voice-label">Piper / Thorsten</span>
-                                        <span class="parent-helper">Offline, gratis. ~63 MB Download beim ersten Start.</span>
-                                    </span>
-                                </label>
-                                <label class="parent-voice-option">
-                                    <input type="radio" name="bp-voice" value="google">
-                                    <span class="parent-voice-text">
-                                        <span class="parent-voice-label">Google Chirp 3 HD</span>
-                                        <span class="parent-helper">Premium-Qualität. Eigener API-Key nötig.</span>
+                                        <span class="parent-voice-label">Thorsten (offline)</span>
+                                        <span class="parent-helper">Natürliche Kinderstimme. ~63 MB Download beim ersten Start.</span>
                                     </span>
                                 </label>
                                 <label class="parent-voice-option">
                                     <input type="radio" name="bp-voice" value="browser">
                                     <span class="parent-voice-text">
-                                        <span class="parent-voice-label">Browser-Stimme</span>
+                                        <span class="parent-voice-label">Standard (Browser)</span>
                                         <span class="parent-helper">Eingebaut, Qualität variiert je nach Gerät.</span>
                                     </span>
                                 </label>
-                            </div>
-                            <div class="parent-voice-google" id="bp-google-config" hidden>
-                                <input type="password" id="bp-google-key" class="parent-text-input" placeholder="Google API-Key" autocomplete="off">
-                                <select id="bp-google-voice" class="parent-text-input"></select>
-                                <button type="button" class="parent-btn parent-btn-secondary parent-btn-slim" id="bp-google-test">Testen</button>
-                                <div class="parent-helper">Key auf <code>console.cloud.google.com</code> erstellen und per HTTP-Referrer einschränken. Wird nur lokal gespeichert.</div>
                             </div>
                             <div class="parent-status" id="bp-tts-status"></div>
                         </div>
@@ -153,10 +136,10 @@
         <div id="pause-overlay" class="hidden">
             <div class="pause-text">PAUSE</div>
             <div class="pause-menu">
-                <button class="pause-menu-btn selected" data-action="resume"><span class="pause-icon">▶</span><span class="pause-label">Weiter</span></button>
+                <button class="pause-menu-btn selected" data-action="resume"><span class="pause-icon">▶️</span><span class="pause-label">Weiter</span></button>
                 <button class="pause-menu-btn" data-action="toggleMusic"><span class="pause-icon">🎵</span><span class="pause-label">Musik an</span></button>
                 <button class="pause-menu-btn" data-action="toggleSfx"><span class="pause-icon">🔔</span><span class="pause-label">Effekte an</span></button>
-                <button class="pause-menu-btn pause-parent-only" data-action="nextLevel"><span class="pause-icon">⏭</span><span class="pause-label">Level überspringen</span></button>
+                <button class="pause-menu-btn pause-parent-only" data-action="nextLevel"><span class="pause-icon">⏭️</span><span class="pause-label">Level überspringen</span></button>
                 <button class="pause-menu-btn" data-action="restart"><span class="pause-icon">🔄</span><span class="pause-label">Neustart</span></button>
                 <button class="pause-menu-btn" data-action="quit"><span class="pause-icon">🏠</span><span class="pause-label">Menü</span></button>
             </div>
@@ -166,7 +149,7 @@
             <div class="quit-confirm-text">Wirklich beenden?</div>
             <div class="quit-confirm-buttons">
                 <button id="quit-confirm-no" class="quit-confirm-btn quit-no" aria-label="Nein, weiterspielen">✔</button>
-                <button id="quit-confirm-yes" class="quit-confirm-btn quit-yes" aria-label="Ja, beenden">✖</button>
+                <button id="quit-confirm-yes" class="quit-confirm-btn quit-yes" aria-label="Ja, beenden">✕</button>
             </div>
         </div>
     </div>
