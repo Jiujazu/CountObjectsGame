@@ -7,32 +7,38 @@
     <!-- style.css stellt die Shared-Komponenten zur Verfuegung
          (parent-overlay/parent-panel, close-confirm-overlay etc.), damit die
          Menues die gleiche Optik wie „Buchstaben" und „Zaehlen" haben. -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&family=Open+Sans:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="breakout.css">
 </head>
 <body>
     <div id="game-wrapper">
-        <button id="back-btn" title="Zurück zum Menü" aria-label="Zurück zum Menü">✕</button>
-        <button id="pause-btn" title="Pause" aria-label="Pause">⏸️</button>
+        <button id="pause-btn" title="Menü" aria-label="Menü">⏸️</button>
         <div id="hud">
-            <span id="score-display">Score: 0</span>
-            <span id="level-display">Level 1</span>
-            <span id="highscore-display">HI: 0</span>
+            <span id="level-display">L 1</span>
             <span id="lives-display"></span>
         </div>
         <div id="canvas-holder">
             <canvas id="gameCanvas" width="480" height="600"></canvas>
         </div>
-        <button id="parent-gate-btn" class="parent-gate-btn" title="Eltern-Einstellungen" aria-label="Eltern-Einstellungen">⚙️</button>
-        <div id="parent-settings-overlay" class="parent-overlay hidden">
+        <!-- Kombiniertes Menue: Pause + Eltern-Einstellungen in einem Panel. -->
+        <div id="pause-overlay" class="parent-overlay hidden">
             <div class="parent-panel">
                 <div class="parent-panel-header">
-                    <h2 class="parent-panel-title">⚙️ Eltern-Einstellungen</h2>
-                    <div class="parent-panel-subtitle">Tipp auf das Zahnrad, um diese Einstellungen zu öffnen.</div>
+                    <h2 class="parent-panel-title">⏸️ Pause</h2>
+                    <div class="parent-panel-subtitle" id="pause-stats"></div>
                 </div>
                 <div class="parent-panel-body">
                     <section class="parent-section">
                         <div class="parent-section-label">Spiel</div>
+                        <div class="pause-menu">
+                            <button class="pause-menu-btn" data-action="restart"><span class="pause-icon">🔄</span><span class="pause-label">Neustart</span></button>
+                            <button class="pause-menu-btn pause-parent-only" data-action="nextLevel"><span class="pause-icon">⏭️</span><span class="pause-label">Level überspringen</span></button>
+                            <button class="pause-menu-btn" data-action="quit"><span class="pause-icon">🏠</span><span class="pause-label">Zurück zum Menü</span></button>
+                        </div>
+                    </section>
+                    <section class="parent-section">
+                        <div class="parent-section-label">Einstellungen</div>
                         <div class="parent-field">
                             <div class="parent-field-head">
                                 <span class="parent-field-label">Modus</span>
@@ -105,11 +111,10 @@
                     </section>
                 </div>
                 <div class="parent-panel-footer">
-                    <button type="button" class="parent-btn parent-btn-primary" id="parent-settings-close">Fertig</button>
+                    <button type="button" class="parent-btn parent-btn-primary" id="resume-btn">▶️ Weiter</button>
                 </div>
             </div>
         </div>
-        <div id="tutorial-overlay" class="hidden"></div>
         <div id="skins-overlay" class="hidden">
             <div class="start-text" style="font-size:1.8rem;margin-bottom:12px">PADDLE-SKINS</div>
             <div id="skins-grid"></div>
@@ -132,17 +137,6 @@
         <div id="level-overlay" class="hidden">
             <div class="level-complete-text"></div>
             <div class="level-bonus-text"></div>
-        </div>
-        <div id="pause-overlay" class="hidden">
-            <div class="pause-text">PAUSE</div>
-            <div class="pause-menu">
-                <button class="pause-menu-btn selected" data-action="resume"><span class="pause-icon">▶️</span><span class="pause-label">Weiter</span></button>
-                <button class="pause-menu-btn" data-action="toggleMusic"><span class="pause-icon">🎵</span><span class="pause-label">Musik an</span></button>
-                <button class="pause-menu-btn" data-action="toggleSfx"><span class="pause-icon">🔔</span><span class="pause-label">Effekte an</span></button>
-                <button class="pause-menu-btn pause-parent-only" data-action="nextLevel"><span class="pause-icon">⏭️</span><span class="pause-label">Level überspringen</span></button>
-                <button class="pause-menu-btn" data-action="restart"><span class="pause-icon">🔄</span><span class="pause-label">Neustart</span></button>
-                <button class="pause-menu-btn" data-action="quit"><span class="pause-icon">🏠</span><span class="pause-label">Menü</span></button>
-            </div>
         </div>
         <div id="quit-confirm-overlay" class="hidden">
             <div class="quit-confirm-emoji" aria-hidden="true">👋</div>
