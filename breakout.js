@@ -2690,12 +2690,18 @@ class Game {
         const speed = this.kidsMode ? baseSpeed * 0.6 : baseSpeed;
         // Ball klebt am Paddle bis der Spieler tippt. So kann das Kind
         // selbst entscheiden, von wo aus der Ball startet.
-        const startX = this.paddle ? this.paddle.x + this.paddle.w / 2 : W / 2;
+        // Kleiner Zufallsoffset, damit der Ball nie exakt mittig startet und
+        // somit auch nicht senkrecht abgefeuert wird – sonst kann man durch
+        // reines Klicken eine Reihe Bloecke abraeumen, ohne das Paddle zu bewegen.
+        const paddleW = this.paddle ? this.paddle.w : 80;
+        const sign = Math.random() < 0.5 ? -1 : 1;
+        const stuckOffset = sign * paddleW * (0.12 + Math.random() * 0.13);
+        const startX = this.paddle ? this.paddle.x + this.paddle.w / 2 + stuckOffset : W / 2;
         const startY = this.paddle ? this.paddle.y - 8 : H - 50;
         const ball = new Ball(startX, startY, 0, 0, speed);
         ball.stuck = true;
         ball.manualStick = true;
-        ball.stuckOffset = 0;
+        ball.stuckOffset = stuckOffset;
         this.balls = [ball];
         // Etwaige vorherige Klicks verwerfen, damit der Ball nicht sofort fliegt.
         if (this.input) this.input.consumeClick();
