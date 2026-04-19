@@ -3657,11 +3657,31 @@ function resizeBreakoutCanvas() {
     const availW = Math.max(0, holder.clientWidth - padX);
     const availH = Math.max(0, holder.clientHeight - padY);
     if (availW <= 0 || availH <= 0) return;
-    const aspect = W / H;
-    let w = availW, h = availH;
-    if (w / h > aspect) { w = h * aspect; } else { h = w / aspect; }
-    canvas.style.width = Math.floor(w) + 'px';
-    canvas.style.height = Math.floor(h) + 'px';
+    // Uniform-Scale: beide Achsen mit demselben Faktor, damit das
+    // Seitenverhaeltnis exakt erhalten bleibt (keine Sub-Pixel-Verzerrung
+    // durch getrenntes Runden).
+    const scale = Math.min(availW / W, availH / H);
+    const displayW = W * scale;
+    const displayH = H * scale;
+    canvas.style.width = displayW + 'px';
+    canvas.style.height = displayH + 'px';
+    // DPR-Kopplung: canvas.width/height sind die echten Pixel im Zeichen-
+    // puffer. Wir setzen sie auf displayGroesse * devicePixelRatio und
+    // skalieren den Kontext so, dass die Zeichenlogik weiter in logischen
+    // W/H-Koords (480x600) arbeiten kann - liefert gestochen scharfe
+    // Kanten/Schrift auf HiDPI-Displays statt bilineare Unschaerfe.
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const bufW = Math.round(displayW * dpr);
+    const bufH = Math.round(displayH * dpr);
+    if (canvas.width !== bufW || canvas.height !== bufH) {
+        canvas.width = bufW;
+        canvas.height = bufH;
+    }
+    // setTransform ueberschreibt die Matrix komplett - immer direkt nach
+    // einer Groessenaenderung noetig, weil das Setzen von canvas.width den
+    // Kontext-State zurueck auf Identitaet setzt.
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(bufW / W, 0, 0, bufH / H, 0, 0);
 }
 window.addEventListener('resize', resizeBreakoutCanvas);
 window.addEventListener('orientationchange', resizeBreakoutCanvas);
