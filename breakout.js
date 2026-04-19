@@ -982,14 +982,6 @@ class Brick {
         if (!this.alive) return;
         const color = this.getColor(partyMode, worldIndex);
         ctx.save();
-        // Breathing animation
-        if (this.breathing) {
-            const s = 1 + Math.sin(this.animPhase) * 0.035;
-            const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
-            ctx.translate(cx, cy);
-            ctx.scale(s, s);
-            ctx.translate(-cx, -cy);
-        }
         // Glow
         if (this.type === 'explosive' || this.type === 'gold' || partyMode) {
             ctx.shadowColor = color;
@@ -1001,6 +993,11 @@ class Brick {
             ctx.shadowBlur = 15;
         }
         ctx.fillStyle = color;
+        // Subtle breathing via alpha/brightness (keeps collision box matching visuals)
+        if (this.breathing) {
+            const pulse = 1 + Math.sin(this.animPhase) * 0.08;
+            ctx.globalAlpha = Math.min(1, 0.9 * pulse);
+        }
         ctx.beginPath();
         roundRect(ctx, this.x, this.y, this.w, this.h, 3);
         ctx.fill();
@@ -2029,8 +2026,18 @@ class Game {
         this.newHighScoreFlag = false;
         this.bossesDefeated = 0;
         this.maxComboEver = 0;
-        // Kids mode (default true)
-        try { this.kidsMode = localStorage.getItem('breakout_kidsMode') !== 'false'; } catch(e) { this.kidsMode = true; }
+        // Mode: 'kids' | 'normal' | 'parent'. Legacy flag breakout_kidsMode still honored.
+        let storedMode = null;
+        try { storedMode = localStorage.getItem('breakout_mode'); } catch(e) {}
+        if (storedMode === 'kids' || storedMode === 'normal' || storedMode === 'parent') {
+            this.mode = storedMode;
+        } else {
+            let legacyKids = true;
+            try { legacyKids = localStorage.getItem('breakout_kidsMode') !== 'false'; } catch(e) {}
+            this.mode = legacyKids ? 'kids' : 'normal';
+        }
+        this.kidsMode = this.mode === 'kids';
+        this.parentMode = this.mode === 'parent';
         this.startLevel = 0;
         // Seen power-ups for intro tooltip
         try { this.seenPowerups = JSON.parse(localStorage.getItem('breakout_seenPowerups') || '{}'); } catch(e) { this.seenPowerups = {}; }
@@ -2120,24 +2127,33 @@ class Game {
             });
         }
 
-        // Mode toggle
+        // Mode toggle cycles: Kinder -> Normal -> Eltern (Test)
         const modeBtn = document.getElementById('mode-toggle');
         this._updateModeBtn(modeBtn);
         modeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.kidsMode = !this.kidsMode;
-            try { localStorage.setItem('breakout_kidsMode', this.kidsMode.toString()); } catch(e) {}
+            const order = ['kids', 'normal', 'parent'];
+            this.mode = order[(order.indexOf(this.mode) + 1) % order.length];
+            this.kidsMode = this.mode === 'kids';
+            this.parentMode = this.mode === 'parent';
+            try {
+                localStorage.setItem('breakout_mode', this.mode);
+                localStorage.setItem('breakout_kidsMode', this.kidsMode.toString());
+            } catch(e) {}
             this._updateModeBtn(modeBtn);
             this._applyKidsModeClass();
+            this._updateLevelBtn();
         });
 
-        // Level toggle
+        // Level toggle: in Kinder 1-10, sonst 1-20
         const levelBtn = document.getElementById('level-toggle');
-        levelBtn.textContent = (this.startLevel + 1).toString();
+        this._levelBtnEl = levelBtn;
+        this._updateLevelBtn();
         levelBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.startLevel = (this.startLevel + 1) % 15;
-            levelBtn.textContent = (this.startLevel + 1).toString();
+            const maxLvl = this.kidsMode ? 10 : 20;
+            this.startLevel = (this.startLevel + 1) % maxLvl;
+            this._updateLevelBtn();
         });
 
         // Skin selector (aus dem Eltern-Overlay heraus, nicht direkt aus Start-Screen)
@@ -2191,12 +2207,21 @@ class Game {
     }
 
     _updateModeBtn(btn) {
-        btn.textContent = this.kidsMode ? 'Kinder' : 'Normal';
-        btn.className = 'option-btn' + (this.kidsMode ? ' kids' : '');
+        const labels = { kids: 'Kinder', normal: 'Normal', parent: 'Eltern' };
+        btn.textContent = labels[this.mode] || 'Normal';
+        btn.className = 'option-btn' + (this.kidsMode ? ' kids' : (this.parentMode ? ' parent' : ''));
+    }
+
+    _updateLevelBtn() {
+        if (!this._levelBtnEl) return;
+        const maxLvl = this.kidsMode ? 10 : 20;
+        if (this.startLevel >= maxLvl) this.startLevel = 0;
+        this._levelBtnEl.textContent = (this.startLevel + 1).toString();
     }
 
     _applyKidsModeClass() {
         document.body.classList.toggle('kids-mode', !!this.kidsMode);
+        document.body.classList.toggle('parent-mode-test', !!this.parentMode);
     }
 
     _applySoundSettings() {
@@ -3256,6 +3281,22 @@ class Game {
                 this.hideAllOverlays();
                 document.getElementById('start-overlay').classList.remove('hidden');
                 break;
+            case 'nextLevel': {
+                if (!this.parentMode) break;
+                document.getElementById('pause-overlay').classList.add('hidden');
+                this.audio.stopMusic();
+                const nextLvl = this.levels.currentLevel + 1;
+                const maxLvl = this.kidsMode ? 10 : 20;
+                if (nextLvl >= maxLvl) {
+                    this.winGame();
+                } else {
+                    this.state = 'playing';
+                    this.loadLevel(nextLvl);
+                    this.audio.startMusic(nextLvl);
+                    this.updateHUD();
+                }
+                break;
+            }
         }
     }
 
